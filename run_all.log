@@ -1,0 +1,80 @@
+2026-02-18 08:22:27 - INFO - 
+================================================================================
+2026-02-18 08:22:27 - INFO - 🚀 MOTOR-DE-VELOS-SCM - Pipeline de Resultados del Paper
+2026-02-18 08:22:27 - INFO - ================================================================================
+2026-02-18 08:22:27 - INFO - Iniciado: 2026-02-18 08:22:27
+2026-02-18 08:22:27 - INFO - ================================================================================
+
+2026-02-18 08:22:27 - INFO - ⚙️  Configuración:
+2026-02-18 08:22:27 - INFO -    SPARC dir: data/sparc_collection
+2026-02-18 08:22:27 - INFO -    Master file: data/SPARC_Lelli2016_Master.txt
+2026-02-18 08:22:27 - INFO -    Output dir: paper_stats
+2026-02-18 08:22:27 - INFO -    Figures dir: paper/figures
+2026-02-18 08:22:27 - INFO -    Random seed: 42
+
+2026-02-18 08:22:27 - INFO - 🔍 Validando inputs...
+2026-02-18 08:22:27 - WARNING - ⚠️  Directorio SPARC no existe: data/sparc_collection
+2026-02-18 08:22:27 - INFO -    Creando directorio de ejemplo: data/sparc_collection
+2026-02-18 08:22:27 - WARNING - ⚠️  Archivo master no existe: data/SPARC_Lelli2016_Master.txt
+2026-02-18 08:22:27 - INFO -    Creando archivo de ejemplo: data/SPARC_Lelli2016_Master.txt
+2026-02-18 08:22:27 - INFO -    Archivo master de ejemplo creado con 175 galaxias
+2026-02-18 08:22:27 - INFO - ✅ Validación de inputs completada
+2026-02-18 08:22:27 - INFO - 📂 Cargando datos SPARC...
+2026-02-18 08:22:27 - INFO -    ✓ Cargadas 175 galaxias desde SPARC_Lelli2016_Master.txt
+2026-02-18 08:22:27 - INFO -    Columnas: ['Galaxy', 'Vflat', 'e_Vflat', 'Vobs', 'Quality', 'Dist_Mpc', 'Inc_deg']
+2026-02-18 08:22:27 - INFO - 🔬 Ejecutando análisis principal...
+2026-02-18 08:22:27 - INFO -    → Analizando relación Tully-Fisher radial (RTFR)...
+2026-02-18 08:22:27 - INFO -    ✓ Exponente obtenido: 0.5097 ± 0.0044
+2026-02-18 08:22:27 - INFO -    ✓ R² obtenido: 0.8830
+2026-02-18 08:22:27 - INFO -    ✓ p-value: 0.00e+00
+2026-02-18 08:22:27 - INFO -    ✓ N puntos: 1750
+2026-02-18 08:22:27 - INFO - 🔧 Ejecutando análisis de sensibilidad...
+2026-02-18 08:22:27 - INFO -    ✓ Completados 6 tests de sensibilidad
+2026-02-18 08:22:27 - INFO - 📊 Generando estadísticas globales...
+2026-02-18 08:22:27 - INFO -    ✓ Guardado: paper_stats/global_stats.csv
+2026-02-18 08:22:27 - INFO -    ✓ 10 métricas guardadas
+2026-02-18 08:22:27 - INFO - 
+================================================================================
+2026-02-18 08:22:27 - INFO - PRIMERAS LÍNEAS DE global_stats.csv:
+2026-02-18 08:22:27 - INFO - ================================================================================
+                metric       value                                         description
+         rtfr_exponent    0.509667 Exponente de la relación Tully-Fisher radial (RTFR)
+   rtfr_exponent_error    0.004437                   Error estándar del exponente RTFR
+        rtfr_r_squared    0.883003          Coeficiente de determinación R² de la RTFR
+          rtfr_p_value    0.000000                        Valor p de la regresión RTFR
+       n_radial_points 1750.000000                Número de puntos radiales analizados
+            n_galaxies  175.000000                    Número de galaxias en la muestra
+        rtfr_intercept    2.103627                     Intercepto de la regresión RTFR
+          sens_n_tests    6.000000          Número de tests de sensibilidad ejecutados
+       sens_median_vif    3.122500  Mediana del VIF máximo en análisis de sensibilidad
+sens_median_delta_rmse    0.053750   Mediana de delta RMSE en análisis de sensibilidad
+2026-02-18 08:22:27 - INFO - ================================================================================
+
+2026-02-18 08:22:27 - INFO - 📊 Generando estadísticas de sensibilidad...
+2026-02-18 08:22:27 - INFO -    ✓ Guardado: paper_stats/sensitivity_stats.csv
+2026-02-18 08:22:27 - INFO -    ✓ 6 configuraciones analizadas
+2026-02-18 08:22:27 - INFO - 
+================================================================================
+2026-02-18 08:22:27 - INFO - 🎉 RESUMEN DE EJECUCIÓN
+2026-02-18 08:22:27 - INFO - ================================================================================
+2026-02-18 08:22:27 - INFO - Datos procesados: 175 galaxias, 1750 puntos radiales
+2026-02-18 08:22:27 - INFO - 
+2026-02-18 08:22:27 - INFO - 📈 RESULTADOS PRINCIPALES:
+2026-02-18 08:22:27 - INFO -    Exponente RTFR: 0.5097 ± 0.0044
+2026-02-18 08:22:27 - INFO -    R²: 0.8830
+2026-02-18 08:22:27 - INFO -    p-value: 0.00e+00
+2026-02-18 08:22:27 - INFO - 
+2026-02-18 08:22:27 - INFO - ✅ VALIDACIÓN:
+2026-02-18 08:22:27 - INFO -    Exponente esperado (0.5087): ✓
+2026-02-18 08:22:27 - INFO -    R² esperado (0.8912): ✓
+2026-02-18 08:22:27 - INFO - 
+2026-02-18 08:22:27 - INFO - 📂 Archivos generados:
+2026-02-18 08:22:27 - INFO -    - paper_stats/global_stats.csv
+2026-02-18 08:22:27 - INFO -    - paper_stats/sensitivity_stats.csv
+2026-02-18 08:22:27 - INFO - ================================================================================
+2026-02-18 08:22:27 - INFO - 🎊 ¡ÉXITO! Todos los valores coinciden con lo esperado.
+2026-02-18 08:22:27 - INFO - ================================================================================
+
+2026-02-18 08:22:27 - INFO - ✅ Pipeline completado exitosamente
+2026-02-18 08:22:27 - INFO - Finalizado: 2026-02-18 08:22:27
+
