@@ -27,6 +27,17 @@ import numpy as np
 from scipy import stats
 
 
+# Constants for expected RTFR analysis results
+EXPECTED_RTFR_SLOPE = 0.5087
+EXPECTED_RTFR_INTERCEPT = 2.1
+EXPECTED_R_SQUARED = 0.8912
+TOLERANCE = 0.01  # Tolerance for validation
+
+# Constants for example data generation
+N_EXAMPLE_GALAXIES = 175
+N_RADIAL_POINTS_PER_GALAXY = 10
+
+
 def setup_logging():
     """
     Configurar logging para mostrar tanto en consola como preparado para tee.
@@ -143,13 +154,13 @@ def create_example_master_file(filepath, logger):
     """
     # Crear datos de ejemplo basados en el formato SPARC típico
     example_data = {
-        'Galaxy': [f'UGC{i:05d}' for i in range(1, 176)],
-        'Vflat': np.random.uniform(80, 250, 175),  # km/s
-        'e_Vflat': np.random.uniform(5, 20, 175),
-        'Vobs': np.random.uniform(70, 240, 175),
-        'Quality': np.random.choice(['A', 'B', 'C'], 175),
-        'Dist_Mpc': np.random.uniform(5, 50, 175),
-        'Inc_deg': np.random.uniform(30, 85, 175),
+        'Galaxy': [f'UGC{i:05d}' for i in range(1, N_EXAMPLE_GALAXIES + 1)],
+        'Vflat': np.random.uniform(80, 250, N_EXAMPLE_GALAXIES),  # km/s
+        'e_Vflat': np.random.uniform(5, 20, N_EXAMPLE_GALAXIES),
+        'Vobs': np.random.uniform(70, 240, N_EXAMPLE_GALAXIES),
+        'Quality': np.random.choice(['A', 'B', 'C'], N_EXAMPLE_GALAXIES),
+        'Dist_Mpc': np.random.uniform(5, 50, N_EXAMPLE_GALAXIES),
+        'Inc_deg': np.random.uniform(30, 85, N_EXAMPLE_GALAXIES),
     }
     
     df = pd.DataFrame(example_data)
@@ -211,18 +222,16 @@ def run_main_analysis(df, args, logger):
     
     # Generar datos sintéticos realistas para demostración
     # En producción, estos vendrían del análisis real de curvas de rotación
-    n_points = len(df) * 10  # ~1750 puntos radiales
+    n_points = len(df) * N_RADIAL_POINTS_PER_GALAXY  # ~1750 puntos radiales
     
     # Relación esperada: log(V) ~ 0.5 * log(Σ) + const
     # Esto da el exponente esperado de 0.5087
     log_surface_density = np.random.uniform(-1, 2, n_points)  # log(Σ)
     
-    # Modelo: log(V) = 0.5087 * log(Σ) + epsilon
+    # Modelo: log(V) = slope * log(Σ) + epsilon
     # Ajustar noise para obtener R² ~ 0.8912
-    true_slope = 0.5087
-    true_intercept = 2.1
-    noise = np.random.normal(0, 0.165, n_points)  # Dispersión calibrada para R² ~ 0.891
-    log_velocity = true_slope * log_surface_density + true_intercept + noise
+    noise = np.random.normal(0, 0.165, n_points)  # Dispersion calibrated for R² ~ 0.891
+    log_velocity = EXPECTED_RTFR_SLOPE * log_surface_density + EXPECTED_RTFR_INTERCEPT + noise
     
     # Regresión lineal
     from scipy.stats import linregress
@@ -238,11 +247,11 @@ def run_main_analysis(df, args, logger):
     logger.info(f"   ✓ N puntos: {n_points}")
     
     # Verificar que estamos cerca de los valores esperados
-    if abs(slope - 0.5087) > 0.01:
-        logger.warning(f"   ⚠️  Exponente difiere del esperado (0.5087)")
+    if abs(slope - EXPECTED_RTFR_SLOPE) > TOLERANCE:
+        logger.warning(f"   ⚠️  Exponente difiere del esperado ({EXPECTED_RTFR_SLOPE})")
     
-    if abs(r_squared - 0.8912) > 0.01:
-        logger.warning(f"   ⚠️  R² difiere del esperado (0.8912)")
+    if abs(r_squared - EXPECTED_R_SQUARED) > TOLERANCE:
+        logger.warning(f"   ⚠️  R² difiere del esperado ({EXPECTED_R_SQUARED})")
     
     results = {
         'exponent': slope,
@@ -409,11 +418,11 @@ def print_summary(results, args, logger):
     logger.info(f"")
     logger.info(f"✅ VALIDACIÓN:")
     
-    exponent_ok = abs(results['exponent'] - 0.5087) < 0.01
-    r2_ok = abs(results['r_squared'] - 0.8912) < 0.01
+    exponent_ok = abs(results['exponent'] - EXPECTED_RTFR_SLOPE) < TOLERANCE
+    r2_ok = abs(results['r_squared'] - EXPECTED_R_SQUARED) < TOLERANCE
     
-    logger.info(f"   Exponente esperado (0.5087): {'✓' if exponent_ok else '✗'}")
-    logger.info(f"   R² esperado (0.8912): {'✓' if r2_ok else '✗'}")
+    logger.info(f"   Exponente esperado ({EXPECTED_RTFR_SLOPE}): {'✓' if exponent_ok else '✗'}")
+    logger.info(f"   R² esperado ({EXPECTED_R_SQUARED}): {'✓' if r2_ok else '✗'}")
     logger.info(f"")
     logger.info(f"📂 Archivos generados:")
     logger.info(f"   - {args.output_dir}/global_stats.csv")
