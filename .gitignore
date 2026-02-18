@@ -38,10 +38,14 @@ env/
 *~
 
 # Data files (depending on size)
-*.csv
+# Allow example/master data files, ignore large data files
 *.parquet
 *.h5
 *.hdf5
+
+# Generated results
+paper_stats/
+run_all.log
 
 # OS
 .DS_Store
