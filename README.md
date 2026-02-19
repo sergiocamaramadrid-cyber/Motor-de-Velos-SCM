@@ -1,5 +1,13 @@
 # Motor-de-Velos-SCM
 
+## ⚠️ IMPORTANTE: Advertencia sobre Datos
+
+**Los scripts actuales usan DATOS SINTÉTICOS por defecto.** Ver [DATOS_SINTETICOS.md](DATOS_SINTETICOS.md) para detalles completos.
+
+Para análisis con datos reales, proporciona `df_master.csv` y ejecuta `verify_data_quality.py` primero.
+
+---
+
 Resumen
 -------
 Motor-de-Velos-SCM implementa modelos y análisis de SCM (Supply Chain / causalidad según contexto del proyecto) usados para el trabajo asociado al artículo en `paper/manuscript.tex`. Contiene código para generar análisis principales, sensibilidad y notebooks de validación usando el dataset SPARC (instrucciones de descarga en `data/`).
