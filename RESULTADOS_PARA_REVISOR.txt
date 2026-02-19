@@ -1,0 +1,99 @@
+================================================================================
+KILL TESTS - SALIDA PARA PEGAR AL REVISOR
+================================================================================
+
+Aquí está la salida completa de los tres kill tests ejecutados con datos 
+realistas tipo SPARC (N=175). Estos son los números que el revisor necesita:
+
+================================================================================
+1️⃣ CONTROL MORFOLÓGICO
+================================================================================
+
+Modelo: log_mbar ~ log_vflat * is_nuc + C(morph_bin) + bar
+Muestra: 54 extremos (27 borde, 27 núcleo)
+
+RESULTADOS:
+   Coeficiente log_vflat:is_nuc = -0.091805
+   p-valor = 0.866
+   R² = 0.713
+
+COMPARACIÓN CON ANÁLISIS BASE:
+   Δγ base (sin control):        0.041 (p < 0.0001)
+   Δγ con control morfológico:  -0.092 (p = 0.866)
+   
+   ❌ El efecto DESAPARECE al controlar morfología
+
+================================================================================
+2️⃣ MODELO CONTINUO
+================================================================================
+
+Modelo: log_mbar ~ log_vflat + logSigma5 + log_vflat:logSigma5
+Muestra: 175 galaxias (muestra completa)
+
+RESULTADOS:
+   Coeficiente log_vflat:logSigma5 = -0.170207
+   p-valor = 0.393
+   R² = 0.707
+
+SIGNO DEL COEFICIENTE:
+   NEGATIVO → coherente (menor densidad → mayor pendiente)
+   PERO no significativo (p = 0.393)
+   
+   ❌ No hay evidencia de cambio continuo con densidad
+
+================================================================================
+3️⃣ JACKKNIFE (100 ITERACIONES, DROP 10%)
+================================================================================
+
+Muestra base: 54 extremos
+Modelo: log_mbar ~ log_vflat * is_nuc
+
+RESULTADOS:
+   Δγ mediana:              -0.117
+   Fracción Δγ > 0:          25.0%
+   Fracción p < 0.05:         0.0%
+   Percentil 5 de Δγ:       -0.345
+   Percentil 95 de Δγ:       0.332
+
+DISTRIBUCIÓN:
+   Intervalo P5-P95: [-0.345, 0.332]
+   Cruza cero: SÍ (ampliamente)
+   
+   ❌ Efecto INESTABLE: solo 25% positivo, 0% significativo
+
+================================================================================
+⚖️  VEREDICTO FINAL
+================================================================================
+
+TESTS PASADOS: 0/3
+
+❌ EL EFECTO AMBIENTAL NO SOBREVIVE
+
+DIAGNÓSTICO:
+  1. Morfología: Era confusión con tipo galáctico (p=0.866)
+  2. Continuo: No hay gradiente suave (p=0.393)
+  3. Jackknife: Señal frágil (25% positivo, 0% significativo)
+
+CONCLUSIÓN:
+  El efecto queda REFUTADO con estos datos.
+  
+  Efecto original (Δγ=0.041, p<0.0001) era:
+    - Confundido con morfología
+    - Artefacto de dicotomización
+    - Dependiente de puntos específicos
+
+================================================================================
+⚠️  NOTA IMPORTANTE
+================================================================================
+
+Estos resultados son con DATOS SINTÉTICOS de prueba (df_master_realistic.csv).
+
+Para veredicto definitivo, se requieren DATOS REALES de SPARC.
+
+Ejecutar con datos reales:
+  python scm_kill_tests.py df_master.csv
+
+Si con datos reales el efecto SOBREVIVE los 3 tests → publicable
+Si FALLA algún test → queda refutado
+
+================================================================================
