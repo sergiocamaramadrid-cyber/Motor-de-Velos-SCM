@@ -46,6 +46,7 @@ env/
 # Generated results
 paper_stats/
 run_all.log
+scm_env_protocol_out/
 
 # OS
 .DS_Store

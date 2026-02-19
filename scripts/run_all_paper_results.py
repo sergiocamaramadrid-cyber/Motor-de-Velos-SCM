@@ -18,6 +18,7 @@ Licencia: Ver LICENSE
 import argparse
 import sys
 import os
+import json
 from pathlib import Path
 from datetime import datetime
 import logging
@@ -427,6 +428,7 @@ def print_summary(results, args, logger):
     logger.info(f"📂 Archivos generados:")
     logger.info(f"   - {args.output_dir}/global_stats.csv")
     logger.info(f"   - {args.output_dir}/sensitivity_stats.csv")
+    logger.info(f"   - scm_env_protocol_out/summary.json")
     logger.info("="*80)
     
     if exponent_ok and r2_ok:
@@ -437,17 +439,108 @@ def print_summary(results, args, logger):
     logger.info("="*80 + "\n")
 
 
+def generate_summary_json(results, sens_df, args, start_time, logger):
+    """
+    Generar archivo summary.json con resumen de ejecución en formato JSON.
+    
+    Args:
+        results: Dict con resultados del análisis principal
+        sens_df: DataFrame con resultados de sensibilidad
+        args: Argumentos parseados
+        start_time: datetime object with execution start time
+        logger: Logger instance
+    """
+    logger.info("📝 Generando summary.json...")
+    
+    # Create output directory
+    output_dir = Path('scm_env_protocol_out')
+    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = output_dir / 'summary.json'
+    
+    # Calculate validation status
+    exponent_ok = bool(abs(results['exponent'] - EXPECTED_RTFR_SLOPE) < TOLERANCE)
+    r2_ok = bool(abs(results['r_squared'] - EXPECTED_R_SQUARED) < TOLERANCE)
+    all_valid = bool(exponent_ok and r2_ok)
+    
+    # Prepare summary data
+    summary = {
+        'execution': {
+            'timestamp': start_time.isoformat(),
+            'duration_seconds': (datetime.now() - start_time).total_seconds(),
+            'status': 'success' if all_valid else 'warning',
+            'exit_code': 0
+        },
+        'configuration': {
+            'sparc_dir': args.sparc_dir,
+            'master_file': args.master,
+            'output_dir': args.output_dir,
+            'figures_dir': args.figures_dir,
+            'random_seed': args.seed
+        },
+        'data': {
+            'n_galaxies': int(results['n_galaxies']),
+            'n_radial_points': int(results['n_points'])
+        },
+        'results': {
+            'rtfr_analysis': {
+                'exponent': float(results['exponent']),
+                'exponent_error': float(results['exponent_err']),
+                'r_squared': float(results['r_squared']),
+                'p_value': float(results['p_value']),
+                'intercept': float(results['intercept'])
+            },
+            'sensitivity_analysis': {
+                'n_tests': len(sens_df),
+                'median_vif': float(sens_df['max_vif'].median()),
+                'median_delta_rmse': float(sens_df['med_delta_rmse'].median())
+            }
+        },
+        'validation': {
+            'exponent': {
+                'expected': EXPECTED_RTFR_SLOPE,
+                'obtained': float(results['exponent']),
+                'difference': float(abs(results['exponent'] - EXPECTED_RTFR_SLOPE)),
+                'tolerance': TOLERANCE,
+                'valid': exponent_ok
+            },
+            'r_squared': {
+                'expected': EXPECTED_R_SQUARED,
+                'obtained': float(results['r_squared']),
+                'difference': float(abs(results['r_squared'] - EXPECTED_R_SQUARED)),
+                'tolerance': TOLERANCE,
+                'valid': r2_ok
+            },
+            'overall_valid': all_valid
+        },
+        'output_files': {
+            'global_stats': f"{args.output_dir}/global_stats.csv",
+            'sensitivity_stats': f"{args.output_dir}/sensitivity_stats.csv",
+            'summary_json': str(output_path)
+        }
+    }
+    
+    # Write JSON file
+    with open(output_path, 'w') as f:
+        json.dump(summary, f, indent=2)
+    
+    logger.info(f"   ✓ Guardado: {output_path}")
+    logger.info(f"   ✓ Estado de validación: {'EXITOSO' if all_valid else 'ADVERTENCIA'}")
+    
+    return summary
+
+
 def main():
     """
     Función principal del script.
     """
     # Setup
     logger = setup_logging()
+    start_time = datetime.now()
     
     logger.info("\n" + "="*80)
     logger.info("🚀 MOTOR-DE-VELOS-SCM - Pipeline de Resultados del Paper")
     logger.info("="*80)
-    logger.info(f"Iniciado: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+    logger.info(f"Iniciado: {start_time.strftime('%Y-%m-%d %H:%M:%S')}")
     logger.info("="*80 + "\n")
     
     # Parse arguments
@@ -490,6 +583,7 @@ def main():
     try:
         generate_global_stats(results, sens_df, args, logger)
         generate_sensitivity_stats(sens_df, args, logger)
+        generate_summary_json(results, sens_df, args, start_time, logger)
     except Exception as e:
         logger.error(f"❌ Error generando archivos de salida: {e}")
         return 1
