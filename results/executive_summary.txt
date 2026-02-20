@@ -1,0 +1,10 @@
+Motor de Velos – Universal Term Comparison  (SCM Analysis)
+============================================================
+Total galaxies analysed     : 1
+Prefer Universal-SCM        : 1/1 (100.0%)
+Mean ΔAICc                  : -1.002
+Min  ΔAICc                  : -1.002
+Max  ΔAICc                  : -1.002
+
+ΔAICc = AICc(Universal) − AICc(Baseline); negative → Universal preferred.
+a0_fixed = 3703.0 (km/s)^2/kpc  (Motor-de-Velos acceleration scale)
