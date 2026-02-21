@@ -1,0 +1,14 @@
+# DDO53 — LITTLE THINGS synthetic rotation curve
+# Columns: rad [kpc], Vrot [km/s], e_Vrot [km/s], vgas [km/s, face-value], vdisk [km/s at Upsilon=1]
+# True upsilon=0.15  SCM coeffs: a=-0.42 b=0.12 d=1.85 logg0=-10.45 C=1.58
+# Seed: 20260220
+rad,Vrot,e_Vrot,vgas,vdisk
+0.2,13.49,5.1,10.44,14.222
+0.4,12.36,5.1,13.211,22.642
+0.6,4.9,5.2,14.479,28.36
+0.9,10.75,5.3,15.011,33.742
+1.2,21.5,5.4,14.672,36.615
+1.6,15.48,5.5,13.566,38.033
+2.0,29.86,5.7,12.145,37.81
+2.5,19.92,5.8,10.285,36.328
+3.0,11.26,6.0,8.534,34.265

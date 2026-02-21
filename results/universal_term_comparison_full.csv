@@ -1,0 +1,2 @@
+galaxy_id,n_points,k_params,chi2_baseline,chi2_universal,AICc_baseline,AICc_universal,delta_AICc,prefers_universal,Upsilon_baseline,log10_a0_baseline,Upsilon_universal,log10_Vext_universal,fit_success_baseline,fit_success_universal,fit_success,notes
+GXY_D13.8_V144_SCM_01,14,2,22.8282,21.8259,27.9191,26.9168,-1.0023,True,0.10249,4.39213,0.50064,1.47291,True,True,True,
