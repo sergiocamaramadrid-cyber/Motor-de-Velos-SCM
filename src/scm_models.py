@@ -265,3 +265,123 @@ def aicc(chi2: float, n_data: int, k_params: int) -> float:
         )
     correction = 2.0 * k_params * (k_params + 1) / (n_data - k_params - 1)
     return aic + correction
+
+
+# ---------------------------------------------------------------------------
+# Acceleration-space SCM model (OOS / train-test framework)
+# ---------------------------------------------------------------------------
+
+def scm_model_accel(
+    g_bar: np.ndarray,
+    a0: float,
+    beta: float,
+) -> np.ndarray:
+    """SCM acceleration correction term.
+
+    Computes the non-Newtonian part of the observed centripetal acceleration
+    as a function of the baryonic acceleration alone:
+
+        scm(g_bar; a0, beta) = a0 · (√(1 + (g_bar/a0)^beta) − 1)
+
+    The total predicted acceleration is then:
+        g_pred = g_bar + scm(g_bar; a0, beta)
+
+    Limits
+    ------
+    * Deep-MOND (g_bar ≪ a0, beta=1):  scm ≈ g_bar/2  (first-order Taylor)
+    * Newtonian  (g_bar ≫ a0, beta=1):  scm ≈ √(g_bar·a0)  (≪ g_bar)
+
+    Parameters
+    ----------
+    g_bar : array_like
+        Baryonic centripetal acceleration [any consistent unit].
+    a0 : float
+        Motor-de-Velos / MOND characteristic acceleration scale.
+    beta : float
+        Shape exponent (= 1 recovers the standard MOND simple interpolation).
+
+    Returns
+    -------
+    scm : ndarray
+        SCM correction term in the same units as *g_bar*.
+    """
+    g_bar = np.asarray(g_bar, dtype=float)
+    ratio = np.clip(g_bar / a0, 0.0, None) ** beta
+    return a0 * (np.sqrt(1.0 + ratio) - 1.0)
+
+
+def nll_gauss_accel(
+    params,
+    g_bar: np.ndarray,
+    g_obs: np.ndarray,
+    g_err=None,
+) -> float:
+    """Full Gaussian negative log-likelihood for the acceleration-space SCM.
+
+    The model prediction is:
+        g_pred = g_bar + scm_model_accel(g_bar, a0, beta)
+
+    The NLL is:
+        NLL = 0.5 · Σ [(g_obs − g_pred)² / σ² + ln(2π σ²)]
+
+    where σ is taken from *g_err* when provided, or set to 1 otherwise.
+    Non-finite or non-positive σ values are replaced by 1.
+
+    Parameters
+    ----------
+    params : (float, float)
+        ``(a0, beta)`` — the two free parameters of the SCM model.
+    g_bar : array_like
+        Baryonic centripetal accelerations.
+    g_obs : array_like
+        Observed centripetal accelerations.
+    g_err : array_like or None, optional
+        Observational uncertainties on *g_obs*.  When ``None`` all σ = 1.
+
+    Returns
+    -------
+    nll : float
+        Negative log-likelihood value (to be minimised).  Returns ``1e100``
+        for physically invalid parameters (a0 ≤ 0 or beta ≤ 0).
+    """
+    a0, beta = params
+    if a0 <= 0.0 or beta <= 0.0:
+        return 1e100
+    g_bar = np.asarray(g_bar, dtype=float)
+    g_obs = np.asarray(g_obs, dtype=float)
+    g_pred = g_bar + scm_model_accel(g_bar, a0, beta)
+    resid = g_obs - g_pred
+    if g_err is not None:
+        sigma = np.asarray(g_err, dtype=float)
+        sigma = np.where(np.isfinite(sigma) & (sigma > 0), sigma, 1.0)
+    else:
+        sigma = np.ones_like(resid)
+    return float(0.5 * np.sum((resid / sigma) ** 2 + np.log(2.0 * np.pi * sigma ** 2)))
+
+
+def aicc_from_nll(nll: float, k: int, n: int) -> float:
+    """AICc computed from a negative log-likelihood value.
+
+    AICc = 2k + 2·NLL + 2k(k+1)/(n−k−1)
+
+    The small-sample correction term is included whenever n > k + 1;
+    otherwise only the standard AIC = 2k + 2·NLL is returned.
+
+    Parameters
+    ----------
+    nll : float
+        Negative log-likelihood of the model (to be minimised).
+    k : int
+        Number of free parameters.
+    n : int
+        Number of data points.
+
+    Returns
+    -------
+    float
+        AICc value.
+    """
+    aic = 2.0 * k + 2.0 * nll
+    if n > k + 1:
+        aic += (2.0 * k ** 2 + 2.0 * k) / (n - k - 1)
+    return aic
