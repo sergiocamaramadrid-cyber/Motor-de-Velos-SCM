@@ -235,6 +235,50 @@ def chi2_gaussian(
     return float(np.sum(((v_obs - v_model) / v_err) ** 2))
 
 
+def gaussian_ll(y, yhat, sigma=1.0) -> float:
+    """Gaussian log-likelihood with normalisation term (to be *maximised*).
+
+    ln L = −½ Σ [ (y − ŷ)² / σ² + ln(2π σ²) ]
+
+    This is the canonical Gaussian log-likelihood **including the
+    normalisation constant** ``ln(2π σ²)``.  All competing models (SCM,
+    RAR, NFW) must use this identical function so that their log-likelihoods
+    are directly comparable.
+
+    Parameters
+    ----------
+    y : array_like
+        Observed values.
+    yhat : array_like
+        Model-predicted values; must have the same shape as *y*.
+    sigma : float or array_like, optional
+        Measurement uncertainty (σ).  A scalar value applies the same σ to
+        all data points; a vector applies per-point uncertainties.
+        Defaults to 1.0 (unit variance).
+
+    Returns
+    -------
+    ll : float
+        Log-likelihood value (typically negative; larger values indicate a
+        better fit).  Use ``-gaussian_ll(...)`` to obtain the NLL for
+        minimisation.
+
+    Notes
+    -----
+    The AICc is computed as ``AICc = -2·ll + 2k + 2k(k+1)/(n−k−1)``; this
+    is equivalent to calling :func:`aicc_from_nll` with ``nll = -ll``.
+    """
+    y    = np.asarray(y,    dtype=float)
+    yhat = np.asarray(yhat, dtype=float)
+    if np.isscalar(sigma):
+        s2 = float(sigma) ** 2
+        return float(-0.5 * np.sum(((y - yhat) ** 2) / s2 + np.log(2.0 * np.pi * s2)))
+    else:
+        sigma = np.asarray(sigma, dtype=float)
+        s2 = sigma ** 2
+        return float(-0.5 * np.sum(((y - yhat) ** 2) / s2 + np.log(2.0 * np.pi * s2)))
+
+
 def aicc(chi2: float, n_data: int, k_params: int) -> float:
     """Corrected Akaike Information Criterion.
 
@@ -385,3 +429,216 @@ def aicc_from_nll(nll: float, k: int, n: int) -> float:
     if n > k + 1:
         aic += (2.0 * k ** 2 + 2.0 * k) / (n - k - 1)
     return aic
+
+
+# ---------------------------------------------------------------------------
+# RAR model in acceleration space (k = 1)
+# ---------------------------------------------------------------------------
+
+#: SI gravitational constant [m³ kg⁻¹ s⁻²]
+G_SI: float = 6.674e-11
+
+#: Solar mass [kg]
+M_SUN_KG: float = 1.989e30
+
+#: Metres per kiloparsec
+M_PER_KPC: float = 3.0857e19
+
+
+def _sanitize_sigma(g_err) -> np.ndarray:
+    """Return a safe σ array from *g_err*, replacing non-finite/non-positive
+    values with 1.0.  Accepts ``None`` (returns scalar 1.0)."""
+    if g_err is None:
+        return 1.0
+    sigma = np.asarray(g_err, dtype=float)
+    return np.where(np.isfinite(sigma) & (sigma > 0), sigma, 1.0)
+
+
+def rar_model_accel(
+    g_bar: np.ndarray,
+    g_dagger: float,
+) -> np.ndarray:
+    """McGaugh+2016 RAR predicted centripetal acceleration.
+
+    g_obs = g_bar · ν(g_bar / g†)
+
+    where the interpolation function is the same as :func:`nu_rar`:
+        ν(x) = 1 / (1 − e^{−√x})
+
+    Parameters
+    ----------
+    g_bar : array_like
+        Baryonic centripetal acceleration [m s⁻²].
+    g_dagger : float
+        RAR characteristic acceleration scale [m s⁻²].  k = 1.
+
+    Returns
+    -------
+    g_obs : ndarray
+        Predicted centripetal acceleration [m s⁻²].
+    """
+    g_bar = np.asarray(g_bar, dtype=float)
+    return g_bar * nu_rar(g_bar / g_dagger)
+
+
+def nll_rar_accel(
+    params,
+    g_bar: np.ndarray,
+    g_obs: np.ndarray,
+    g_err=None,
+) -> float:
+    """NLL for the RAR model (k = 1).
+
+    Uses :func:`gaussian_ll` internally so the log-likelihood is directly
+    comparable with the SCM and NFW models.
+
+    Parameters
+    ----------
+    params : (float,)
+        ``(g_dagger,)`` — single free parameter of the RAR.
+    g_bar : array_like
+        Baryonic centripetal accelerations [m s⁻²].
+    g_obs : array_like
+        Observed centripetal accelerations [m s⁻²].
+    g_err : array_like or None, optional
+        Observational uncertainties.  ``None`` → σ = 1.
+
+    Returns
+    -------
+    nll : float
+        Negative log-likelihood (1e100 for g_dagger ≤ 0).
+    """
+    (g_dagger,) = params
+    if g_dagger <= 0.0:
+        return 1e100
+    g_pred = rar_model_accel(g_bar, g_dagger)
+    return float(-gaussian_ll(g_obs, g_pred, _sanitize_sigma(g_err)))
+
+
+# ---------------------------------------------------------------------------
+# NFW dark-matter model in acceleration space (k = 2)
+# ---------------------------------------------------------------------------
+
+def nfw_g_dm(
+    r: np.ndarray,
+    log10_rho_s: float,
+    log10_r_s: float,
+    G_grav: float = G_SI,
+) -> np.ndarray:
+    """NFW dark-matter centripetal acceleration at radius *r*.
+
+    The NFW density profile is:
+        ρ(r) = ρ_s / ((r/r_s) · (1 + r/r_s)²)
+
+    The enclosed dark-matter mass is:
+        M_NFW(<r) = 4π ρ_s r_s³ [ln(1 + r/r_s) − r/r_s / (1 + r/r_s)]
+
+    The DM centripetal acceleration is:
+        g_dm(r) = G · M_NFW(<r) / r²
+
+    Parameters
+    ----------
+    r : array_like
+        Galactocentric radii [m].
+    log10_rho_s : float
+        log₁₀ of the NFW characteristic density ρ_s [kg m⁻³].
+    log10_r_s : float
+        log₁₀ of the NFW scale radius r_s [m].
+    G_grav : float, optional
+        Gravitational constant [m³ kg⁻¹ s⁻²].  Defaults to :data:`G_SI`.
+
+    Returns
+    -------
+    g_dm : ndarray
+        Dark-matter centripetal acceleration [m s⁻²] at each radius.
+    """
+    r     = np.asarray(r,    dtype=float)
+    rho_s = 10.0 ** log10_rho_s   # kg m^-3
+    r_s   = 10.0 ** log10_r_s     # m
+    x     = r / r_s
+    # Enclosed NFW mass
+    m_nfw = 4.0 * np.pi * rho_s * r_s ** 3 * (np.log1p(x) - x / (1.0 + x))
+    m_nfw = np.maximum(m_nfw, 0.0)  # physical floor
+    return G_grav * m_nfw / r ** 2
+
+
+def nfw_model_accel(
+    g_bar: np.ndarray,
+    m_bar: np.ndarray,
+    log10_rho_s: float,
+    log10_r_s: float,
+    G_grav: float = G_SI,
+) -> np.ndarray:
+    """NFW total centripetal acceleration prediction [m s⁻²].
+
+    The effective galactocentric radius is derived from the enclosed
+    baryonic mass and baryonic acceleration via g_bar = G·m_bar/r²:
+
+        r_eff = √(G · m_bar / g_bar)
+
+    The total predicted acceleration is then:
+
+        g_obs = g_bar + g_dm(r_eff; ρ_s, r_s)
+
+    Parameters
+    ----------
+    g_bar : array_like
+        Baryonic centripetal accelerations [m s⁻²].
+    m_bar : array_like
+        Enclosed baryonic masses [kg].
+    log10_rho_s : float
+        log₁₀(ρ_s) [kg m⁻³] — NFW free parameter (k = 1).
+    log10_r_s : float
+        log₁₀(r_s) [m]      — NFW free parameter (k = 2).
+    G_grav : float, optional
+        Gravitational constant.
+
+    Returns
+    -------
+    g_obs : ndarray
+        Predicted centripetal acceleration [m s⁻²].
+    """
+    g_bar = np.asarray(g_bar, dtype=float)
+    m_bar = np.asarray(m_bar, dtype=float)
+    r_eff = np.sqrt(G_grav * m_bar / g_bar)
+    return g_bar + nfw_g_dm(r_eff, log10_rho_s, log10_r_s, G_grav)
+
+
+def nll_nfw_accel(
+    params,
+    g_bar: np.ndarray,
+    g_obs: np.ndarray,
+    m_bar: np.ndarray,
+    g_err=None,
+    G_grav: float = G_SI,
+) -> float:
+    """NLL for the NFW dark-matter model (k = 2).
+
+    Uses :func:`gaussian_ll` internally so the log-likelihood is directly
+    comparable with the SCM and RAR models.
+
+    Parameters
+    ----------
+    params : (float, float)
+        ``(log10_rho_s, log10_r_s)``.
+    g_bar : array_like
+        Baryonic centripetal accelerations [m s⁻²].
+    g_obs : array_like
+        Observed centripetal accelerations [m s⁻²].
+    m_bar : array_like
+        Enclosed baryonic masses [kg].
+    g_err : array_like or None, optional
+        Observational uncertainties.
+    G_grav : float, optional
+        Gravitational constant.
+
+    Returns
+    -------
+    nll : float
+        Negative log-likelihood (1e100 for unphysical parameters).
+    """
+    log10_rho_s, log10_r_s = params
+    g_pred = nfw_model_accel(g_bar, m_bar, log10_rho_s, log10_r_s, G_grav)
+    if not np.all(np.isfinite(g_pred)) or np.any(g_pred <= 0):
+        return 1e100
+    return float(-gaussian_ll(g_obs, g_pred, _sanitize_sigma(g_err)))
