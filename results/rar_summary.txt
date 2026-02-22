@@ -1,0 +1,6 @@
+g0=1.174469e-10
+g0_err=2.940008e-11
+rms_dex=0.101583
+n=1737
+deep_slope=0.493667
+deep_collapses=True
