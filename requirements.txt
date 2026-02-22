@@ -1,0 +1,6 @@
+# Dependencias principales del proyecto
+# Añade aquí las librerías necesarias para src/ y notebooks/
+numpy
+pandas
+matplotlib
+scipy
