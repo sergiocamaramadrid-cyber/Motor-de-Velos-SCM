@@ -12,7 +12,10 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from src.scm_models import v_piso, v_baryon, fit_piso, scm_universal_term
+from src.scm_models import (
+    v_piso, v_baryon, fit_piso, scm_universal_term,
+    g_from_v, rar_nu, rar_g_obs, fit_g0_rar, KPC_TO_MS2,
+)
 from src.read_iorio import read_galaxy, read_batch, validate_header
 from src.scm_analysis import analyse_galaxy, run_pipeline
 from src.sensitivity import sensitivity_upsilon, sensitivity_errV, run_sensitivity
@@ -240,3 +243,136 @@ class TestRunSensitivity:
             df = pd.read_csv(csv)
             assert len(df) > 0
             assert not df["scm_u_term"].isnull().any()
+
+
+# ---------------------------------------------------------------------------
+# RAR v0.2 helper tests
+# ---------------------------------------------------------------------------
+
+class TestGFromV:
+    def test_unit_conversion(self):
+        # 1 (km/s)² / kpc should equal KPC_TO_MS2 m/s²
+        result = float(g_from_v(np.array([1.0]), np.array([1.0]))[0])
+        assert abs(result - KPC_TO_MS2) / KPC_TO_MS2 < 1e-6
+
+    def test_shape_preserved(self):
+        v = np.linspace(10, 200, 50)
+        r = np.linspace(0.5, 25, 50)
+        g = g_from_v(v, r)
+        assert g.shape == (50,)
+        assert (g > 0).all()
+
+
+class TestRarNu:
+    def test_deep_limit(self):
+        # y → 0: ν(y) → 1/sqrt(y)  (deep MOND)
+        y = np.array([1e-6])
+        nu = rar_nu(y)
+        expected = 1.0 / np.sqrt(y[0])
+        assert abs(nu[0] - expected) / expected < 0.01
+
+    def test_high_limit(self):
+        # y → ∞: ν(y) → 1  (Newtonian)
+        y = np.array([1e6])
+        nu = rar_nu(y)
+        assert abs(nu[0] - 1.0) < 1e-3
+
+    def test_monotone_decreasing(self):
+        y = np.logspace(-4, 4, 100)
+        nu = rar_nu(y)
+        assert (np.diff(nu) <= 0).all()
+
+
+class TestRarGObs:
+    def test_deep_mond_slope(self):
+        # In deep regime, g_obs ≈ sqrt(g_bar * g0) → log-log slope ≈ 0.5
+        g0 = 1.2e-10
+        g_bar = np.logspace(-14, -12, 30)
+        g_obs = rar_g_obs(g_bar, g0)
+        log_gb = np.log10(g_bar)
+        log_go = np.log10(g_obs)
+        slope = np.polyfit(log_gb, log_go, 1)[0]
+        assert abs(slope - 0.5) < 0.05
+
+    def test_newtonian_limit(self):
+        # For g_bar >> g0: g_obs ≈ g_bar
+        g0 = 1.2e-10
+        g_bar = np.array([1e-6])   # much larger than g0
+        g_obs = rar_g_obs(g_bar, g0)
+        assert abs(float(g_obs[0]) / float(g_bar[0]) - 1.0) < 1e-3
+
+
+class TestFitG0Rar:
+    def test_recovers_g0(self):
+        """Fitting on data generated from the RAR model should recover g0."""
+        np.random.seed(42)
+        g0_true = 1.2e-10
+        g_bar = np.logspace(-13, -10, 80)
+        g_obs_true = rar_g_obs(g_bar, g0_true)
+        # Add small log-normal scatter
+        log_noise = np.random.normal(0, 0.03, len(g_bar))
+        g_obs = g_obs_true * 10 ** log_noise
+
+        result = fit_g0_rar(g_bar, g_obs)
+        assert result["n_pts"] == 80
+        assert np.isfinite(result["g0_hat"])
+        assert abs(np.log10(result["g0_hat"]) - np.log10(g0_true)) < 0.2
+
+    def test_at_bound_flag(self):
+        """at_bound should be False for a well-conditioned fit."""
+        np.random.seed(7)
+        g0_true = 1.2e-10
+        g_bar = np.logspace(-13, -10, 80)
+        g_obs = rar_g_obs(g_bar, g0_true) * 10 ** np.random.normal(0, 0.03, 80)
+        result = fit_g0_rar(g_bar, g_obs)
+        assert not result["at_bound"]
+
+    def test_rms_finite(self):
+        g0_true = 1.2e-10
+        g_bar = np.logspace(-13, -10, 50)
+        g_obs = rar_g_obs(g_bar, g0_true)
+        result = fit_g0_rar(g_bar, g_obs)
+        assert np.isfinite(result["rms_dex"])
+        assert result["rms_dex"] >= 0
+
+
+class TestComputeResidualsScript:
+    """Integration test for scripts/compute_residuals_binned.py."""
+
+    def test_end_to_end(self, tmp_path):
+        from scripts.compute_residuals_binned import collect_rar_data, compute_binned_residuals
+
+        # Build a tiny galaxy DataFrame following the RAR model
+        g0_true = 1.2e-10
+        r_kpc = np.linspace(0.5, 15.0, 25)
+        # Invert: choose g_bar values and derive V_bar and V_obs from RAR
+        # g_bar = V_bar² / R → V_bar = sqrt(g_bar * R / KPC_TO_MS2)
+        g_bar_target = np.logspace(-13, -11, 25)
+        v_bar = np.sqrt(g_bar_target * r_kpc / KPC_TO_MS2)
+        g_obs_target = rar_g_obs(g_bar_target, g0_true)
+        v_obs = np.sqrt(g_obs_target * r_kpc / KPC_TO_MS2)
+
+        df = pd.DataFrame({
+            "R": r_kpc,
+            "Vobs": v_obs,
+            "errV": np.full(25, 5.0),
+            "Vgas": v_bar * 0.4,
+            "Vdisk": v_bar * 0.6,
+            "Vbul": np.zeros(25),
+        })
+        galaxies = {"TestGal": df}
+
+        g_bar, g_obs = collect_rar_data(galaxies)
+        assert len(g_bar) == 25
+        assert (g_bar > 0).all()
+        assert (g_obs > 0).all()
+
+        result = fit_g0_rar(g_bar, g_obs)
+        bins_df = compute_binned_residuals(g_bar, g_obs, result["g0_hat"], n_bins=5)
+        assert len(bins_df) >= 3
+        assert "g_bar_center" in bins_df.columns
+        assert "median_residual" in bins_df.columns
+        assert "mad_residual" in bins_df.columns
+        assert "count" in bins_df.columns
+        assert not bins_df["g_bar_center"].isnull().any()
+        assert not bins_df["median_residual"].isnull().any()
