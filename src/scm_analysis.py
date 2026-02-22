@@ -209,6 +209,16 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
     results_df = pd.DataFrame(records)
 
+    # Stable column order, sort, and explicit types to avoid machine-to-machine diffs
+    results_df = results_df[[
+        "galaxy", "upsilon_disk", "chi2_reduced",
+        "n_points", "Vflat_kms", "M_bar_BTFR_Msun",
+    ]]
+    results_df["n_points"] = results_df["n_points"].astype(int)
+    for col in ("upsilon_disk", "chi2_reduced", "Vflat_kms", "M_bar_BTFR_Msun"):
+        results_df[col] = results_df[col].astype(float)
+    results_df = results_df.sort_values("galaxy").reset_index(drop=True)
+
     # --- Write per-galaxy summary (compact audit table for downstream scripts) ---
     per_galaxy_path = out_dir / "per_galaxy_summary.csv"
     results_df.to_csv(per_galaxy_path, index=False)
