@@ -16,6 +16,7 @@ from scripts.compute_residuals_binned import (
     bin_residuals,
     compute_log_residuals,
     fit_g0,
+    g0_touches_bounds,
     g_pred_rar,
     load_dataset,
     nu_rar,
@@ -194,8 +195,84 @@ class TestFitG0:
 
 
 # ---------------------------------------------------------------------------
-# print_telemetry
+# g0_touches_bounds
 # ---------------------------------------------------------------------------
+
+class TestG0TouchesBounds:
+    def test_touches_lower_when_at_lower_bound(self):
+        """g0_hat exactly at lower bound returns touches_lower=True."""
+        lo, hi = 1e-16, 1e-8
+        lo_tl, lo_tu = g0_touches_bounds(lo, (lo, hi))
+        assert lo_tl is True
+        assert lo_tu is False
+
+    def test_touches_upper_when_at_upper_bound(self):
+        """g0_hat exactly at upper bound returns touches_upper=True."""
+        lo, hi = 1e-16, 1e-8
+        tl, tu = g0_touches_bounds(hi, (lo, hi))
+        assert tl is False
+        assert tu is True
+
+    def test_no_touch_in_interior(self):
+        """g0_hat far from both bounds returns (False, False)."""
+        lo, hi = 1e-16, 1e-8
+        mid = 1e-12  # log10 midpoint of (-16, -8)
+        tl, tu = g0_touches_bounds(mid, (lo, hi))
+        assert tl is False
+        assert tu is False
+
+    def test_nonfinite_g0_hat_returns_false_false(self):
+        """Non-finite g0_hat returns (False, False) without raising."""
+        bounds = (1e-16, 1e-8)
+        assert g0_touches_bounds(float("nan"), bounds) == (False, False)
+        assert g0_touches_bounds(float("inf"), bounds) == (False, False)
+        assert g0_touches_bounds(float("-inf"), bounds) == (False, False)
+
+    def test_zero_g0_hat_returns_false_false(self):
+        """g0_hat <= 0 returns (False, False) without raising."""
+        bounds = (1e-16, 1e-8)
+        assert g0_touches_bounds(0.0, bounds) == (False, False)
+        assert g0_touches_bounds(-1e-10, bounds) == (False, False)
+
+    def test_invalid_bounds_lo_zero_raises(self):
+        """lo = 0 raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid bounds"):
+            g0_touches_bounds(1e-12, (0.0, 1e-8))
+
+    def test_invalid_bounds_lo_negative_raises(self):
+        """lo < 0 raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid bounds"):
+            g0_touches_bounds(1e-12, (-1e-16, 1e-8))
+
+    def test_invalid_bounds_lo_ge_hi_raises(self):
+        """lo >= hi raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid bounds"):
+            g0_touches_bounds(1e-12, (1e-8, 1e-16))
+        with pytest.raises(ValueError, match="Invalid bounds"):
+            g0_touches_bounds(1e-12, (1e-8, 1e-8))
+
+    def test_invalid_bounds_nonfinite_raises(self):
+        """Non-finite bound raises ValueError."""
+        with pytest.raises(ValueError, match="Invalid bounds"):
+            g0_touches_bounds(1e-12, (float("nan"), 1e-8))
+        with pytest.raises(ValueError, match="Invalid bounds"):
+            g0_touches_bounds(1e-12, (1e-16, float("inf")))
+
+    def test_custom_tol_wider(self):
+        """A wider tol_log10 catches a value that default tol misses."""
+        lo, hi = 1e-16, 1e-8
+        # 0.1 decades away from lo = 1e-16 → 10^(-16+0.1) ≈ 1.259e-16
+        g0 = 10 ** (-16 + 0.1)
+        tl_narrow, _ = g0_touches_bounds(g0, (lo, hi), tol_log10=0.05)
+        tl_wide, _ = g0_touches_bounds(g0, (lo, hi), tol_log10=0.15)
+        assert tl_narrow is False
+        assert tl_wide is True
+
+    def test_returns_bools(self):
+        """Return values are strict Python bools, not numpy bools."""
+        tl, tu = g0_touches_bounds(1e-12, (1e-16, 1e-8))
+        assert type(tl) is bool
+        assert type(tu) is bool
 
 class TestPrintTelemetry:
     def _make_fit(self, touches_lower=False, touches_upper=False):

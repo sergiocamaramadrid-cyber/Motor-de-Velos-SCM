@@ -138,6 +138,48 @@ def _neg_log_likelihood(log10_a0: float, g_bar: np.ndarray, g_obs: np.ndarray) -
     return float(np.sum(delta ** 2))
 
 
+def g0_touches_bounds(
+    g0_hat: float,
+    bounds: tuple[float, float],
+    tol_log10: float = G0_BORDER_TOL,
+) -> tuple[bool, bool]:
+    """Return (touches_lower, touches_upper) using log10-space proximity.
+
+    Guards against non-finite or non-positive g0_hat and validates bounds
+    before performing the log10 comparison.
+
+    Parameters
+    ----------
+    g0_hat    : float  Fitted acceleration scale [m s⁻²].
+    bounds    : (lo, hi)  Search interval [m s⁻²]; must satisfy 0 < lo < hi.
+    tol_log10 : float  Proximity threshold in log10 decades (default G0_BORDER_TOL).
+
+    Returns
+    -------
+    (touches_lower, touches_upper) : (bool, bool)
+        Both False when g0_hat is non-finite or <= 0.
+
+    Raises
+    ------
+    ValueError  If bounds are invalid (non-finite, <= 0, or lo >= hi).
+    """
+    lo, hi = float(bounds[0]), float(bounds[1])
+
+    if (not np.isfinite(lo)) or (not np.isfinite(hi)) or lo <= 0 or hi <= 0 or lo >= hi:
+        raise ValueError(f"Invalid bounds: {bounds}")
+
+    if (not np.isfinite(g0_hat)) or g0_hat <= 0:
+        return False, False
+
+    log10_g0 = float(np.log10(g0_hat))
+    log10_lo = float(np.log10(lo))
+    log10_hi = float(np.log10(hi))
+
+    touches_lower = abs(log10_g0 - log10_lo) < float(tol_log10)
+    touches_upper = abs(log10_g0 - log10_hi) < float(tol_log10)
+    return bool(touches_lower), bool(touches_upper)
+
+
 def fit_g0(
     g_bar: np.ndarray,
     g_obs: np.ndarray,
@@ -191,9 +233,7 @@ def fit_g0(
     g0_hi = float(10.0 ** np.clip(log10_hat + delta_log10, log10_lo, log10_hi))
 
     # Sanity guard: detect if g0_hat is within G0_BORDER_TOL decades of either bound
-    log10_g0 = np.log10(g0_hat)
-    touches_lower = bool(abs(log10_g0 - np.log10(bounds[0])) < G0_BORDER_TOL)
-    touches_upper = bool(abs(log10_g0 - np.log10(bounds[1])) < G0_BORDER_TOL)
+    touches_lower, touches_upper = g0_touches_bounds(g0_hat, bounds)
 
     return {
         "g0_hat": g0_hat,
