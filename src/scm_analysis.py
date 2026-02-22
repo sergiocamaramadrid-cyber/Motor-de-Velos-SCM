@@ -21,10 +21,18 @@ import pandas as pd
 from scipy.optimize import minimize_scalar
 
 from .scm_models import (
+    KPC_TO_M,
+    v_baryonic,
     v_total,
     chi2_reduced,
     baryonic_tully_fisher,
 )
+
+# Convert (km/s)²/kpc → m/s² (used for per-point g_bar / g_obs)
+_CONV = 1e6 / KPC_TO_M
+
+# Guard against division by zero for near-zero radii (well below physical kpc)
+_MIN_RADIUS_KPC = 1e-10
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +190,7 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     galaxy_names = galaxy_table["Galaxy"].tolist()
 
     records = []
+    compare_rows = []  # per-radial-point rows for universal_term_comparison_full.csv
     for name in galaxy_names:
         try:
             rc = load_rotation_curve(data_dir, name)
@@ -192,6 +201,27 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
         fit = fit_galaxy(rc, a0=a0)
         row = galaxy_table[galaxy_table["Galaxy"] == name].iloc[0]
+
+        # Per-radial-point baryonic and observed accelerations for RAR/deep-slope
+        r_arr = rc["r"].values
+        v_obs_arr = rc["v_obs"].values
+        vb_arr = v_baryonic(
+            r_arr, rc["v_gas"].values, rc["v_disk"].values, rc["v_bul"].values,
+            upsilon_disk=fit["upsilon_disk"], upsilon_bul=0.7,
+        )
+        g_bar_arr = vb_arr ** 2 / np.maximum(r_arr, _MIN_RADIUS_KPC) * _CONV  # m/s²
+        g_obs_arr = v_obs_arr ** 2 / np.maximum(r_arr, _MIN_RADIUS_KPC) * _CONV  # m/s²
+        valid = (g_bar_arr > 0) & (g_obs_arr > 0)
+        for k in range(len(r_arr)):
+            if valid[k]:
+                compare_rows.append({
+                    "galaxy": name,
+                    "r_kpc": float(r_arr[k]),
+                    "g_bar": float(g_bar_arr[k]),
+                    "g_obs": float(g_obs_arr[k]),
+                    "log_g_bar": float(np.log10(g_bar_arr[k])),
+                    "log_g_obs": float(np.log10(g_obs_arr[k])),
+                })
 
         v_flat = float(row.get("Vflat", np.nan))
         m_bar_pred = baryonic_tully_fisher(v_flat, a0=a0) if np.isfinite(v_flat) else np.nan
@@ -223,11 +253,11 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     per_galaxy_path = out_dir / "per_galaxy_summary.csv"
     results_df.to_csv(per_galaxy_path, index=False)
 
-    # --- Write universal term comparison CSV (full dataset; currently per-galaxy) ---
-    # When per-radial-point comparison data is available this file will diverge
-    # from per_galaxy_summary.csv and contain one row per radial point.
+    # --- Write universal term comparison CSV (per radial point for RAR/deep-slope) ---
+    # Columns: galaxy, r_kpc, g_bar, g_obs, log_g_bar, log_g_obs
+    compare_df = pd.DataFrame(compare_rows)
     csv_path = out_dir / "universal_term_comparison_full.csv"
-    results_df.to_csv(csv_path, index=False)
+    compare_df.to_csv(csv_path, index=False)
 
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
