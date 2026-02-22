@@ -282,12 +282,27 @@ def deep_regime_stats(rc: pd.DataFrame, upsilon_disk: float,
     safe_err = np.where(v_obs_err > 0, v_obs_err, 1.0)
     norm_res = np.abs((v_obs - vp) / safe_err)
 
+    # rms_dex: RMS of log10(V_obs / V_pred) — standard RAR diagnostic
+    # Floors prevent log(0) and division-by-zero for near-zero velocities.
+    _VEL_FLOOR = 1e-10  # km/s — well below any physical velocity
+    safe_vp = np.where(np.abs(vp) > 0, np.abs(vp), _VEL_FLOOR)
+    log_ratio = np.log10(np.maximum(np.abs(v_obs), _VEL_FLOOR) / safe_vp)
+    rms_dex = float(np.sqrt(np.mean(log_ratio ** 2)))
+    rms_dex_deep = (float(np.sqrt(np.mean(log_ratio[deep_mask] ** 2)))
+                    if deep_mask.any() else float("nan"))
+
     deep_res = float(np.median(norm_res[deep_mask])) if deep_mask.any() else float("nan")
     shallow_mask = ~deep_mask
     shallow_res = (float(np.median(norm_res[shallow_mask]))
                    if shallow_mask.any() else float("nan"))
 
-    return {"deep_frac": deep_frac, "deep_res": deep_res, "shallow_res": shallow_res}
+    return {
+        "deep_frac": deep_frac,
+        "deep_res": deep_res,
+        "shallow_res": shallow_res,
+        "rms_dex": rms_dex,
+        "rms_dex_deep": rms_dex_deep,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -379,6 +394,8 @@ def run_data_dir_comparison(
     deep_fracs: dict[str, list[float]] = {m: [] for m in models}
     deep_res_all: dict[str, list[float]] = {m: [] for m in models}
     shallow_res_all: dict[str, list[float]] = {m: [] for m in models}
+    rms_dex_all: dict[str, list[float]] = {m: [] for m in models}
+    rms_dex_deep_all: dict[str, list[float]] = {m: [] for m in models}
     n_processed = 0
 
     for name in galaxy_names:
@@ -402,6 +419,9 @@ def run_data_dir_comparison(
                 deep_res_all[mname].append(ds["deep_res"])
             if not np.isnan(ds["shallow_res"]):
                 shallow_res_all[mname].append(ds["shallow_res"])
+            rms_dex_all[mname].append(ds["rms_dex"])
+            if not np.isnan(ds["rms_dex_deep"]):
+                rms_dex_deep_all[mname].append(ds["rms_dex_deep"])
 
     _log(f"\n  Galaxies processed: {n_processed}")
 
@@ -417,6 +437,10 @@ def run_data_dir_comparison(
                         if deep_res_all[mname] else float("nan"))
         med_shallow_res = (float(np.median(shallow_res_all[mname]))
                            if shallow_res_all[mname] else float("nan"))
+        med_rms_dex = (float(np.median(rms_dex_all[mname]))
+                       if rms_dex_all[mname] else float("nan"))
+        med_rms_dex_deep = (float(np.median(rms_dex_deep_all[mname]))
+                            if rms_dex_deep_all[mname] else float("nan"))
         deep_regime = med_deep_frac > 0.0
         deep_collapse = (not np.isnan(med_deep_res)
                          and not np.isnan(med_shallow_res)
@@ -429,6 +453,8 @@ def run_data_dir_comparison(
             "N_galaxies": n_processed,
             "N_points": n,
             "k": k,
+            "rms_dex": med_rms_dex,
+            "rms_dex_deep": med_rms_dex_deep,
             "deep_frac_median": med_deep_frac,
             "deep_res_median": med_deep_res,
             "shallow_res_median": med_shallow_res,
@@ -497,11 +523,13 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
         "N_galaxies": n_gal,
         "N_points": total_n,
         "k": k,
+        "rms_dex": float("nan"),
+        "rms_dex_deep": float("nan"),
         "deep_frac_median": float("nan"),
         "deep_res_median": float("nan"),
         "shallow_res_median": float("nan"),
-        "deep_regime": True,   # velos has a deep-regime limit
-        "deep_collapse": False,  # assumed OK at this stage
+        "deep_regime": True,
+        "deep_collapse": False,
         "note": "measured chi2_reduced from CSV",
     })
 
@@ -514,10 +542,12 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
             "N_galaxies": n_gal,
             "N_points": total_n,
             "k": k,
+            "rms_dex": float("nan"),
+            "rms_dex_deep": float("nan"),
             "deep_frac_median": float("nan"),
             "deep_res_median": float("nan"),
             "shallow_res_median": float("nan"),
-            "deep_regime": True,   # all ν models have ν(x)→1/√x for x→0
+            "deep_regime": True,
             "deep_collapse": False,
             "note": "requires --data-dir for refitting",
         })
@@ -551,21 +581,22 @@ def _format_report(df: pd.DataFrame, winner: str, a0: float,
         f"  N_points   : {int(df['N_points'].iloc[0])}",
         "",
         f"  {'Model':<12} {'LL':>14} {'AICc':>14} {'ΔAICc':>10} "
-        f"{'deep_regime':>12} {'deep_collapse':>14}",
-        "  " + "-" * 70,
+        f"{'rms_dex':>10} {'deep_regime':>12} {'deep_collapse':>14}",
+        "  " + "-" * 80,
     ]
     for _, row in df.sort_values("delta_AICc").iterrows():
         ll_s = f"{row['LL']:.2f}" if not np.isnan(row["LL"]) else "N/A"
         aicc_s = f"{row['AICc']:.2f}" if not np.isnan(row["AICc"]) else "N/A"
         daicc_s = f"{row['delta_AICc']:.2f}" if not np.isnan(row["delta_AICc"]) else "N/A"
+        rms_s = f"{row['rms_dex']:.4f}" if not np.isnan(row["rms_dex"]) else "N/A"
         dr = "yes" if row["deep_regime"] else "no"
         dc = "YES (⚠)" if row["deep_collapse"] else "no"
         lines.append(
             f"  {row['model']:<12} {ll_s:>14} {aicc_s:>14} {daicc_s:>10} "
-            f"{dr:>12} {dc:>14}"
+            f"{rms_s:>10} {dr:>12} {dc:>14}"
         )
     lines += [
-        "  " + "-" * 70,
+        "  " + "-" * 80,
         f"  Winner: {winner}",
         _SEP,
     ]

@@ -18,6 +18,7 @@ from scripts.compare_nu_models import (
     v_pred_velos,
     log_likelihood,
     aicc,
+    deep_regime_stats,
     run_data_dir_comparison,
     run_csv_comparison,
     main,
@@ -109,6 +110,46 @@ class TestAICc:
 
 
 # ---------------------------------------------------------------------------
+# deep_regime_stats
+# ---------------------------------------------------------------------------
+
+class TestDeepRegimeStats:
+    def _make_rc(self, n=20, v_flat=150.0):
+        rng = np.random.default_rng(99)
+        r = np.linspace(0.5, 15.0, n)
+        return pd.DataFrame({
+            "r": r,
+            "v_obs": np.full(n, v_flat) + rng.normal(0, 3, n),
+            "v_obs_err": np.full(n, 5.0),
+            "v_gas": 0.3 * v_flat * np.ones(n),
+            "v_disk": 0.75 * v_flat * np.ones(n),
+            "v_bul": np.zeros(n),
+        })
+
+    def test_returns_rms_dex_key(self):
+        rc = self._make_rc()
+        pred_fn = lambda r, vg, vd, vb, ud: v_pred_velos(r, vg, vd, vb, ud)
+        stats = deep_regime_stats(rc, 1.0, pred_fn)
+        assert "rms_dex" in stats
+        assert "rms_dex_deep" in stats
+
+    def test_rms_dex_non_negative(self):
+        rc = self._make_rc()
+        pred_fn = lambda r, vg, vd, vb, ud: v_pred_velos(r, vg, vd, vb, ud)
+        stats = deep_regime_stats(rc, 1.0, pred_fn)
+        assert stats["rms_dex"] >= 0.0
+
+    def test_rms_dex_perfect_prediction(self):
+        """rms_dex ≈ 0 when V_pred == V_obs everywhere."""
+        rc = self._make_rc(n=30, v_flat=200.0)
+        # Predictor that returns v_obs exactly
+        def perfect_pred(r, vg, vd, vb, ud):
+            return rc["v_obs"].values
+        stats = deep_regime_stats(rc, 1.0, perfect_pred)
+        assert stats["rms_dex"] == pytest.approx(0.0, abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
 
@@ -181,6 +222,12 @@ class TestRunDataDirComparison:
     def test_ll_finite(self, sparc_dir, tmp_path):
         df, _, _ = run_data_dir_comparison(sparc_dir, tmp_path / "out")
         assert df["LL"].apply(np.isfinite).all()
+
+    def test_rms_dex_present_and_finite(self, sparc_dir, tmp_path):
+        df, _, _ = run_data_dir_comparison(sparc_dir, tmp_path / "out_rms")
+        assert "rms_dex" in df.columns
+        assert df["rms_dex"].apply(np.isfinite).all()
+        assert (df["rms_dex"] >= 0.0).all()
 
     def test_output_csv_written(self, sparc_dir, tmp_path):
         out = tmp_path / "out2"
