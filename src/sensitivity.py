@@ -33,7 +33,7 @@ def a0_sensitivity(rc, a0_values):
         fit = fit_galaxy(rc, a0=a0)
         records.append({
             "a0": float(a0),
-            "chi2_reduced": fit["chi2"],
+            "chi2_reduced": fit["chi2_reduced"],
             "upsilon_disk": fit["upsilon_disk"],
         })
     return pd.DataFrame(records)
@@ -137,7 +137,7 @@ def bootstrap_chi2(rc, a0=1.2e-10, n_boot=200, seed=42):
         idx = rng.integers(0, n, size=n)
         rc_boot = rc.iloc[idx].reset_index(drop=True)
         fit = fit_galaxy(rc_boot, a0=a0)
-        chi2_samples.append(fit["chi2"])
+        chi2_samples.append(fit["chi2_reduced"])
     chi2_samples = np.array(chi2_samples)
     return {
         "chi2_mean": float(np.mean(chi2_samples)),

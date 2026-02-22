@@ -118,7 +118,7 @@ class TestFitGalaxy:
     def test_fit_returns_expected_keys(self, sparc_dir):
         rc = load_rotation_curve(sparc_dir, "NGC0000")
         fit = fit_galaxy(rc)
-        assert set(fit.keys()) == {"upsilon_disk", "chi2", "n_points"}
+        assert set(fit.keys()) == {"upsilon_disk", "chi2_reduced", "n_points"}
 
     def test_upsilon_disk_in_range(self, sparc_dir):
         rc = load_rotation_curve(sparc_dir, "NGC0000")
@@ -128,7 +128,7 @@ class TestFitGalaxy:
     def test_chi2_non_negative(self, sparc_dir):
         rc = load_rotation_curve(sparc_dir, "NGC0000")
         fit = fit_galaxy(rc)
-        assert fit["chi2"] >= 0.0
+        assert fit["chi2_reduced"] >= 0.0
 
     def test_n_points_correct(self, sparc_dir):
         rc = load_rotation_curve(sparc_dir, "NGC0001")
@@ -162,7 +162,12 @@ class TestRunPipeline:
         summary_path = out_dir / "executive_summary.txt"
         assert summary_path.exists()
         text = summary_path.read_text(encoding="utf-8")
-        assert "Motor de Velos" in text
+        assert "SCM Pipeline" in text
+
+    def test_creates_per_galaxy_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "per_galaxy_summary.csv").exists()
 
     def test_creates_latex_table(self, sparc_dir, tmp_path):
         out_dir = tmp_path / "results"
@@ -175,7 +180,7 @@ class TestRunPipeline:
     def test_output_columns(self, sparc_dir, tmp_path):
         out_dir = tmp_path / "results"
         df = run_pipeline(sparc_dir, out_dir, verbose=False)
-        for col in ["Galaxy", "chi2_reduced", "upsilon_disk", "n_points"]:
+        for col in ["galaxy", "chi2_reduced", "upsilon_disk", "n_points"]:
             assert col in df.columns
 
     def test_custom_a0(self, sparc_dir, tmp_path):
@@ -192,17 +197,21 @@ class TestWriteExecutiveSummary:
     def test_empty_dataframe(self, tmp_path):
         df = pd.DataFrame()
         path = tmp_path / "summary.txt"
-        _write_executive_summary(df, path, 1.2e-10)
+        _write_executive_summary(df, path)
         text = path.read_text(encoding="utf-8")
-        assert "No galaxies" in text
+        assert "N_galaxies: 0" in text
 
     def test_non_empty_dataframe(self, tmp_path):
-        df = pd.DataFrame({"chi2_reduced": [0.5, 1.0, 2.5, 3.0]})
+        df = pd.DataFrame({
+            "chi2_reduced": [0.5, 1.0, 2.5, 3.0],
+            "upsilon_disk": [1.0, 1.5, 2.0, 2.5],
+        })
         path = tmp_path / "summary.txt"
-        _write_executive_summary(df, path, 1.2e-10)
+        _write_executive_summary(df, path)
         text = path.read_text(encoding="utf-8")
-        assert "Galaxies processed" in text
-        assert "4" in text
+        assert "N_galaxies: 4" in text
+        assert "chi2_reduced median" in text
+        assert "upsilon_disk median" in text
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +228,7 @@ class TestWriteTop10Latex:
 
     def test_contains_galaxy_names(self, tmp_path):
         df = pd.DataFrame({
-            "Galaxy": [f"NGC{i:04d}" for i in range(15)],
+            "galaxy": [f"NGC{i:04d}" for i in range(15)],
             "chi2_reduced": np.linspace(0.5, 3.0, 15),
             "upsilon_disk": np.ones(15),
             "Vflat_kms": np.full(15, 150.0),
@@ -233,7 +242,7 @@ class TestWriteTop10Latex:
 
     def test_tabular_structure(self, tmp_path):
         df = pd.DataFrame({
-            "Galaxy": ["G1", "G2"],
+            "galaxy": ["G1", "G2"],
             "chi2_reduced": [0.8, 1.2],
             "upsilon_disk": [1.0, 1.5],
             "Vflat_kms": [150.0, float("nan")],

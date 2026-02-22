@@ -122,7 +122,7 @@ def fit_galaxy(rc, a0=1.2e-10):
     Returns
     -------
     dict
-        Keys: ``upsilon_disk``, ``chi2``, ``n_points``.
+        Keys: ``upsilon_disk``, ``chi2_reduced``, ``n_points``.
     """
     r = rc["r"].values
     v_obs = rc["v_obs"].values
@@ -141,7 +141,7 @@ def fit_galaxy(rc, a0=1.2e-10):
     best_chi2 = float(result.fun)
     return {
         "upsilon_disk": best_ud,
-        "chi2": best_chi2,
+        "chi2_reduced": best_chi2,
         "n_points": len(r),
     }
 
@@ -197,24 +197,30 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         m_bar_pred = baryonic_tully_fisher(v_flat, a0=a0) if np.isfinite(v_flat) else np.nan
 
         records.append({
-            "Galaxy": name,
+            "galaxy": name,
             "upsilon_disk": fit["upsilon_disk"],
-            "chi2_reduced": fit["chi2"],
+            "chi2_reduced": fit["chi2_reduced"],
             "n_points": fit["n_points"],
             "Vflat_kms": v_flat,
             "M_bar_BTFR_Msun": m_bar_pred,
         })
         if verbose:
-            print(f"  {name}: chi2={fit['chi2']:.2f}, ud={fit['upsilon_disk']:.2f}")
+            print(f"  {name}: chi2={fit['chi2_reduced']:.2f}, ud={fit['upsilon_disk']:.2f}")
 
     results_df = pd.DataFrame(records)
 
-    # --- Write universal term comparison CSV ---
+    # --- Write per-galaxy summary (compact audit table for downstream scripts) ---
+    per_galaxy_path = out_dir / "per_galaxy_summary.csv"
+    results_df.to_csv(per_galaxy_path, index=False)
+
+    # --- Write universal term comparison CSV (full dataset; currently per-galaxy) ---
+    # When per-radial-point comparison data is available this file will diverge
+    # from per_galaxy_summary.csv and contain one row per radial point.
     csv_path = out_dir / "universal_term_comparison_full.csv"
     results_df.to_csv(csv_path, index=False)
 
     # --- Write executive summary ---
-    _write_executive_summary(results_df, out_dir / "executive_summary.txt", a0)
+    _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
     # --- Write top-10 LaTeX table ---
     _write_top10_latex(results_df, out_dir / "top10_universal.tex")
@@ -225,29 +231,15 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     return results_df
 
 
-def _write_executive_summary(df, path, a0):
+def _write_executive_summary(df, path):
     """Write a plain-text executive summary of the pipeline results."""
-    n_total = len(df)
-    if n_total == 0:
-        summary = "No galaxies processed.\n"
-    else:
-        chi2_mean = df["chi2_reduced"].mean()
-        chi2_median = df["chi2_reduced"].median()
-        chi2_good = (df["chi2_reduced"] < 2.0).sum()
-        frac_good = chi2_good / n_total * 100
-
-        summary = (
-            "Motor de Velos SCM — Executive Summary\n"
-            "=======================================\n\n"
-            f"Galaxies processed          : {n_total}\n"
-            f"Characteristic acceleration : a0 = {a0:.2e} m/s²\n"
-            f"Mean reduced chi-squared    : {chi2_mean:.3f}\n"
-            f"Median reduced chi-squared  : {chi2_median:.3f}\n"
-            f"Fraction with chi2 < 2      : {frac_good:.1f}% ({chi2_good}/{n_total})\n"
-        )
-
-    with open(path, "w", encoding="utf-8") as fh:
-        fh.write(summary)
+    lines = ["SCM Pipeline — Executive Summary"]
+    lines.append(f"N_galaxies: {len(df)}")
+    if "chi2_reduced" in df.columns and len(df):
+        lines.append(f"chi2_reduced median: {df['chi2_reduced'].median():.4f}")
+    if "upsilon_disk" in df.columns and len(df):
+        lines.append(f"upsilon_disk median: {df['upsilon_disk'].median():.4f}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _write_top10_latex(df, path):
@@ -258,7 +250,7 @@ def _write_top10_latex(df, path):
         return
 
     top10 = df.nsmallest(10, "chi2_reduced")[
-        ["Galaxy", "chi2_reduced", "upsilon_disk", "Vflat_kms"]
+        ["galaxy", "chi2_reduced", "upsilon_disk", "Vflat_kms"]
     ]
 
     lines = [
@@ -273,7 +265,7 @@ def _write_top10_latex(df, path):
     for _, row in top10.iterrows():
         vflat = f"{row['Vflat_kms']:.1f}" if np.isfinite(row["Vflat_kms"]) else "---"
         lines.append(
-            f"{row['Galaxy']} & {row['chi2_reduced']:.2f} & "
+            f"{row['galaxy']} & {row['chi2_reduced']:.2f} & "
             f"{row['upsilon_disk']:.2f} & {vflat} \\\\"
         )
     lines += [

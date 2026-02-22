@@ -1,8 +1,4 @@
-Motor de Velos SCM — Executive Summary
-=======================================
-
-Galaxies processed          : 10
-Characteristic acceleration : a0 = 1.20e-10 m/s²
-Mean reduced chi-squared    : 0.397
-Median reduced chi-squared  : 0.372
-Fraction with chi2 < 2      : 100.0% (10/10)
+SCM Pipeline — Executive Summary
+N_galaxies: 10
+chi2_reduced median: 0.3724
+upsilon_disk median: 1.6167
