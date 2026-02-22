@@ -44,11 +44,13 @@ Instalación
      python -m venv .venv
      source .venv/bin/activate
      ```
-   - Windows:
-     ```
+   - Windows (PowerShell):
+     ```powershell
      python -m venv .venv
-     .venv\Scripts\activate
+     .\.venv\Scripts\Activate.ps1
      ```
+     > Si recibes el error "running scripts is disabled", ejecuta primero:
+     > `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
 3. Instalar dependencias:
    ```
    pip install -r requirements.txt
@@ -95,6 +97,27 @@ A continuación pasos generales; adapta las rutas/flags según tus scripts:
    ```
    jupyter nbconvert --to notebook --execute notebooks/SPARC_validation.ipynb --ExecutePreprocessor.timeout=600 --output results/SPARC_validation_executed.ipynb
    ```
+
+### Ejecución automática en Windows (PowerShell)
+
+El script `run_all.ps1` automatiza todos los pasos anteriores con las siguientes correcciones incluidas:
+
+- Activación correcta del venv (`Activate.ps1`) con nota sobre política de ejecución.
+- Instalación automática de herramientas de desarrollo (`pytest`, `flake8`, `mypy`, `jupyter`, `nbconvert`).
+- Creación de directorios de salida (`results\`, `results\sensitivity\`) antes de ejecutar los análisis.
+- Comprobación de que `data\SPARC` existe antes de establecer `$env:SPARC_DATA_DIR`.
+
+Para ejecutarlo:
+
+```powershell
+.\run_all.ps1
+```
+
+Si recibes el error `running scripts is disabled`, ejecuta primero en la misma consola:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
 
 Reproducir resultados
 ---------------------
