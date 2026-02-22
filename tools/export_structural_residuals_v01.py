@@ -1,20 +1,41 @@
-import pandas as pd
+import argparse
 
-def _pick(dataframe, cols):
-    """Pick specific columns from a DataFrame."""
-    return dataframe[cols]
 
-def export_structural_residuals_v01():
-    """Export structural residuals to a CSV file after merging two datasets."""
-    # Load the data
-    df_master = pd.read_csv('scm_results_final/diagnostics/df_master.csv')
-    df_metrics = pd.read_csv('scm_results_final/oos_validation/per_galaxy_metrics.csv')
+# Function to pick value if exists
+def _pick(data, key):
+    return data[key] if key in data else None
 
-    # Merging dataframes (adjust as needed for the actual merge logic)
-    df_merged = pd.merge(df_master, df_metrics, on='common_column', how='inner')  # Replace 'common_column' with the actual column
 
-    # Save the merged dataframe to CSV
-    df_merged.to_csv('scm_results_final/diagnostics/structural_residuals_v01.csv', index=False)
+# Function to maybe pick value if exists
+def _maybe_pick(data, key):
+    return data[key] if key in data else ""
 
-if __name__ == "__main__":
-    export_structural_residuals_v01()
+
+# Function to load HC3 regression
+def _load_hc3_regression(filepath):
+    # Implementation here
+    pass
+
+
+# Function to compute per galaxy residuals
+def compute_per_galaxy_residuals(data):
+    # Implementation here
+    pass
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Process structural residuals.')
+    parser.add_argument('input_file', type=str, help='Input file containing data')
+    parser.add_argument('output_file', type=str, help='Output file for results')
+
+    args = parser.parse_args()
+
+    data = _load_hc3_regression(args.input_file)
+    residuals = compute_per_galaxy_residuals(data)
+
+    with open(args.output_file, 'w') as f:
+        f.write(str(residuals))
+
+
+if __name__ == '__main__':
+    main()
