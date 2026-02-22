@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*/.ipynb_checkpoints/*
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Data files (depending on size)
+# Allow example/master data files, ignore large data files
+*.parquet
+*.h5
+*.hdf5
+
+# Generated results
+paper_stats/
+run_all.log
+scm_env_protocol_out/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Results that might be large
+results/*.png
+results/*.pdf
+results/*.csv
