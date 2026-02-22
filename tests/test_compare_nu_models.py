@@ -133,6 +133,13 @@ class TestDeepRegimeStats:
         assert "rms_dex" in stats
         assert "rms_dex_deep" in stats
 
+    def test_returns_deep_slope_key(self):
+        rc = self._make_rc()
+        pred_fn = lambda r, vg, vd, vb, ud: v_pred_velos(r, vg, vd, vb, ud)
+        stats = deep_regime_stats(rc, 1.0, pred_fn)
+        assert "deep_slope" in stats
+        assert "deep_slope_err" in stats
+
     def test_rms_dex_non_negative(self):
         rc = self._make_rc()
         pred_fn = lambda r, vg, vd, vb, ud: v_pred_velos(r, vg, vd, vb, ud)
@@ -142,11 +149,25 @@ class TestDeepRegimeStats:
     def test_rms_dex_perfect_prediction(self):
         """rms_dex ≈ 0 when V_pred == V_obs everywhere."""
         rc = self._make_rc(n=30, v_flat=200.0)
-        # Predictor that returns v_obs exactly
         def perfect_pred(r, vg, vd, vb, ud):
             return rc["v_obs"].values
         stats = deep_regime_stats(rc, 1.0, perfect_pred)
         assert stats["rms_dex"] == pytest.approx(0.0, abs=1e-6)
+
+    def test_higher_threshold_increases_deep_frac(self):
+        """With deep_threshold=0.3, more points fall in the deep regime than 0.1."""
+        rc = self._make_rc()
+        pred_fn = lambda r, vg, vd, vb, ud: v_pred_velos(r, vg, vd, vb, ud)
+        stats_low = deep_regime_stats(rc, 1.0, pred_fn, deep_threshold=0.1)
+        stats_high = deep_regime_stats(rc, 1.0, pred_fn, deep_threshold=0.3)
+        assert stats_high["deep_frac"] >= stats_low["deep_frac"]
+
+    def test_deep_slope_nan_if_no_deep_points(self):
+        """If deep_threshold is very low, no deep points → slope is NaN."""
+        rc = self._make_rc(v_flat=300.0)  # high velocity → high g_bar
+        pred_fn = lambda r, vg, vd, vb, ud: v_pred_velos(r, vg, vd, vb, ud)
+        stats = deep_regime_stats(rc, 1.0, pred_fn, deep_threshold=1e-20)
+        assert np.isnan(stats["deep_slope"])
 
 
 # ---------------------------------------------------------------------------
@@ -229,6 +250,20 @@ class TestRunDataDirComparison:
         assert df["rms_dex"].apply(np.isfinite).all()
         assert (df["rms_dex"] >= 0.0).all()
 
+    def test_deep_slope_column_present(self, sparc_dir, tmp_path):
+        df, _, _ = run_data_dir_comparison(sparc_dir, tmp_path / "out_slope")
+        assert "deep_slope" in df.columns
+
+    def test_deep_threshold_column_recorded(self, sparc_dir, tmp_path):
+        from scripts.compare_nu_models import DEEP_THRESHOLD_DEFAULT
+        df, _, _ = run_data_dir_comparison(sparc_dir, tmp_path / "out_thr",
+                                            deep_threshold=0.5)
+        assert (df["deep_threshold"] == 0.5).all()
+
+    def test_n_lsb_column_present(self, sparc_dir, tmp_path):
+        df, _, _ = run_data_dir_comparison(sparc_dir, tmp_path / "out_lsb")
+        assert "N_lsb" in df.columns
+
     def test_output_csv_written(self, sparc_dir, tmp_path):
         out = tmp_path / "out2"
         run_data_dir_comparison(sparc_dir, out)
@@ -276,6 +311,13 @@ class TestMainCLI:
         main(["--data-dir", str(sparc_dir), "--out", str(out)])
         assert (out / "compare_nu_models.log").exists()
         assert (out / "compare_nu_models.csv").exists()
+
+    def test_deep_threshold_cli(self, sparc_dir, tmp_path):
+        out = tmp_path / "cli_thr"
+        main(["--data-dir", str(sparc_dir), "--out", str(out),
+              "--deep-threshold", "0.5"])
+        df = pd.read_csv(out / "compare_nu_models.csv")
+        assert (df["deep_threshold"] == 0.5).all()
 
     def test_csv_mode_creates_log(self, csv_path, tmp_path):
         out = tmp_path / "cli_csv"

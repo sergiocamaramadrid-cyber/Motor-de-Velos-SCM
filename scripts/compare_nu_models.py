@@ -17,8 +17,17 @@ and   CONV = 1 km²/s²/kpc → m/s²  = 1e6 / KPC_TO_M.
 
 For all ν models, V_total = √(ν(x)) · |V_bar|.
 
-Deep-regime definition: a galaxy is "deep" if its median x < 0.1 (baryonic
-acceleration well below the characteristic scale a0).
+Deep-regime definition (Option A): a radial point is "deep" if
+  g_bar / a0 < deep_threshold   (default 0.3, physical criterion)
+The threshold can be tuned via --deep-threshold.
+
+LSB detection (Option B): a galaxy is flagged as low-surface-brightness (LSB)
+if the median stellar surface-brightness SBdisk column is below --lsb-threshold
+(default 1.0 L_sun/pc²).  Separate statistics are reported for LSB galaxies.
+
+Deep-slope diagnostic (Option C): for deep-regime points the script fits
+  log10(g_obs) = slope × log10(g_bar) + intercept
+The expected MOND value is slope = 0.5.  Deviations signal structural failure.
 
 Deep-collapse flag: the deep-regime median normalised residual exceeds 2.0,
 i.e., the model systematically fails in the sub-Newtonian regime.
@@ -35,8 +44,14 @@ With raw rotmod files::
         --data-dir data/SPARC \\
         --out results/diagnostics/compare_nu_models_175
 
-With a pre-computed per-galaxy CSV (limited comparison — chi2_reduced
-from the CSV is used as a proxy; ν refits are skipped)::
+With custom deep threshold (Option A)::
+
+    python scripts/compare_nu_models.py \\
+        --data-dir data/SPARC \\
+        --out results/diagnostics/compare_nu_models_175 \\
+        --deep-threshold 0.3
+
+With a pre-computed per-galaxy CSV (limited comparison)::
 
     python scripts/compare_nu_models.py \\
         --csv results/universal_term_comparison_full.csv \\
@@ -64,6 +79,14 @@ _CONV = 1e6 / KPC_TO_M  # ≈ 3.241e-14  m s⁻² / [(km/s)² kpc⁻¹]
 
 # Fiducial characteristic acceleration (m/s²)
 A0_DEFAULT = 1.2e-10
+
+# Default deep-regime threshold: g_bar/a0 < DEEP_THRESHOLD_DEFAULT
+# (Option A: physical criterion, not quantile-based)
+DEEP_THRESHOLD_DEFAULT = 0.3
+
+# Default LSB surface-brightness threshold (Option B)
+# Galaxies with median SBdisk < LSB_THRESHOLD_DEFAULT L_sun/pc² are flagged LSB.
+LSB_THRESHOLD_DEFAULT = 1.0  # L_sun/pc²
 
 # ---------------------------------------------------------------------------
 # ν interpolation functions  (all accept array_like x = g_bar/a0 ≥ 0)
@@ -241,10 +264,15 @@ def _fit_upsilon(rc: pd.DataFrame, pred_fn) -> tuple[float, float]:
 # ---------------------------------------------------------------------------
 
 def deep_regime_stats(rc: pd.DataFrame, upsilon_disk: float,
-                      pred_fn, a0: float = A0_DEFAULT) -> dict:
-    """Compute deep-regime fraction and normalised residuals.
+                      pred_fn, a0: float = A0_DEFAULT,
+                      deep_threshold: float = DEEP_THRESHOLD_DEFAULT) -> dict:
+    """Compute deep-regime fraction, residuals, rms_dex, and slope diagnostic.
 
-    A radial point is "deep" if g_bar / a0 < 0.1.
+    Option A: deep threshold is a physical criterion, not a quantile.
+    Option C: slope of log10(g_obs) vs log10(g_bar) in the deep regime.
+
+    A radial point is "deep" if g_bar / a0 < deep_threshold.
+    Expected MOND slope in the deep regime = 0.5.
 
     Parameters
     ----------
@@ -256,13 +284,21 @@ def deep_regime_stats(rc: pd.DataFrame, upsilon_disk: float,
         Velocity predictor (same signature as in _fit_upsilon).
     a0 : float
         Characteristic acceleration.
+    deep_threshold : float
+        Threshold x = g_bar/a0 below which a point is in the deep regime.
+        Default 0.3 (Option A).
 
     Returns
     -------
     dict with keys:
-        deep_frac  — fraction of radial points in the deep regime.
-        deep_res   — median |normalised residual| in the deep regime (nan if none).
-        shallow_res — median |normalised residual| outside the deep regime.
+        deep_frac     — fraction of radial points in the deep regime.
+        deep_res      — median |normalised residual| in the deep regime (nan if none).
+        shallow_res   — median |normalised residual| outside the deep regime.
+        rms_dex       — RMS of log10(V_obs/V_pred) over all points.
+        rms_dex_deep  — same, restricted to deep-regime points.
+        deep_slope    — OLS slope log10(g_obs) vs log10(g_bar) in deep regime
+                        (Option C; nan if < 2 deep points).
+        deep_slope_err — standard error of the slope (nan if < 3 points).
     """
     r = rc["r"].values
     v_obs = rc["v_obs"].values
@@ -272,10 +308,9 @@ def deep_regime_stats(rc: pd.DataFrame, upsilon_disk: float,
     v_bul = rc["v_bul"].values
 
     vb = _v_baryonic(v_gas, v_disk, v_bul, upsilon_disk)
-    g_bar = vb ** 2 / np.maximum(r, 1e-10) * _CONV
+    g_bar = vb ** 2 / np.maximum(r, 1e-10) * _CONV  # m/s²
     x = g_bar / a0
-
-    deep_mask = x < 0.1
+    deep_mask = x < deep_threshold
     deep_frac = float(np.mean(deep_mask))
 
     vp = pred_fn(r, v_gas, v_disk, v_bul, upsilon_disk)
@@ -296,12 +331,37 @@ def deep_regime_stats(rc: pd.DataFrame, upsilon_disk: float,
     shallow_res = (float(np.median(norm_res[shallow_mask]))
                    if shallow_mask.any() else float("nan"))
 
+    # Option C: slope of log10(g_obs) vs log10(g_bar) in deep regime
+    # g_obs = V_obs² / r (converted to m/s²)
+    deep_slope = float("nan")
+    deep_slope_err = float("nan")
+    if deep_mask.sum() >= 2:
+        g_obs_deep = v_obs[deep_mask] ** 2 / np.maximum(r[deep_mask], 1e-10) * _CONV
+        g_bar_deep = g_bar[deep_mask]
+        # Only use points with positive g_obs and g_bar
+        valid = (g_obs_deep > 0) & (g_bar_deep > 0)
+        if valid.sum() >= 2:
+            lg_obs = np.log10(g_obs_deep[valid])
+            lg_bar = np.log10(g_bar_deep[valid])
+            # OLS: slope = cov(x,y)/var(x)
+            lg_bar_c = lg_bar - lg_bar.mean()
+            slope = float(np.dot(lg_bar_c, lg_obs - lg_obs.mean()) /
+                          np.dot(lg_bar_c, lg_bar_c))
+            deep_slope = slope
+            if valid.sum() >= 3:
+                y_pred_ols = slope * lg_bar + (lg_obs.mean() - slope * lg_bar.mean())
+                sse = float(np.sum((lg_obs - y_pred_ols) ** 2))
+                ssx = float(np.dot(lg_bar_c, lg_bar_c))
+                deep_slope_err = float(np.sqrt(sse / (valid.sum() - 2) / ssx))
+
     return {
         "deep_frac": deep_frac,
         "deep_res": deep_res,
         "shallow_res": shallow_res,
         "rms_dex": rms_dex,
         "rms_dex_deep": rms_dex_deep,
+        "deep_slope": deep_slope,
+        "deep_slope_err": deep_slope_err,
     }
 
 
@@ -338,7 +398,10 @@ def _load_rotation_curve(data_dir: Path, name: str) -> pd.DataFrame:
                 names=["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul",
                        "SBdisk", "SBbul"],
             )
-            return df[["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul"]]
+            cols = ["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul"]
+            if "SBdisk" in df.columns:
+                cols.append("SBdisk")
+            return df[cols]
     raise FileNotFoundError(f"Rotation curve for {name} not found in {data_dir}")
 
 
@@ -346,6 +409,8 @@ def run_data_dir_comparison(
     data_dir: Path,
     out_dir: Path,
     a0: float = A0_DEFAULT,
+    deep_threshold: float = DEEP_THRESHOLD_DEFAULT,
+    lsb_threshold: float = LSB_THRESHOLD_DEFAULT,
     log_lines: list[str] | None = None,
 ) -> tuple[pd.DataFrame, str, Callable]:
     """Run the full per-rotmod ν model comparison.
@@ -358,13 +423,16 @@ def run_data_dir_comparison(
         Output directory for results.
     a0 : float
         Characteristic acceleration (m/s²).
+    deep_threshold : float
+        g_bar/a0 threshold for deep regime (Option A, default 0.3).
+    lsb_threshold : float
+        Median SBdisk threshold (L_sun/pc²) for LSB classification (Option B).
     log_lines : list[str] | None
         If provided, log messages are appended here (in addition to stdout).
 
     Returns
     -------
-    pd.DataFrame
-        Per-model comparison table.
+    tuple of (DataFrame, winner str, log callable)
     """
 
     def _log(msg: str) -> None:
@@ -396,7 +464,10 @@ def run_data_dir_comparison(
     shallow_res_all: dict[str, list[float]] = {m: [] for m in models}
     rms_dex_all: dict[str, list[float]] = {m: [] for m in models}
     rms_dex_deep_all: dict[str, list[float]] = {m: [] for m in models}
+    rms_dex_lsb_all: dict[str, list[float]] = {m: [] for m in models}
+    deep_slope_all: dict[str, list[float]] = {m: [] for m in models}
     n_processed = 0
+    n_lsb = 0
 
     for name in galaxy_names:
         try:
@@ -408,12 +479,21 @@ def run_data_dir_comparison(
         n_pts = len(rc)
         n_processed += 1
 
+        # Option B: LSB flag based on median stellar surface brightness
+        is_lsb = False
+        if "SBdisk" in rc.columns:
+            sb_median = float(np.nanmedian(rc["SBdisk"].values))
+            is_lsb = sb_median < lsb_threshold
+        if is_lsb:
+            n_lsb += 1
+
         for mname, pred_fn in models.items():
             ud, ll = _fit_upsilon(rc, pred_fn)
             total_ll[mname] += ll
             total_n[mname] += n_pts
             total_k[mname] += 1  # one upsilon_disk per galaxy
-            ds = deep_regime_stats(rc, ud, pred_fn, a0=a0)
+            ds = deep_regime_stats(rc, ud, pred_fn, a0=a0,
+                                   deep_threshold=deep_threshold)
             deep_fracs[mname].append(ds["deep_frac"])
             if not np.isnan(ds["deep_res"]):
                 deep_res_all[mname].append(ds["deep_res"])
@@ -422,8 +502,13 @@ def run_data_dir_comparison(
             rms_dex_all[mname].append(ds["rms_dex"])
             if not np.isnan(ds["rms_dex_deep"]):
                 rms_dex_deep_all[mname].append(ds["rms_dex_deep"])
+            if is_lsb:
+                rms_dex_lsb_all[mname].append(ds["rms_dex"])
+            if not np.isnan(ds["deep_slope"]):
+                deep_slope_all[mname].append(ds["deep_slope"])
 
-    _log(f"\n  Galaxies processed: {n_processed}")
+    _log(f"\n  Galaxies processed: {n_processed}  |  LSB galaxies: {n_lsb}"
+         f"  |  deep_threshold: {deep_threshold}")
 
     # Build comparison table
     records = []
@@ -441,6 +526,10 @@ def run_data_dir_comparison(
                        if rms_dex_all[mname] else float("nan"))
         med_rms_dex_deep = (float(np.median(rms_dex_deep_all[mname]))
                             if rms_dex_deep_all[mname] else float("nan"))
+        med_rms_dex_lsb = (float(np.median(rms_dex_lsb_all[mname]))
+                           if rms_dex_lsb_all[mname] else float("nan"))
+        med_deep_slope = (float(np.median(deep_slope_all[mname]))
+                          if deep_slope_all[mname] else float("nan"))
         deep_regime = med_deep_frac > 0.0
         deep_collapse = (not np.isnan(med_deep_res)
                          and not np.isnan(med_shallow_res)
@@ -451,10 +540,14 @@ def run_data_dir_comparison(
             "LL": ll,
             "AICc": aic_c,
             "N_galaxies": n_processed,
+            "N_lsb": n_lsb,
             "N_points": n,
             "k": k,
+            "deep_threshold": deep_threshold,
             "rms_dex": med_rms_dex,
             "rms_dex_deep": med_rms_dex_deep,
+            "rms_dex_lsb": med_rms_dex_lsb,
+            "deep_slope": med_deep_slope,
             "deep_frac_median": med_deep_frac,
             "deep_res_median": med_deep_res,
             "shallow_res_median": med_shallow_res,
@@ -521,10 +614,14 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
         "LL": ll_proxy,
         "AICc": aic_c_velos,
         "N_galaxies": n_gal,
+        "N_lsb": 0,
         "N_points": total_n,
         "k": k,
+        "deep_threshold": DEEP_THRESHOLD_DEFAULT,
         "rms_dex": float("nan"),
         "rms_dex_deep": float("nan"),
+        "rms_dex_lsb": float("nan"),
+        "deep_slope": float("nan"),
         "deep_frac_median": float("nan"),
         "deep_res_median": float("nan"),
         "shallow_res_median": float("nan"),
@@ -540,10 +637,14 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
             "LL": float("nan"),
             "AICc": float("nan"),
             "N_galaxies": n_gal,
+            "N_lsb": 0,
             "N_points": total_n,
             "k": k,
+            "deep_threshold": DEEP_THRESHOLD_DEFAULT,
             "rms_dex": float("nan"),
             "rms_dex_deep": float("nan"),
+            "rms_dex_lsb": float("nan"),
+            "deep_slope": float("nan"),
             "deep_frac_median": float("nan"),
             "deep_res_median": float("nan"),
             "shallow_res_median": float("nan"),
@@ -575,28 +676,32 @@ def _format_report(df: pd.DataFrame, winner: str, a0: float,
         _SEP,
         "  Motor de Velos SCM — ν Model Comparison Report",
         _SEP,
-        f"  Mode       : {mode}",
-        f"  a0         : {a0:.2e} m/s²",
-        f"  N_galaxies : {int(df['N_galaxies'].iloc[0])}",
-        f"  N_points   : {int(df['N_points'].iloc[0])}",
+        f"  Mode         : {mode}",
+        f"  a0           : {a0:.2e} m/s²",
+        f"  N_galaxies   : {int(df['N_galaxies'].iloc[0])}",
+        f"  N_lsb        : {int(df['N_lsb'].iloc[0])}",
+        f"  N_points     : {int(df['N_points'].iloc[0])}",
+        f"  deep_thresh  : {df['deep_threshold'].iloc[0]:.2f} × a0",
         "",
-        f"  {'Model':<12} {'LL':>14} {'AICc':>14} {'ΔAICc':>10} "
-        f"{'rms_dex':>10} {'deep_regime':>12} {'deep_collapse':>14}",
-        "  " + "-" * 80,
+        f"  {'Model':<12} {'LL':>14} {'AICc':>14} {'ΔAICc':>8} "
+        f"{'rms_dex':>8} {'deep_slope':>11} {'deep_collapse':>14}",
+        "  " + "-" * 87,
     ]
     for _, row in df.sort_values("delta_AICc").iterrows():
         ll_s = f"{row['LL']:.2f}" if not np.isnan(row["LL"]) else "N/A"
         aicc_s = f"{row['AICc']:.2f}" if not np.isnan(row["AICc"]) else "N/A"
         daicc_s = f"{row['delta_AICc']:.2f}" if not np.isnan(row["delta_AICc"]) else "N/A"
         rms_s = f"{row['rms_dex']:.4f}" if not np.isnan(row["rms_dex"]) else "N/A"
-        dr = "yes" if row["deep_regime"] else "no"
+        slope_s = (f"{row['deep_slope']:.3f} (expected 0.5)"
+                   if "deep_slope" in row.index and not np.isnan(row["deep_slope"])
+                   else "N/A")
         dc = "YES (⚠)" if row["deep_collapse"] else "no"
         lines.append(
-            f"  {row['model']:<12} {ll_s:>14} {aicc_s:>14} {daicc_s:>10} "
-            f"{rms_s:>10} {dr:>12} {dc:>14}"
+            f"  {row['model']:<12} {ll_s:>14} {aicc_s:>14} {daicc_s:>8} "
+            f"{rms_s:>8} {slope_s:>11} {dc:>14}"
         )
     lines += [
-        "  " + "-" * 80,
+        "  " + "-" * 87,
         f"  Winner: {winner}",
         _SEP,
     ]
@@ -628,6 +733,18 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--a0", type=float, default=A0_DEFAULT,
         help=f"Characteristic acceleration in m/s² (default: {A0_DEFAULT:.2e}).",
     )
+    parser.add_argument(
+        "--deep-threshold", type=float, default=DEEP_THRESHOLD_DEFAULT,
+        dest="deep_threshold",
+        help=(f"g_bar/a0 threshold for deep regime (Option A, default: "
+              f"{DEEP_THRESHOLD_DEFAULT})."),
+    )
+    parser.add_argument(
+        "--lsb-threshold", type=float, default=LSB_THRESHOLD_DEFAULT,
+        dest="lsb_threshold",
+        help=(f"Median SBdisk threshold for LSB classification in L_sun/pc² "
+              f"(Option B, default: {LSB_THRESHOLD_DEFAULT})."),
+    )
     return parser.parse_args(argv)
 
 
@@ -641,7 +758,10 @@ def main(argv: list[str] | None = None) -> None:
     if args.data_dir:
         mode = f"data-dir ({args.data_dir})"
         df, winner, _log = run_data_dir_comparison(
-            Path(args.data_dir), out_dir, a0=args.a0, log_lines=log_lines
+            Path(args.data_dir), out_dir, a0=args.a0,
+            deep_threshold=args.deep_threshold,
+            lsb_threshold=args.lsb_threshold,
+            log_lines=log_lines,
         )
     else:
         mode = f"csv ({args.csv})"
