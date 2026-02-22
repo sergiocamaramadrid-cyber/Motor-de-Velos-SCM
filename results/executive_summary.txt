@@ -1,0 +1,14 @@
+=== Executive Summary – SCM Framework ===
+Galaxias procesadas : 12
+Ajustes exitosos    : 12
+Ajustes fallidos    : 0
+
+Estadísticas del término universal SCM:
+  Media   : 5.2085
+  Mediana : 5.2132
+  Máximo  : 6.5005  (UGC02259_rotmod)
+  Mínimo  : 4.0288  (NGC0891_rotmod)
+
+Galaxias con dispersión de velocidades (sigma_V): 0
+
+Veredicto global: ÉXITO
