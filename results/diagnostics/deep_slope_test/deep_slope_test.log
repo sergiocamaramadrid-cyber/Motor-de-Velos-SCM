@@ -1,0 +1,24 @@
+================================================================
+  Motor de Velos SCM — Deep-Regime Slope Test
+================================================================
+  CSV          : results/universal_term_comparison_full.csv
+  g0           : 1.20e-10 m/s²
+  deep mask    : g_bar < 0.3 × g0
+  Min deep pts : 10
+
+  Total radial points  : 3500
+  Deep-regime points   : 331
+  Deep fraction        : 0.095
+
+  Slope β              : 1.0015
+  Expected (MOND)      : 0.5000
+  Std err              : 0.0066
+  Δ from 0.5           : +0.5015
+  Pearson r            : 0.9930
+  p-value              : 8.44e-307
+  Intercept            : 0.0930
+  Implied log10(g0)    : 0.1860
+  Implied g0 (m/s²)   : 1.534e+00
+
+  Verdict: ⚠️  β = 1.002 — significant structural deviation above 0.5
+================================================================
