@@ -26,24 +26,26 @@ Core capabilities
 - Versioned, machine‑readable outputs and logging to support audit and replication.
 
 Design goals
-- Reproducible: all runs record commit, inputs, and parameters.  
-- Deterministic: deterministic preprocessing and evaluation steps.  
-- Audit-friendly: clear inputs/outputs and diagnostics.  
+- Reproducible: reproducible runs should record input checksums and git commit hashes when generating results.
+- Deterministic: deterministic preprocessing and evaluation steps.
+- Audit-friendly: clear inputs/outputs and diagnostics.
 - Version-controlled: code and analysis scripts tracked in the repository.
 
 ---
 
-## Repository Structure
+## Repository structure
 
-```
-src/            Core models and analysis code
-scripts/        Execution scripts (validation, diagnostics)
-data/           Data instructions (raw data not versioned)
-results/        Generated outputs (not versioned)
-docs/           Formal documentation and contracts
-notebooks/      Exploratory and validation notebooks
-paper/          Manuscript resources
-```
+The repository is organized as follows:
+
+- src/: Core model implementations and analysis modules (Python package layout).
+- scripts/: CLI-style scripts for preprocessing, validation and diagnostics (e.g. scripts/process_sparc.py, scripts/deep_slope_test.py).
+- data/: Data ingestion instructions and small fixtures; large raw datasets are not included (see docs/ for data contracts).
+- results/: Generated outputs (not versioned). Follow naming convention: results/<module>/<artifact>-v<semver>.csv
+- docs/: Formal documentation, data contracts and validation protocols (machine- and reviewer-oriented).
+- notebooks/: Exploratory and validation notebooks (non-deterministic; for inspection and figure generation).
+- paper/: Manuscript figures, supplementary materials and submission assets.
+- tests/ (if present): Unit and integration tests for code and pipelines.
+- Top-level metadata: CITATION.md, LICENSE, requirements.txt, environment.yml.
 
 ---
 
@@ -51,19 +53,42 @@ paper/          Manuscript resources
 
 ### Requirements
 
-Python 3.10+  
-Dependencies listed in `requirements.txt`  
-Optional: Conda environment via `environment.yml`
+- Python 3.10 or later.
+- System tools: git.
+- Dependencies: see `requirements.txt`.
+- Optional: Conda environment via `environment.yml` for reproducible environments.
 
-### Setup
+### Setup (recommended)
 
 ```bash
 git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
 cd Motor-de-Velos-SCM
+
+# create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
+source .venv/bin/activate     # Windows: .venv\Scripts\activate
+
+# upgrade pip and install dependencies
+python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
+
+### Optional (Conda)
+
+```bash
+conda env create -f environment.yml
+conda activate motor-de-velos
+pip install -r requirements.txt    # if additional deps are needed
+```
+
+### Developer / tests (if present)
+
+- Run unit tests: `pytest`  
+- Linting/format: `pre-commit run --all-files` (if pre-commit is configured)
+
+Notes:
+- If the repository provides an installable package (setup.py / pyproject.toml), prefer `pip install -e .` for development.
+- Reproducible runs should record input checksums and git commit hashes when generating results; ensure you install dependencies in a clean environment to reproduce analyses.
 
 ---
 
@@ -114,6 +139,8 @@ Details: `docs/SPARC_EXPECTED_BEHAVIOUR.md`
 
 ## Reproducibility
 
+Reproducible runs should record input checksums and git commit hashes when generating results.
+
 Each run should record:
 
 - Git commit hash  
@@ -122,7 +149,6 @@ Each run should record:
 - Parameter values (e.g., g0, thresholds)
 
 Outputs should be written under:
-
 ```
 results/<module>/<artifact>-v<semver>.csv
 ```
@@ -156,3 +182,5 @@ Refer to the LICENSE file.
 
 Author: Sergio Cámara Madrid  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
+
+EOF
