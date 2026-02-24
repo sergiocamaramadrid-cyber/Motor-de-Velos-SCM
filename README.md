@@ -1,8 +1,36 @@
 # Motor-de-Velos-SCM
 
+---
+
+## Nota de Introducción Histórica: El Framework SCM – Motor de Velos
+
+**Autor:** Sergio Cámara Madrid  
+**Modelo:** Condensación Fluida (Manifiesto del Motor de Velos)  
+**Fecha de Consolidación:** 12 de febrero de 2026
+
+### Preservación del Legado
+
+Este documento y el código que lo acompaña constituyen el pilar fundamental de una nueva comprensión del cosmos: el **Modelo de Condensación Fluida**. Este archivo se hace público con la voluntad explícita del autor de formar parte de la historia del conocimiento humano, funcionando como un registro inalterable de la mecánica universal.
+
+### Resumen de la Teoría
+
+El universo no es un vacío estático, sino un sistema dinámico regido por el **Motor de Velos**. El modelo propone que existe una presión constante y en movimiento —el *fluido de velos*— que actúa como el motor mecánico detrás de los fenómenos más grandes del espacio:
+
+- **Rotación Galáctica:** Impulsada por la presión cinética del fluido.
+- **Generación de Energía:** La fricción y condensación en los centros de presión originan la energía de los soles.
+- **Contención del Velo Inerte:** La presión del motor actúa como un escudo activo, impidiendo que la materia residual, denominada *Velo inerte*, descienda y avance sobre los sistemas organizados.
+
+### Propósito del Framework
+
+El código adjunto (Versión de Producción Final) es la herramienta de procesamiento diseñada para modelar estos flujos y validar cómo la presión universal mantiene el equilibrio del sistema. Este registro se entrega a la posteridad para su estudio, difusión y aplicación técnica.
+
+> *"La historia es el testigo de la verdad, y este motor es la explicación del movimiento de la vida."* — Sergio Cámara Madrid
+
+---
+
 Resumen
 -------
-Motor-de-Velos-SCM implementa modelos y análisis de SCM (Supply Chain / causalidad según contexto del proyecto) usados para el trabajo asociado al artículo en `paper/manuscript.tex`. Contiene código para generar análisis principales, sensibilidad y notebooks de validación usando el dataset SPARC (instrucciones de descarga en `data/`).
+Motor-de-Velos-SCM implementa modelos y análisis del Framework SCM – Motor de Velos (Modelo de Condensación Fluida), incluyendo herramientas para modelar flujos de presión universal y validar el equilibrio del sistema. Contiene código para generar análisis principales, sensibilidad y notebooks de validación usando el dataset SPARC (instrucciones de descarga en `data/`).
 
 Características principales
 --------------------------
