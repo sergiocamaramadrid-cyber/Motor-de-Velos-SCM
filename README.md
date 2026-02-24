@@ -2,36 +2,34 @@
 
 ## Historical Context / Contexto histórico
 
-This project, authored by Sergio Cámara Madrid and consolidated on 12 February 2026,
-is based on the *Fluid Condensation Model (Motor de Velos)*.
+Author: Sergio Cámara Madrid  
+Consolidation date: 2026-02-12
+
+This repository preserves the conceptual origins of the SCM — Motor de Velos (Fluid Condensation Model). The historical note is maintained for provenance and attribution; all scientific claims and evaluations are supported by reproducible analyses, documented statistical protocols, and versioned code.
 
 For the full historical and conceptual background, see:
+`docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`
 
-➡️ `docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`
-
-The sections below describe the reproducible computational framework.
+The remainder of this README focuses on the reproducible computational framework and instructions to run the evaluation pipelines.
 
 ---
 
 ## Overview
 
-Motor-de-Velos-SCM implements a reproducible statistical framework for evaluating
-galaxy rotation curves under the SCM – Motor de Velos (Fluid Condensation) model.
+Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation) model. The repository implements end-to-end workflows from raw data preprocessing to model comparison and diagnostic reporting.
 
-The repository provides:
+Core capabilities
+- Deterministic data processing pipelines with explicit preprocessing steps.
+- Fixed, pre‑specified out‑of‑sample (OOS) validation using radial splits (no post‑hoc tuning).
+- Model comparison using the corrected Akaike Information Criterion (AICc).
+- Diagnostic tests for deep‑regime slope behaviour and other targeted hypotheses.
+- Versioned, machine‑readable outputs and logging to support audit and replication.
 
-- Explicit data processing pipelines.
-- Fixed out-of-sample (OOS) validation protocol.
-- AICc-based model comparison.
-- Diagnostic tests for deep-regime slope behavior.
-- Transparent and reproducible outputs.
-
-The framework is designed to be:
-
-- Deterministic
-- Reproducible
-- Audit-friendly
-- Version-controlled
+Design goals
+- Reproducible: all runs record commit, inputs, and parameters.  
+- Deterministic: deterministic preprocessing and evaluation steps.  
+- Audit-friendly: clear inputs/outputs and diagnostics.  
+- Version-controlled: code and analysis scripts tracked in the repository.
 
 ---
 
