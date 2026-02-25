@@ -4,10 +4,11 @@ tests/test_audit_scm.py — Tests for scripts/audit_scm.py.
 Tests cover:
   - Column alias resolution (flexible CSV headers)
   - GroupKFold produces correct OOS splits (no galaxy leakage)
-  - Permutation test p-value is in [0, 1]
-  - Fraction-improved is in [0, 1]
+  - Permutation test uses corrected p-value formula (Phipson & Smyth 2010)
+  - groupkfold_per_galaxy.csv has one aggregated row per galaxy
+  - Benjamini-Hochberg correction on per-galaxy p-values
   - run_audit writes all four required artefacts
-  - audit_summary.json has the expected keys
+  - audit_summary.json has the expected keys (including rmse_real, folds, …)
   - --strict flag triggers SystemExit on FAIL
   - Reproducibility: same seed → identical results
 """
@@ -25,6 +26,7 @@ import pytest
 # Resolve the script module from the scripts/ directory
 sys.path.insert(0, str(Path(__file__).parent.parent / "scripts"))
 from audit_scm import (
+    _bh_correction,
     _find_col,
     _group_kfold_splits,
     _ols_fit,
@@ -77,6 +79,50 @@ class TestFindCol:
         df = pd.DataFrame({"x": [], "y": []})
         with pytest.raises(ValueError, match="not found"):
             _find_col(df, ("galaxy", "galaxy_id"), "galaxy")
+
+
+# ---------------------------------------------------------------------------
+# _bh_correction
+# ---------------------------------------------------------------------------
+
+class TestBHCorrection:
+    def test_returns_same_length(self):
+        p = np.array([0.01, 0.04, 0.10, 0.20])
+        adj = _bh_correction(p)
+        assert len(adj) == len(p)
+
+    def test_adjusted_ge_raw(self):
+        """BH-adjusted p-values are always ≥ raw p-values."""
+        p = np.array([0.001, 0.010, 0.020, 0.050, 0.100])
+        adj = _bh_correction(p)
+        assert (adj >= p).all()
+
+    def test_adjusted_le_one(self):
+        p = np.array([0.5, 0.7, 0.9, 1.0])
+        adj = _bh_correction(p)
+        assert (adj <= 1.0).all()
+
+    def test_monotone_in_sorted_order(self):
+        """Adjusted p-values must be non-decreasing when sorted by raw p."""
+        p = np.array([0.001, 0.01, 0.02, 0.04, 0.05])
+        adj = _bh_correction(p)
+        assert (np.diff(adj) >= -1e-12).all()
+
+    def test_nan_preserved(self):
+        p = np.array([0.01, float("nan"), 0.05])
+        adj = _bh_correction(p)
+        assert np.isnan(adj[1])
+        assert not np.isnan(adj[0])
+
+    def test_all_nan(self):
+        p = np.array([float("nan"), float("nan")])
+        adj = _bh_correction(p)
+        assert np.isnan(adj).all()
+
+    def test_single_value(self):
+        p = np.array([0.03])
+        adj = _bh_correction(p)
+        assert abs(adj[0] - 0.03) < 1e-12
 
 
 # ---------------------------------------------------------------------------
@@ -143,16 +189,17 @@ class TestOLS:
 
 
 # ---------------------------------------------------------------------------
-# _run_cv
+# _run_cv — internal fold-level records
 # ---------------------------------------------------------------------------
 
 class TestRunCV:
-    def test_per_galaxy_columns(self, synthetic_csv, tmp_path):
+    def test_per_galaxy_folds_columns(self, synthetic_csv):
+        """_run_cv returns fold-level records with expected columns."""
         df = pd.read_csv(synthetic_csv)
         rng = np.random.default_rng(0)
-        per_gal, per_pt = _run_cv(df, "galaxy", "log_g_bar", "log_g_obs", 5, rng)
+        per_gal_folds, _ = _run_cv(df, "galaxy", "log_g_bar", "log_g_obs", 5, rng)
         for col in ("fold", "galaxy", "rmse", "n_points", "slope", "intercept"):
-            assert col in per_gal.columns
+            assert col in per_gal_folds.columns
 
     def test_per_point_columns(self, synthetic_csv):
         df = pd.read_csv(synthetic_csv)
@@ -170,8 +217,8 @@ class TestRunCV:
     def test_rmse_non_negative(self, synthetic_csv):
         df = pd.read_csv(synthetic_csv)
         rng = np.random.default_rng(0)
-        per_gal, _ = _run_cv(df, "galaxy", "log_g_bar", "log_g_obs", 5, rng)
-        assert (per_gal["rmse"] >= 0).all()
+        per_gal_folds, _ = _run_cv(df, "galaxy", "log_g_bar", "log_g_obs", 5, rng)
+        assert (per_gal_folds["rmse"] >= 0).all()
 
 
 # ---------------------------------------------------------------------------
@@ -185,17 +232,26 @@ _EXPECTED_ARTEFACTS = [
     "permutation_test.csv",
 ]
 
-_EXPECTED_SUMMARY_KEYS = {
+# New referee-facing keys required in audit_summary.json
+_REQUIRED_SUMMARY_KEYS = {
     "input_csv",
     "n_galaxies",
     "n_points",
     "n_splits",
     "n_perm",
     "seed",
+    # Referee-facing primary keys
+    "rmse_real",
+    "rmse_perm_mean",
+    "rmse_perm_std",
+    "p_value",
+    "frac_galaxies_improved",
+    "folds",
+    # Legacy aliases (backward compatible)
     "observed_mean_oos_rmse",
     "null_mean_rmse",
     "p_value_permutation",
-    "frac_galaxies_improved",
+    # Verdict
     "strict_checks",
     "verdict",
 }
@@ -211,13 +267,48 @@ class TestRunAudit:
         summary = run_audit(
             synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10, seed=42
         )
-        assert _EXPECTED_SUMMARY_KEYS.issubset(set(summary.keys()))
+        assert _REQUIRED_SUMMARY_KEYS.issubset(set(summary.keys()))
 
     def test_p_value_in_range(self, synthetic_csv, tmp_path):
         summary = run_audit(
             synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10, seed=42
         )
-        assert 0.0 <= summary["p_value_permutation"] <= 1.0
+        assert 0.0 < summary["p_value"] <= 1.0, (
+            "Corrected p-value must be > 0 (Phipson & Smyth 2010)"
+        )
+
+    def test_p_value_legacy_key(self, synthetic_csv, tmp_path):
+        """Legacy key p_value_permutation must equal p_value."""
+        summary = run_audit(
+            synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10, seed=42
+        )
+        assert summary["p_value"] == summary["p_value_permutation"]
+
+    def test_rmse_aliases_consistent(self, synthetic_csv, tmp_path):
+        """rmse_real == observed_mean_oos_rmse, rmse_perm_mean == null_mean_rmse."""
+        summary = run_audit(
+            synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10, seed=42
+        )
+        assert summary["rmse_real"] == summary["observed_mean_oos_rmse"]
+        assert summary["rmse_perm_mean"] == summary["null_mean_rmse"]
+
+    def test_rmse_perm_std_non_negative(self, synthetic_csv, tmp_path):
+        summary = run_audit(
+            synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10, seed=42
+        )
+        assert summary["rmse_perm_std"] >= 0.0
+
+    def test_folds_dict_has_n_splits_entries(self, synthetic_csv, tmp_path):
+        summary = run_audit(
+            synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10, seed=42
+        )
+        assert len(summary["folds"]) == 5
+        for k in summary["folds"]:
+            fold = summary["folds"][k]
+            assert "n_test_galaxies" in fold
+            assert "mean_rmse" in fold
+            assert "slope" in fold
+            assert "intercept" in fold
 
     def test_frac_improved_in_range(self, synthetic_csv, tmp_path):
         summary = run_audit(
@@ -245,11 +336,42 @@ class TestRunAudit:
         perm_df = pd.read_csv(out / "permutation_test.csv")
         assert len(perm_df) == 20
 
+    def test_per_galaxy_csv_one_row_per_galaxy(self, synthetic_csv, tmp_path):
+        """groupkfold_per_galaxy.csv must have exactly one row per galaxy."""
+        out = tmp_path / "out"
+        run_audit(synthetic_csv, out, n_splits=5, n_perm=10, seed=42)
+        pg = pd.read_csv(out / "groupkfold_per_galaxy.csv")
+        df = pd.read_csv(synthetic_csv)
+        n_gal = df["galaxy"].nunique()
+        assert len(pg) == n_gal, (
+            f"Expected {n_gal} rows (one per galaxy), got {len(pg)}"
+        )
+
+    def test_per_galaxy_csv_columns(self, synthetic_csv, tmp_path):
+        """groupkfold_per_galaxy.csv must contain aggregated metric columns."""
+        out = tmp_path / "out"
+        run_audit(synthetic_csv, out, n_splits=5, n_perm=10, seed=42)
+        pg = pd.read_csv(out / "groupkfold_per_galaxy.csv")
+        for col in (
+            "galaxy", "mean_rmse", "std_rmse", "n_folds", "n_points",
+            "null_rmse_median", "null_rmse_mean", "null_rmse_std",
+            "improved", "p_value_galaxy", "p_value_bh",
+        ):
+            assert col in pg.columns, f"Missing column: {col}"
+
+    def test_per_galaxy_bh_ge_raw(self, synthetic_csv, tmp_path):
+        """BH-adjusted p-values must be ≥ raw per-galaxy p-values."""
+        out = tmp_path / "out"
+        run_audit(synthetic_csv, out, n_splits=5, n_perm=10, seed=42)
+        pg = pd.read_csv(out / "groupkfold_per_galaxy.csv")
+        valid = pg["p_value_galaxy"].notna() & pg["p_value_bh"].notna()
+        assert (pg.loc[valid, "p_value_bh"] >= pg.loc[valid, "p_value_galaxy"] - 1e-12).all()
+
     def test_reproducibility(self, synthetic_csv, tmp_path):
         s1 = run_audit(synthetic_csv, tmp_path / "r1", n_splits=5, n_perm=10, seed=7)
         s2 = run_audit(synthetic_csv, tmp_path / "r2", n_splits=5, n_perm=10, seed=7)
-        assert s1["observed_mean_oos_rmse"] == s2["observed_mean_oos_rmse"]
-        assert s1["p_value_permutation"] == s2["p_value_permutation"]
+        assert s1["rmse_real"] == s2["rmse_real"]
+        assert s1["p_value"] == s2["p_value"]
 
     def test_too_few_galaxies_raises(self, tmp_path):
         # Only 2 galaxies but n_splits=5
@@ -261,9 +383,12 @@ class TestRunAudit:
             run_audit(csv, tmp_path / "out", n_splits=5)
 
     def test_strict_pass_no_exit(self, synthetic_csv, tmp_path):
-        """A strong-signal synthetic dataset should pass strict checks."""
+        """A strong-signal synthetic dataset should pass strict checks.
+
+        Requires n_perm ≥ 19 so the corrected p-value 1/(n_perm+1) ≤ 0.05.
+        """
         summary = run_audit(
-            synthetic_csv, tmp_path / "out", n_splits=5, n_perm=10,
+            synthetic_csv, tmp_path / "out", n_splits=5, n_perm=20,
             seed=42, strict=True,
         )
         # Should not raise SystemExit; and verdict must be PASS

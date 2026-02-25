@@ -11,19 +11,29 @@ Methodology
 
 2. Permutation test: ``log_g_bar`` is shuffled *within* each galaxy to
    destroy the signal while preserving galaxy-level distributions.
-   The p-value is the fraction of permutations whose mean cross-validated
-   RMSE ≤ the observed RMSE (lower p → stronger evidence of real signal).
+   The p-value uses the corrected estimator::
+
+       p = (1 + #{null RMSE ≤ observed RMSE}) / (N_perm + 1)
+
+   This avoids a p-value of exactly 0 and is the standard form for
+   permutation tests (Phipson & Smyth 2010).
+
+3. Per-galaxy p-values are computed with the same corrected formula and
+   corrected for multiple comparisons using the Benjamini-Hochberg (FDR)
+   procedure.
 
 Strict checks (``--strict`` flag)
 ----------------------------------
-* p-value (permutation) ≤ 0.05
+* Global p-value ≤ 0.05
 * ≥ 50 % of galaxies show RMSE improvement over the null (real RMSE < median
   null RMSE for that galaxy).
 
 Outputs (written to ``--out`` directory)
 -----------------------------------------
-  audit_summary.json         — top-level verdict, p-value, pass/fail flags
-  groupkfold_per_galaxy.csv  — per-galaxy RMSE across folds
+  audit_summary.json         — top-level verdict, p-value, folds detail,
+                               perm RMSE mean/std, and all key metrics
+  groupkfold_per_galaxy.csv  — one row per galaxy: mean/std RMSE across folds,
+                               null RMSE stats, per-galaxy p-value (raw + BH)
   groupkfold_per_point.csv   — per-point predictions and residuals
   permutation_test.csv       — mean OOS RMSE for each permutation
 
@@ -199,7 +209,48 @@ def _run_cv(
 
 
 # ---------------------------------------------------------------------------
-# Permutation test
+# Multiple-comparisons correction (Benjamini-Hochberg FDR)
+# ---------------------------------------------------------------------------
+
+def _bh_correction(p_values: np.ndarray) -> np.ndarray:
+    """Benjamini-Hochberg FDR correction for an array of p-values.
+
+    NaN entries are preserved as NaN in the output.
+
+    Parameters
+    ----------
+    p_values : 1-D array of raw p-values (may contain NaN).
+
+    Returns
+    -------
+    1-D array of BH-adjusted p-values, clipped to [0, 1].
+    """
+    result = p_values.copy().astype(float)
+    valid_mask = ~np.isnan(p_values)
+    n_valid = int(valid_mask.sum())
+    if n_valid == 0:
+        return result
+
+    p_valid = p_values[valid_mask].astype(float)
+    sorted_idx = np.argsort(p_valid)          # ascending rank
+    ranks = np.empty(n_valid, dtype=float)
+    ranks[sorted_idx] = np.arange(1, n_valid + 1)
+
+    # BH adjusted: p_adj[i] = p[i] * m / rank[i]
+    adjusted = np.minimum(p_valid * n_valid / ranks, 1.0)
+
+    # Enforce monotonicity (take cumulative min from the right in sorted order)
+    sorted_adjusted = adjusted[sorted_idx]
+    for i in range(n_valid - 2, -1, -1):
+        sorted_adjusted[i] = min(sorted_adjusted[i], sorted_adjusted[i + 1])
+    adjusted[sorted_idx] = sorted_adjusted
+
+    result[valid_mask] = adjusted
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Permutation analysis (single pass — global + per-galaxy)
 # ---------------------------------------------------------------------------
 
 def _permute_within_groups(
@@ -213,26 +264,7 @@ def _permute_within_groups(
     return x_perm
 
 
-def _cv_mean_rmse(
-    x: np.ndarray,
-    y: np.ndarray,
-    groups: np.ndarray,
-    splits: list[tuple[np.ndarray, np.ndarray]],
-) -> float:
-    """Compute mean per-galaxy RMSE across all folds."""
-    rmse_list: list[float] = []
-    for train_idx, test_idx in splits:
-        a, b = _ols_fit(x[train_idx], y[train_idx])
-        test_galaxies = np.unique(groups[test_idx])
-        y_pred_test = _ols_predict(x[test_idx], a, b)
-        residuals = y[test_idx] - y_pred_test
-        for gal in test_galaxies:
-            gal_mask = groups[test_idx] == gal
-            rmse_list.append(float(np.sqrt(np.mean(residuals[gal_mask] ** 2))))
-    return float(np.mean(rmse_list)) if rmse_list else float("nan")
-
-
-def _run_permutation_test(
+def _run_permutation_analysis(
     df: pd.DataFrame,
     col_galaxy: str,
     col_x: str,
@@ -241,76 +273,48 @@ def _run_permutation_test(
     n_perm: int,
     seed: int,
     observed_rmse: float,
-) -> tuple[pd.DataFrame, float]:
-    """Run the permutation null test.
+    real_rmse_by_gal: dict[str, float],
+) -> tuple[pd.DataFrame, float, dict[str, dict]]:
+    """Run the permutation null test in a single pass.
 
-    log_g_bar is shuffled within each galaxy to destroy the between-galaxy
-    signal while preserving within-galaxy distributions.
+    Computes both the global p-value and per-galaxy null statistics.
+    ``log_g_bar`` is shuffled within each galaxy to destroy the signal while
+    preserving per-galaxy distributions.
+
+    The p-value uses the corrected estimator (Phipson & Smyth 2010)::
+
+        p = (1 + #{null RMSE ≤ observed RMSE}) / (N_perm + 1)
+
+    Parameters
+    ----------
+    observed_rmse : float
+        Mean per-galaxy OOS RMSE from the real (un-permuted) run.
+    real_rmse_by_gal : dict
+        Mapping galaxy → mean OOS RMSE from the real run.
 
     Returns
     -------
     perm_df : DataFrame with columns perm_id, mean_rmse.
-    p_value : fraction of null RMSEs ≤ observed_rmse.
+    p_value : corrected global permutation p-value.
+    gal_null_stats : dict mapping galaxy → dict with null RMSE stats and
+        per-galaxy p-value (raw).
     """
     rng = np.random.default_rng(seed + 1)  # different seed from CV split
     groups = df[col_galaxy].values
     x = df[col_x].values.astype(float)
     y = df[col_y].values.astype(float)
 
-    # Fix the fold splits for all permutations (deterministic, same grouping)
+    # Fix fold splits for all permutations (deterministic)
     cv_rng = np.random.default_rng(seed)
     splits = _group_kfold_splits(groups, n_splits, cv_rng)
 
-    null_rmses: list[float] = []
-    for _ in range(n_perm):
-        x_perm = _permute_within_groups(x, groups, rng)
-        null_rmses.append(_cv_mean_rmse(x_perm, y, groups, splits))
-
-    null_arr = np.array(null_rmses)
-    # p-value: fraction of null runs whose RMSE is ≤ observed (one-sided)
-    # A low p-value means the null rarely achieves RMSE as low as the real model
-    p_value = float(np.mean(null_arr <= observed_rmse))
-
-    perm_df = pd.DataFrame(
-        {"perm_id": np.arange(n_perm), "mean_rmse": null_rmses}
-    )
-    return perm_df, p_value
-
-
-# ---------------------------------------------------------------------------
-# Fraction of galaxies that improve over the null
-# ---------------------------------------------------------------------------
-
-def _frac_galaxies_improved(
-    per_galaxy_real: pd.DataFrame,
-    perm_df: pd.DataFrame,
-    df: pd.DataFrame,
-    col_galaxy: str,
-    col_x: str,
-    col_y: str,
-    n_splits: int,
-    seed: int,
-) -> float:
-    """Compute fraction of galaxies where real RMSE < median null RMSE.
-
-    For each galaxy that appears in the OOS folds, compare its observed RMSE
-    to the median RMSE it would have under the null distribution.
-    """
-    # Build per-galaxy null RMSEs from n_perm permutations
-    rng_perm = np.random.default_rng(seed + 1)
-    groups = df[col_galaxy].values
-    x = df[col_x].values.astype(float)
-    y = df[col_y].values.astype(float)
-
-    cv_rng = np.random.default_rng(seed)
-    splits = _group_kfold_splits(groups, n_splits, cv_rng)
-
-    n_perm = len(perm_df)
-    # Per-galaxy null RMSE accumulator
+    null_global_rmses: list[float] = []
+    # Per-galaxy null RMSE accumulator: gal → list[float]
     gal_null: dict[str, list[float]] = {}
 
     for _ in range(n_perm):
-        x_perm = _permute_within_groups(x, groups, rng_perm)
+        x_perm = _permute_within_groups(x, groups, rng)
+        perm_gal_rmses: list[float] = []
         for train_idx, test_idx in splits:
             a, b = _ols_fit(x_perm[train_idx], y[train_idx])
             y_pred_test = _ols_predict(x_perm[test_idx], a, b)
@@ -318,24 +322,37 @@ def _frac_galaxies_improved(
             for gal in np.unique(groups[test_idx]):
                 gal_mask = groups[test_idx] == gal
                 rmse = float(np.sqrt(np.mean(residuals[gal_mask] ** 2)))
+                perm_gal_rmses.append(rmse)
                 gal_null.setdefault(gal, []).append(rmse)
+        null_global_rmses.append(
+            float(np.mean(perm_gal_rmses)) if perm_gal_rmses else float("nan")
+        )
 
-    # Per-galaxy real RMSE (average across folds if galaxy appears multiple times)
-    real_rmse_by_gal = (
-        per_galaxy_real.groupby(col_galaxy)["rmse"].mean().to_dict()
+    null_arr = np.array(null_global_rmses)
+    # Corrected p-value (Phipson & Smyth 2010): avoids p = 0
+    p_value = float((np.sum(null_arr <= observed_rmse) + 1) / (n_perm + 1))
+
+    perm_df = pd.DataFrame(
+        {"perm_id": np.arange(n_perm), "mean_rmse": null_global_rmses}
     )
 
-    improved = 0
-    total = 0
+    # Build per-galaxy null stats and raw p-values
+    gal_null_stats: dict[str, dict] = {}
     for gal, null_list in gal_null.items():
-        if gal not in real_rmse_by_gal:
-            continue
-        median_null = float(np.median(null_list))
-        if real_rmse_by_gal[gal] < median_null:
-            improved += 1
-        total += 1
+        null_arr_gal = np.array(null_list)
+        real = real_rmse_by_gal.get(gal, float("nan"))
+        p_gal = float(
+            (np.sum(null_arr_gal <= real) + 1) / (len(null_arr_gal) + 1)
+        )
+        gal_null_stats[gal] = {
+            "null_rmse_median": float(np.median(null_arr_gal)),
+            "null_rmse_mean": float(np.mean(null_arr_gal)),
+            "null_rmse_std": float(np.std(null_arr_gal)),
+            "improved": (not np.isnan(real)) and (real < float(np.median(null_arr_gal))),
+            "p_value_galaxy": p_gal,
+        }
 
-    return float(improved / total) if total > 0 else float("nan")
+    return perm_df, p_value, gal_null_stats
 
 
 # ---------------------------------------------------------------------------
@@ -398,27 +415,77 @@ def run_audit(
     # GroupKFold cross-validation
     # ------------------------------------------------------------------
     cv_rng = np.random.default_rng(seed)
-    per_galaxy, per_point = _run_cv(
+    per_galaxy_folds, per_point = _run_cv(
         df, col_galaxy, col_x, col_y, n_splits, cv_rng
     )
 
-    # Observed mean OOS RMSE
-    observed_rmse = float(per_galaxy["rmse"].mean())
+    # Observed mean OOS RMSE (mean across all per-galaxy fold records)
+    observed_rmse = float(per_galaxy_folds["rmse"].mean())
+
+    # Per-galaxy mean OOS RMSE (averaged across folds)
+    real_rmse_by_gal: dict[str, float] = (
+        per_galaxy_folds.groupby(col_galaxy)["rmse"].mean().to_dict()
+    )
 
     # ------------------------------------------------------------------
-    # Permutation test
+    # Permutation analysis (single pass: global + per-galaxy)
     # ------------------------------------------------------------------
-    perm_df, p_value = _run_permutation_test(
+    perm_df, p_value, gal_null_stats = _run_permutation_analysis(
         df, col_galaxy, col_x, col_y,
-        n_splits, n_perm, seed, observed_rmse,
+        n_splits, n_perm, seed, observed_rmse, real_rmse_by_gal,
     )
+
+    null_mean_rmse = float(perm_df["mean_rmse"].mean())
+    null_std_rmse = float(perm_df["mean_rmse"].std())
 
     # ------------------------------------------------------------------
     # Fraction of galaxies improved over null
     # ------------------------------------------------------------------
-    frac_improved = _frac_galaxies_improved(
-        per_galaxy, perm_df, df, col_galaxy, col_x, col_y, n_splits, seed
+    improved_count = sum(
+        1 for stats in gal_null_stats.values() if stats["improved"]
     )
+    total_count = len(gal_null_stats)
+    frac_improved = float(improved_count / total_count) if total_count > 0 else float("nan")
+
+    # ------------------------------------------------------------------
+    # Build aggregated per-galaxy CSV (one row per galaxy)
+    # ------------------------------------------------------------------
+    agg = (
+        per_galaxy_folds.groupby(col_galaxy)
+        .agg(
+            mean_rmse=("rmse", "mean"),
+            std_rmse=("rmse", "std"),
+            n_folds=("fold", "count"),
+            n_points=("n_points", "sum"),
+        )
+        .reset_index()
+    )
+    # Attach null stats and per-galaxy p-values
+    for col_name, key in [
+        ("null_rmse_median", "null_rmse_median"),
+        ("null_rmse_mean", "null_rmse_mean"),
+        ("null_rmse_std", "null_rmse_std"),
+        ("improved", "improved"),
+        ("p_value_galaxy", "p_value_galaxy"),
+    ]:
+        agg[col_name] = agg[col_galaxy].map(
+            lambda g, k=key: gal_null_stats.get(g, {}).get(k, float("nan"))
+        )
+    # Benjamini-Hochberg correction on per-galaxy p-values
+    agg["p_value_bh"] = _bh_correction(agg["p_value_galaxy"].values)
+
+    # ------------------------------------------------------------------
+    # Build folds detail for audit_summary.json
+    # ------------------------------------------------------------------
+    folds_detail: dict[str, dict] = {}
+    for fold_idx, fold_df in per_galaxy_folds.groupby("fold"):
+        folds_detail[f"fold_{fold_idx}"] = {
+            "n_test_galaxies": int(len(fold_df)),
+            "n_test_points": int(fold_df["n_points"].sum()),
+            "mean_rmse": float(fold_df["rmse"].mean()),
+            "slope": float(fold_df["slope"].iloc[0]),
+            "intercept": float(fold_df["intercept"].iloc[0]),
+        }
 
     # ------------------------------------------------------------------
     # Strict checks
@@ -428,7 +495,6 @@ def run_audit(
     overall_pass = p_pass and frac_pass
 
     verdict = "PASS" if overall_pass else "FAIL"
-    null_mean_rmse = float(perm_df["mean_rmse"].mean())
 
     summary = {
         "input_csv": str(input_csv),
@@ -437,10 +503,19 @@ def run_audit(
         "n_splits": n_splits,
         "n_perm": n_perm,
         "seed": seed,
+        # Primary keys (referee-facing names)
+        "rmse_real": observed_rmse,
+        "rmse_perm_mean": null_mean_rmse,
+        "rmse_perm_std": null_std_rmse,
+        "p_value": p_value,
+        "frac_galaxies_improved": frac_improved,
+        # Legacy aliases (backward compatible)
         "observed_mean_oos_rmse": observed_rmse,
         "null_mean_rmse": null_mean_rmse,
         "p_value_permutation": p_value,
-        "frac_galaxies_improved": frac_improved,
+        # Per-fold detail
+        "folds": folds_detail,
+        # Strict checks
         "strict_checks": {
             "p_value_le_0.05": p_pass,
             "frac_improved_ge_0.50": frac_pass,
@@ -454,7 +529,7 @@ def run_audit(
     with open(out_dir / "audit_summary.json", "w", encoding="utf-8") as fh:
         json.dump(summary, fh, indent=2)
 
-    per_galaxy.to_csv(out_dir / "groupkfold_per_galaxy.csv", index=False)
+    agg.to_csv(out_dir / "groupkfold_per_galaxy.csv", index=False)
     per_point.to_csv(out_dir / "groupkfold_per_point.csv", index=False)
     perm_df.to_csv(out_dir / "permutation_test.csv", index=False)
 
@@ -524,9 +599,9 @@ def main(argv: list[str] | None = None) -> None:
     print(f"  Permutations   : {summary['n_perm']}")
     print(f"  Seed           : {summary['seed']}")
     print()
-    print(f"  OOS RMSE (real): {summary['observed_mean_oos_rmse']:.6f}")
-    print(f"  OOS RMSE (null): {summary['null_mean_rmse']:.6f}")
-    print(f"  p-value        : {summary['p_value_permutation']:.4f}")
+    print(f"  OOS RMSE (real): {summary['rmse_real']:.6f}")
+    print(f"  OOS RMSE (null): {summary['rmse_perm_mean']:.6f}  ± {summary['rmse_perm_std']:.6f}")
+    print(f"  p-value        : {summary['p_value']:.4f}")
     print(f"  Frac improved  : {summary['frac_galaxies_improved']:.3f}")
     print()
     checks = summary["strict_checks"]
