@@ -430,9 +430,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--csv",
-        default="results/audit/sparc_global.csv",
+        default=None,
         help="Per-galaxy audit CSV (galaxy_id, logM, log_gbar, v_obs). "
-             "Default: results/audit/sparc_global.csv",
+             "If omitted, defaults to results/audit/sparc_global.csv",
     )
     parser.add_argument(
         "--out",
@@ -461,6 +461,19 @@ def main(argv: list[str] | None = None) -> dict:
     Returns the results dict so callers can inspect it programmatically.
     """
     args = _parse_args(argv)
+
+    # Auto-detect input if --csv was not provided
+    if args.csv is None:
+        default_path = Path("results/audit/sparc_global.csv")
+        if default_path.exists():
+            args.csv = str(default_path)
+            print(f"[audit_scm] Using default input: {default_path}")
+        else:
+            raise ValueError(
+                "No --csv provided and default results/audit/sparc_global.csv not found. "
+                "Run 'python -m src.scm_analysis --data-dir data/SPARC --out results/' first."
+            )
+
     csv_path = Path(args.csv)
 
     if not csv_path.exists():

@@ -216,3 +216,35 @@ def test_fit_full_d_constraint():
     params = _fit_full(logM, log_gbar, y)
     d = params[4]
     assert d >= 0.0, f"d={d} < 0 after _fit_full — physical constraint violated"
+
+
+# ---------------------------------------------------------------------------
+# Auto-detection of --csv input
+# ---------------------------------------------------------------------------
+
+def test_autodetect_uses_default_csv(audit_csv, tmp_path, monkeypatch):
+    """main() must auto-detect the default CSV and print an informational message."""
+    out_dir = tmp_path / "audit_auto"
+    # Point the CWD to a tmp dir that contains the default relative path
+    data_dir = tmp_path / "results" / "audit"
+    data_dir.mkdir(parents=True)
+    import shutil
+    shutil.copy(audit_csv, data_dir / "sparc_global.csv")
+    monkeypatch.chdir(tmp_path)
+
+    results = main([
+        # No --csv argument
+        "--out", str(out_dir),
+        "--n-splits", str(N_SPLITS_TEST),
+        "--n-perm", str(N_PERM_TEST),
+        "--seed", "0",
+    ])
+    assert results is not None
+    assert (out_dir / "audit_summary.txt").exists()
+
+
+def test_autodetect_raises_when_no_default(tmp_path, monkeypatch):
+    """main() must raise ValueError when --csv is omitted and default doesn't exist."""
+    monkeypatch.chdir(tmp_path)  # empty dir — no sparc_global.csv here
+    with pytest.raises(ValueError, match="results/audit/sparc_global.csv"):
+        main(["--out", str(tmp_path / "out")])
