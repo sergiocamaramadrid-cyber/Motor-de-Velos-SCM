@@ -89,16 +89,20 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     # (ii) row count
     assert len(df) >= 150, f"Expected ≥150 rows, got {len(df)}"
 
-    # (iii) all four core artefacts must exist
+    # (iii) all five core artefacts must exist
     per_gal = out / "per_galaxy_summary.csv"
     uni = out / "universal_term_comparison_full.csv"
     summary = out / "executive_summary.txt"
     top10 = out / "top10_universal.tex"
+    sparc_global = out / "sparc_global.csv"
+    audit_global = out / "audit" / "sparc_global.csv"
 
     assert per_gal.exists(), "per_galaxy_summary.csv not written"
     assert uni.exists(), "universal_term_comparison_full.csv not written"
     assert summary.exists(), "executive_summary.txt not written"
     assert top10.exists(), "top10_universal.tex not written"
+    assert sparc_global.exists(), "sparc_global.csv not written"
+    assert audit_global.exists(), "audit/sparc_global.csv not written"
 
     # (iv) per_galaxy_summary contract and data sanity
     df2 = pd.read_csv(per_gal)
@@ -106,6 +110,27 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
         f"per_galaxy_summary.csv column mismatch: got {df2.columns.tolist()}"
     )
     assert df2["galaxy"].notna().all(), "galaxy column contains NaN values"
+
+    # (v) sparc_global contract: single row with expected columns
+    sg = pd.read_csv(sparc_global)
+    assert len(sg) == 1, f"sparc_global.csv should have 1 row, got {len(sg)}"
+    expected_global_cols = [
+        "n_galaxies", "n_radial_points",
+        "chi2_reduced_median", "chi2_reduced_mean",
+        "upsilon_disk_median", "upsilon_disk_mean",
+        "Vflat_kms_median",
+        "log_g_bar_median", "log_g_obs_median",
+    ]
+    for col in expected_global_cols:
+        assert col in sg.columns, f"sparc_global.csv missing column: {col}"
+    assert int(sg["n_galaxies"].iloc[0]) >= 150, "n_galaxies should be ≥ 150"
+
+    # (vi) audit/sparc_global.csv contract: per-galaxy rows with audit columns
+    ag = pd.read_csv(audit_global)
+    assert len(ag) >= 150, f"audit/sparc_global.csv should have ≥150 rows, got {len(ag)}"
+    expected_audit_cols = ["galaxy_id", "logM", "log_gbar", "log_j", "v_obs"]
+    for col in expected_audit_cols:
+        assert col in ag.columns, f"audit/sparc_global.csv missing column: {col}"
 
 
 def test_run_pipeline_sorted(sparc175_dir, tmp_path):

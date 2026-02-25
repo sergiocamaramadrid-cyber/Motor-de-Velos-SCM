@@ -259,6 +259,13 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     csv_path = out_dir / "universal_term_comparison_full.csv"
     compare_df.to_csv(csv_path, index=False)
 
+    # --- Write global statistics CSV ---
+    _write_sparc_global(results_df, compare_df, out_dir / "sparc_global.csv")
+
+    # --- Write per-galaxy audit CSV (audit/sparc_global.csv) ---
+    audit_df = _build_sparc_global_df(results_df, compare_df)
+    export_sparc_global(audit_df, out_dir / "audit" / "sparc_global.csv")
+
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
@@ -269,6 +276,158 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def export_sparc_global(df, out_csv):
+    """Exporta el CSV global para auditoría OOS (scripts/audit_scm.py).
+
+    Requiere (columnas mínimas):
+
+    - galaxy_id (str)
+    - logM      (float)  = log10(Mbar / Msun)
+    - log_gbar  (float)  = log10(gbar / (m s⁻²))
+    - log_j     (float)  = log10(j_* / (kpc km s⁻¹))
+    - v_obs     (float)  = log10(v_obs / (km s⁻¹))  ← in log
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Per-galaxy audit table with the required columns.
+    out_csv : str or Path
+        Destination path.  Parent directories are created as needed.
+
+    Raises
+    ------
+    ValueError
+        If any required column is absent from *df*.
+    """
+    required = ["galaxy_id", "logM", "log_gbar", "log_j", "v_obs"]
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"export_sparc_global: faltan columnas {missing}")
+
+    out = df[required].copy()
+    out["galaxy_id"] = out["galaxy_id"].astype(str)
+
+    for c in ["logM", "log_gbar", "log_j", "v_obs"]:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    out = (out
+           .replace([np.inf, -np.inf], np.nan)
+           .dropna(subset=required)
+           .reset_index(drop=True))
+
+    out_path = Path(out_csv)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out.to_csv(out_path, index=False)
+
+
+def _build_sparc_global_df(results_df, compare_df):
+    """Build the per-galaxy audit DataFrame expected by :func:`export_sparc_global`.
+
+    Derived quantities
+    ------------------
+    logM      = log10(M_bar_BTFR_Msun)
+    log_gbar  = median log10(g_bar) over all radial points of the galaxy
+    log_j     = log10(median specific angular momentum j_* = r * v_obs [kpc km/s])
+                where v_obs per radial point is recovered from g_obs:
+                v_obs = sqrt(g_obs * r / _CONV)
+    v_obs     = log10(Vflat_kms)  — flat rotation velocity (proxy for asymptotic v_obs)
+
+    Parameters
+    ----------
+    results_df : pd.DataFrame
+        Output of the pipeline (columns: galaxy, upsilon_disk, …, Vflat_kms,
+        M_bar_BTFR_Msun).
+    compare_df : pd.DataFrame
+        Per-radial-point data (columns: galaxy, r_kpc, g_bar, g_obs,
+        log_g_bar, log_g_obs).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: galaxy_id, logM, log_gbar, log_j, v_obs.
+    """
+    rows = []
+    compare_grouped = (compare_df.groupby("galaxy")
+                       if not compare_df.empty else {})
+
+    for _, res_row in results_df.iterrows():
+        name = res_row["galaxy"]
+        m_bar = res_row["M_bar_BTFR_Msun"]
+        vflat = res_row["Vflat_kms"]
+
+        logM = float(np.log10(m_bar)) if (np.isfinite(m_bar) and m_bar > 0) else np.nan
+        v_obs_log = (float(np.log10(vflat))
+                     if (np.isfinite(vflat) and vflat > 0) else np.nan)
+
+        # Per-radial-point quantities for this galaxy
+        if not compare_df.empty and name in compare_df["galaxy"].values:
+            gal_pts = compare_df[compare_df["galaxy"] == name]
+            log_gbar = float(gal_pts["log_g_bar"].median())
+
+            r_arr = gal_pts["r_kpc"].values
+            g_obs_arr = gal_pts["g_obs"].values
+            # v_obs[km/s] = sqrt(g_obs[m/s²] * r[kpc] / _CONV)
+            v_obs_pt = np.sqrt(np.maximum(g_obs_arr * r_arr / _CONV, 0.0))
+            j_arr = r_arr * v_obs_pt
+            valid_j = j_arr[j_arr > 0]
+            j_med = float(np.median(valid_j)) if len(valid_j) else np.nan
+            log_j = float(np.log10(j_med)) if (np.isfinite(j_med) and j_med > 0) else np.nan
+        else:
+            log_gbar = np.nan
+            log_j = np.nan
+
+        rows.append({
+            "galaxy_id": name,
+            "logM": logM,
+            "log_gbar": log_gbar,
+            "log_j": log_j,
+            "v_obs": v_obs_log,
+        })
+
+    return pd.DataFrame(rows)
+
+
+def _write_sparc_global(results_df, compare_df, path):
+    """Write a single-row global statistics CSV (sparc_global.csv).
+
+    Columns
+    -------
+    n_galaxies          : number of galaxies processed.
+    n_radial_points     : total radial points across all galaxies.
+    chi2_reduced_median : median reduced chi-squared across galaxies.
+    chi2_reduced_mean   : mean reduced chi-squared.
+    upsilon_disk_median : median best-fit disk mass-to-light ratio.
+    upsilon_disk_mean   : mean best-fit disk mass-to-light ratio.
+    Vflat_kms_median    : median flat rotation velocity (km/s).
+    log_g_bar_median    : median log10(g_bar) over all radial points.
+    log_g_obs_median    : median log10(g_obs) over all radial points.
+    """
+    n_gal = len(results_df)
+    n_pts = int(compare_df.shape[0]) if not compare_df.empty else 0
+
+    chi2_med = float(results_df["chi2_reduced"].median()) if n_gal else float("nan")
+    chi2_mean = float(results_df["chi2_reduced"].mean()) if n_gal else float("nan")
+    ud_med = float(results_df["upsilon_disk"].median()) if n_gal else float("nan")
+    ud_mean = float(results_df["upsilon_disk"].mean()) if n_gal else float("nan")
+    vflat_col = results_df["Vflat_kms"].dropna()
+    vflat_med = float(vflat_col.median()) if len(vflat_col) else float("nan")
+
+    lg_bar_med = float(compare_df["log_g_bar"].median()) if n_pts else float("nan")
+    lg_obs_med = float(compare_df["log_g_obs"].median()) if n_pts else float("nan")
+
+    row = {
+        "n_galaxies": n_gal,
+        "n_radial_points": n_pts,
+        "chi2_reduced_median": chi2_med,
+        "chi2_reduced_mean": chi2_mean,
+        "upsilon_disk_median": ud_med,
+        "upsilon_disk_mean": ud_mean,
+        "Vflat_kms_median": vflat_med,
+        "log_g_bar_median": lg_bar_med,
+        "log_g_obs_median": lg_obs_med,
+    }
+    pd.DataFrame([row]).to_csv(path, index=False)
 
 
 def _write_executive_summary(df, path):
