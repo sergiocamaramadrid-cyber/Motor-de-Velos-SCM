@@ -181,38 +181,22 @@ results/<module>/<artifact>-v<semver>.csv
 
 ---
 
-## Scientific Scope and Limitations
+## Scope
 
-**What this framework is:** a reproducible, auditable pipeline that evaluates a
-phenomenological rotation-curve model (SCM — Motor de Velos) against the SPARC
-catalogue of 175 disc galaxies.
+This repository evaluates galaxy rotation-curve phenomenology using a
+reproducible statistical framework.
 
-**What this framework is not:**
+The project implements:
 
-- It is **not** a cosmological model. No CMB, BAO, large-scale structure, or
-  galaxy-cluster predictions are made.
-- It does **not** claim to replace or falsify ΛCDM, dark-matter halos, or MOND.
-- No result in this repository constitutes a definitive physical explanation
-  until external validation and peer review have been completed.
+- Galaxy-level out-of-sample validation (GroupKFold)
+- Structural permutation testing
+- Hinge positivity constraint
+- Frozen acceleration scale sensitivity analysis
+- Multicollinearity diagnostics (VIF and condition number)
 
-**Current validation status (v0.6.0):**
-
-- ✅ In-sample goodness-of-fit (χ²) and AICc model comparison
-- ✅ Fixed radial-split out-of-sample protocol (no post-hoc tuning)
-- ✅ Structural permutation test and sensitivity analysis
-- ✅ Deep-regime slope diagnostic (β = 0.5 test)
-- ✅ Multicollinearity diagnostics (VIF, condition number, partial correlation)
-- ✅ 175-galaxy reproducible audit table
-
-**What is needed before stronger claims:**
-
-1. External dataset validation (LITTLE THINGS, galaxy clusters)
-2. Formal head-to-head comparison against NFW halos and full MOND implementation
-3. Independent replication and peer-reviewed publication
-
-For the full methodological scope declaration, including falsifiable predictions
-and the explicit list of out-of-scope claims, see:
-`docs/METHODOLOGY.md`
+The scope of the repository is limited to galaxy-scale computational
+analysis. No cosmological claims are made beyond the statistical
+performance reported in the results.
 
 ---
 

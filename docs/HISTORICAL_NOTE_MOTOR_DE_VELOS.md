@@ -52,10 +52,9 @@ The repository focuses on:
 - Documented validation diagnostics.
 
 **Scope boundary:** the computational framework evaluates galactic
-rotation-curve phenomenology only.  No claims regarding dark matter,
-cosmological structure, or alternatives to ΛCDM are made or supported
-by the repository results.  For the formal scope declaration, see
-`docs/METHODOLOGY.md`.
+rotation-curve phenomenology only. No cosmological claims (including
+statements regarding dark matter or ΛCDM) are implied beyond the
+statistical evidence documented in this repository.
 
 Readers interested in the reproducible framework should refer to:
 
