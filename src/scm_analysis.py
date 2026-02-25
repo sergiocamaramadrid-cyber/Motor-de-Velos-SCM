@@ -11,7 +11,6 @@ Or import and call :func:`run_pipeline` programmatically.
 """
 
 import argparse
-import csv
 import os
 import sys
 from pathlib import Path
@@ -66,7 +65,8 @@ def load_galaxy_table(data_dir):
     for path in candidates:
         if path.exists():
             sep = "," if path.suffix == ".csv" else r"\s+"
-            df = pd.read_csv(path, sep=sep, comment="#")
+            with open(path) as fh:
+                df = pd.read_csv(fh, sep=sep, comment="#")
             return df
     raise FileNotFoundError(
         f"SPARC galaxy table not found in {data_dir}. "
@@ -98,13 +98,14 @@ def load_rotation_curve(data_dir, galaxy_name):
     ]
     for path in candidates:
         if path.exists():
-            df = pd.read_csv(
-                path,
-                sep=r"\s+",
-                comment="#",
-                names=["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul",
-                       "SBdisk", "SBbul"],
-            )
+            with open(path) as fh:
+                df = pd.read_csv(
+                    fh,
+                    sep=r"\s+",
+                    comment="#",
+                    names=["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul",
+                           "SBdisk", "SBbul"],
+                )
             return df[["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul"]]
     raise FileNotFoundError(
         f"Rotation curve for {galaxy_name} not found in {data_dir}"
