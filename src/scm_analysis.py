@@ -191,12 +191,14 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
     records = []
     compare_rows = []  # per-radial-point rows for universal_term_comparison_full.csv
+    skipped_names = []  # galaxies whose rotation curves could not be extracted
     for name in galaxy_names:
         try:
             rc = load_rotation_curve(data_dir, name)
         except FileNotFoundError:
             if verbose:
                 print(f"  [skip] {name}: rotation curve not found", file=sys.stderr)
+            skipped_names.append(name)
             continue
 
         fit = fit_galaxy(rc, a0=a0)
@@ -253,6 +255,10 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     per_galaxy_path = out_dir / "per_galaxy_summary.csv"
     results_df.to_csv(per_galaxy_path, index=False)
 
+    # --- Write skipped-galaxy list (failed rotation-curve extractions) ---
+    skipped_path = out_dir / "skipped_galaxies.csv"
+    pd.DataFrame({"galaxy": skipped_names}).to_csv(skipped_path, index=False)
+
     # --- Write universal term comparison CSV (per radial point for RAR/deep-slope) ---
     # Columns: galaxy, r_kpc, g_bar, g_obs, log_g_bar, log_g_obs
     compare_df = pd.DataFrame(compare_rows)
@@ -260,7 +266,8 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     compare_df.to_csv(csv_path, index=False)
 
     # --- Write executive summary ---
-    _write_executive_summary(results_df, out_dir / "executive_summary.txt")
+    _write_executive_summary(results_df, out_dir / "executive_summary.txt",
+                             n_skipped=len(skipped_names))
 
     # --- Write top-10 LaTeX table ---
     _write_top10_latex(results_df, out_dir / "top10_universal.tex")
@@ -271,10 +278,11 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     return results_df
 
 
-def _write_executive_summary(df, path):
+def _write_executive_summary(df, path, n_skipped=0):
     """Write a plain-text executive summary of the pipeline results."""
     lines = ["SCM Pipeline — Executive Summary"]
     lines.append(f"N_galaxies: {len(df)}")
+    lines.append(f"N_skipped: {n_skipped}")
     if "chi2_reduced" in df.columns and len(df):
         lines.append(f"chi2_reduced median: {df['chi2_reduced'].median():.4f}")
     if "upsilon_disk" in df.columns and len(df):
