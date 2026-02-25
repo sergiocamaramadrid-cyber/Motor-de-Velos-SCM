@@ -259,6 +259,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     csv_path = out_dir / "universal_term_comparison_full.csv"
     compare_df.to_csv(csv_path, index=False)
 
+    # --- Write global statistics CSV ---
+    _write_sparc_global(results_df, compare_df, out_dir / "sparc_global.csv")
+
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
@@ -269,6 +272,48 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _write_sparc_global(results_df, compare_df, path):
+    """Write a single-row global statistics CSV (sparc_global.csv).
+
+    Columns
+    -------
+    n_galaxies          : number of galaxies processed.
+    n_radial_points     : total radial points across all galaxies.
+    chi2_reduced_median : median reduced chi-squared across galaxies.
+    chi2_reduced_mean   : mean reduced chi-squared.
+    upsilon_disk_median : median best-fit disk mass-to-light ratio.
+    upsilon_disk_mean   : mean best-fit disk mass-to-light ratio.
+    Vflat_kms_median    : median flat rotation velocity (km/s).
+    log_g_bar_median    : median log10(g_bar) over all radial points.
+    log_g_obs_median    : median log10(g_obs) over all radial points.
+    """
+    n_gal = len(results_df)
+    n_pts = int(compare_df.shape[0]) if not compare_df.empty else 0
+
+    chi2_med = float(results_df["chi2_reduced"].median()) if n_gal else float("nan")
+    chi2_mean = float(results_df["chi2_reduced"].mean()) if n_gal else float("nan")
+    ud_med = float(results_df["upsilon_disk"].median()) if n_gal else float("nan")
+    ud_mean = float(results_df["upsilon_disk"].mean()) if n_gal else float("nan")
+    vflat_col = results_df["Vflat_kms"].dropna()
+    vflat_med = float(vflat_col.median()) if len(vflat_col) else float("nan")
+
+    lg_bar_med = float(compare_df["log_g_bar"].median()) if n_pts else float("nan")
+    lg_obs_med = float(compare_df["log_g_obs"].median()) if n_pts else float("nan")
+
+    row = {
+        "n_galaxies": n_gal,
+        "n_radial_points": n_pts,
+        "chi2_reduced_median": chi2_med,
+        "chi2_reduced_mean": chi2_mean,
+        "upsilon_disk_median": ud_med,
+        "upsilon_disk_mean": ud_mean,
+        "Vflat_kms_median": vflat_med,
+        "log_g_bar_median": lg_bar_med,
+        "log_g_obs_median": lg_obs_med,
+    }
+    pd.DataFrame([row]).to_csv(path, index=False)
 
 
 def _write_executive_summary(df, path):
