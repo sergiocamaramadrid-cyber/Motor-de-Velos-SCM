@@ -71,6 +71,39 @@ def sparc_dir(tmp_path):
     return tmp_path
 
 
+@pytest.fixture()
+def sparc_dir_with_missing(tmp_path):
+    """SPARC dataset where one galaxy is in the table but has no rotation curve."""
+    galaxy_csv = tmp_path / "SPARC_Lelli2016c.csv"
+    galaxy_table = pd.DataFrame({
+        "Galaxy": ["NGC0000", "NGC0001", "NGC0002", "NGC_MISSING"],
+        "D": [10.0, 20.0, 30.0, 40.0],
+        "Inc": [45.0, 60.0, 75.0, 30.0],
+        "L36": [1e9, 2e9, 3e9, 4e9],
+        "Vflat": [150.0, 200.0, 250.0, 300.0],
+        "e_Vflat": [5.0, 5.0, 5.0, 5.0],
+    })
+    galaxy_table.to_csv(galaxy_csv, index=False)
+
+    rng = np.random.default_rng(42)
+    for name in ["NGC0000", "NGC0001", "NGC0002"]:  # NGC_MISSING intentionally omitted
+        v_flat = galaxy_table.loc[galaxy_table["Galaxy"] == name, "Vflat"].iloc[0]
+        r = np.linspace(0.5, 15, 20)
+        rc_df = pd.DataFrame({
+            "r": r,
+            "v_obs": np.full(20, v_flat) + rng.normal(0, 3, 20),
+            "v_obs_err": np.full(20, 5.0),
+            "v_gas": 0.3 * v_flat * np.ones(20),
+            "v_disk": 0.8 * v_flat * np.ones(20),
+            "v_bul": np.zeros(20),
+            "SBdisk": np.zeros(20),
+            "SBbul": np.zeros(20),
+        })
+        rc_df.to_csv(tmp_path / f"{name}_rotmod.dat", sep=" ", index=False, header=False)
+
+    return tmp_path
+
+
 # ---------------------------------------------------------------------------
 # load_galaxy_table
 # ---------------------------------------------------------------------------
@@ -188,6 +221,42 @@ class TestRunPipeline:
         df = run_pipeline(sparc_dir, out_dir, a0=0.5e-10, verbose=False)
         assert len(df) == 3
 
+    def test_creates_skipped_galaxies_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "skipped_galaxies.csv").exists()
+
+    def test_skipped_galaxies_csv_empty_when_none_missing(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        df_skip = pd.read_csv(out_dir / "skipped_galaxies.csv")
+        assert len(df_skip) == 0
+
+    def test_skipped_galaxies_tracked_when_curves_missing(self,
+                                                           sparc_dir_with_missing,
+                                                           tmp_path):
+        out_dir = tmp_path / "results"
+        df = run_pipeline(sparc_dir_with_missing, out_dir, verbose=False)
+        # Only 3 of 4 galaxies have rotation curves
+        assert len(df) == 3
+        df_skip = pd.read_csv(out_dir / "skipped_galaxies.csv")
+        assert len(df_skip) == 1
+        assert "NGC_MISSING" in df_skip["galaxy"].values
+
+    def test_executive_summary_n_skipped_when_missing(self, sparc_dir_with_missing,
+                                                       tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir_with_missing, out_dir, verbose=False)
+        text = (out_dir / "executive_summary.txt").read_text(encoding="utf-8")
+        assert "N_skipped: 1" in text
+
+    def test_executive_summary_n_skipped_zero_when_all_present(self, sparc_dir,
+                                                                 tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        text = (out_dir / "executive_summary.txt").read_text(encoding="utf-8")
+        assert "N_skipped: 0" in text
+
 
 # ---------------------------------------------------------------------------
 # _write_executive_summary
@@ -212,6 +281,23 @@ class TestWriteExecutiveSummary:
         assert "N_galaxies: 4" in text
         assert "chi2_reduced median" in text
         assert "upsilon_disk median" in text
+
+    def test_n_skipped_default_zero(self, tmp_path):
+        df = pd.DataFrame()
+        path = tmp_path / "summary.txt"
+        _write_executive_summary(df, path)
+        text = path.read_text(encoding="utf-8")
+        assert "N_skipped: 0" in text
+
+    def test_n_skipped_reported(self, tmp_path):
+        df = pd.DataFrame({
+            "chi2_reduced": [1.0, 2.0],
+            "upsilon_disk": [1.0, 1.5],
+        })
+        path = tmp_path / "summary.txt"
+        _write_executive_summary(df, path, n_skipped=7)
+        text = path.read_text(encoding="utf-8")
+        assert "N_skipped: 7" in text
 
 
 # ---------------------------------------------------------------------------
