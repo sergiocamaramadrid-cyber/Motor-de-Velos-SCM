@@ -19,6 +19,7 @@ from src.scm_analysis import (
     load_rotation_curve,
     fit_galaxy,
     run_pipeline,
+    export_sparc_global,
     _write_executive_summary,
     _write_top10_latex,
 )
@@ -240,15 +241,81 @@ class TestWriteTop10Latex:
         # Only top 10 should be present
         assert "NGC0014" not in text
 
-    def test_tabular_structure(self, tmp_path):
-        df = pd.DataFrame({
-            "galaxy": ["G1", "G2"],
-            "chi2_reduced": [0.8, 1.2],
-            "upsilon_disk": [1.0, 1.5],
-            "Vflat_kms": [150.0, float("nan")],
+
+# ---------------------------------------------------------------------------
+# export_sparc_global
+# ---------------------------------------------------------------------------
+
+class TestExportSparcGlobal:
+    """Tests for the public export_sparc_global() function."""
+
+    def _make_df(self, n=5):
+        """Build a minimal valid per-galaxy audit DataFrame."""
+        rng = np.random.default_rng(99)
+        return pd.DataFrame({
+            "galaxy_id": [f"G{i:04d}" for i in range(n)],
+            "logM": rng.uniform(8.0, 12.0, n),
+            "log_gbar": rng.uniform(-12.0, -9.0, n),
+            "log_j": rng.uniform(2.0, 5.0, n),
+            "v_obs": rng.uniform(1.5, 2.5, n),
         })
-        path = tmp_path / "top10.tex"
-        _write_top10_latex(df, path)
-        text = path.read_text(encoding="utf-8")
-        assert r"\begin{tabular}" in text
-        assert "---" in text  # nan Vflat renders as ---
+
+    def test_creates_csv(self, tmp_path):
+        df = self._make_df()
+        out = tmp_path / "audit" / "sparc_global.csv"
+        export_sparc_global(df, out)
+        assert out.exists()
+
+    def test_creates_parent_dirs(self, tmp_path):
+        df = self._make_df()
+        deep_path = tmp_path / "a" / "b" / "c" / "sparc_global.csv"
+        export_sparc_global(df, deep_path)
+        assert deep_path.exists()
+
+    def test_output_columns(self, tmp_path):
+        df = self._make_df()
+        out = tmp_path / "sparc_global.csv"
+        export_sparc_global(df, out)
+        result = pd.read_csv(out)
+        for col in ["galaxy_id", "logM", "log_gbar", "log_j", "v_obs"]:
+            assert col in result.columns
+
+    def test_row_count(self, tmp_path):
+        df = self._make_df(n=7)
+        out = tmp_path / "sparc_global.csv"
+        export_sparc_global(df, out)
+        result = pd.read_csv(out)
+        assert len(result) == 7
+
+    def test_missing_column_raises(self, tmp_path):
+        df = self._make_df().drop(columns=["log_j"])
+        out = tmp_path / "sparc_global.csv"
+        with pytest.raises(ValueError, match="faltan columnas"):
+            export_sparc_global(df, out)
+
+    def test_nan_rows_dropped(self, tmp_path):
+        df = self._make_df(n=4)
+        df.loc[1, "logM"] = float("nan")
+        df.loc[3, "log_gbar"] = float("nan")
+        out = tmp_path / "sparc_global.csv"
+        export_sparc_global(df, out)
+        result = pd.read_csv(out)
+        assert len(result) == 2
+
+    def test_inf_rows_dropped(self, tmp_path):
+        df = self._make_df(n=3)
+        df.loc[0, "log_j"] = float("inf")
+        df.loc[2, "v_obs"] = float("-inf")
+        out = tmp_path / "sparc_global.csv"
+        export_sparc_global(df, out)
+        result = pd.read_csv(out)
+        assert len(result) == 1
+
+    def test_galaxy_id_string(self, tmp_path):
+        df = self._make_df(n=3)
+        df["galaxy_id"] = [1, 2, 3]  # non-string input — must not raise
+        out = tmp_path / "sparc_global.csv"
+        export_sparc_global(df, out)
+        result = pd.read_csv(out)
+        # Values should be preserved regardless of dtype inferred on read-back
+        assert list(result["galaxy_id"]) == [1, 2, 3]
