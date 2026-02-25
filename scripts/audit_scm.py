@@ -589,7 +589,7 @@ def fit_master_coeffs(
 # CLI
 # -----------------------------
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Rigorous OOS audit for SCM (GroupKFold + hard permutation).")
     p.add_argument("--input", required=True, help="CSV with columns: galaxy_id, logM, log_gbar, log_j, y (log v_obs).")
     p.add_argument("--outdir", default="results/audit", help="Output directory.")
@@ -605,11 +605,11 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--logM-col", default="logM")
     p.add_argument("--log-gbar-col", default="log_gbar")
     p.add_argument("--log-j-col", default="log_j")
-    return p.parse_args()
+    return p.parse_args(argv)
 
 
-def main() -> None:
-    args = parse_args()
+def main(argv=None) -> int:
+    args = parse_args(argv)
     outdir = Path(args.outdir)
     _ensure_dir(outdir)
 
@@ -726,7 +726,8 @@ def main() -> None:
     print(f"Permutation p (hard shuffle, N={perm['n_perm']}): {perm['p_empirical']:.4f}")
     print(f"  Perm RMSE mean ± std: {perm['perm_rmse_full_mean_mean']:.5f} ± {perm['perm_rmse_full_mean_std']:.5f}")
     print(f"\nResults written to: {outdir}")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())
