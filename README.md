@@ -40,7 +40,7 @@ The repository is organized as follows:
 - src/: Core model implementations and analysis modules (Python package layout).
 - scripts/: CLI-style scripts for preprocessing, validation and diagnostics (e.g. scripts/process_sparc.py, scripts/deep_slope_test.py).
 - data/: Data ingestion instructions and small fixtures; large raw datasets are not included (see docs/ for data contracts).
-- results/: Generated outputs (not versioned). Follow naming convention: results/<module>/<artifact>-v<semver>.csv
+- results/: Generated outputs (not versioned). Follow naming convention: `results/<module>/<artifact>-v<semver>.csv`
 - docs/: Formal documentation, data contracts and validation protocols (machine- and reviewer-oriented).
 - notebooks/: Exploratory and validation notebooks (non-deterministic; for inspection and figure generation).
 - paper/: Manuscript figures, supplementary materials and submission assets.
