@@ -7,6 +7,7 @@ that no real SPARC download is required.
 
 import os
 import csv
+import math
 import tempfile
 from pathlib import Path
 
@@ -21,6 +22,8 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _write_vif_table,
+    compute_vif_table,
 )
 
 
@@ -67,6 +70,41 @@ def sparc_dir(tmp_path):
         })
         rc_path = tmp_path / f"{name}_rotmod.dat"
         rc_df.to_csv(rc_path, sep=" ", index=False, header=False)
+
+    return tmp_path
+
+
+@pytest.fixture()
+def sparc_dir_large(tmp_path):
+    """Create a 15-galaxy synthetic SPARC dataset for tests that need ≥10 rows."""
+    n_gal = 15
+    names = [f"NGC{i:04d}" for i in range(n_gal)]
+    v_flats = np.linspace(100.0, 300.0, n_gal)
+    l36_vals = 1e9 * np.arange(1, n_gal + 1, dtype=float)
+    galaxy_csv = tmp_path / "SPARC_Lelli2016c.csv"
+    pd.DataFrame({
+        "Galaxy": names,
+        "D": np.linspace(5.0, 50.0, n_gal),
+        "Inc": np.linspace(30.0, 80.0, n_gal),
+        "L36": l36_vals,
+        "Vflat": v_flats,
+        "e_Vflat": np.full(n_gal, 5.0),
+    }).to_csv(galaxy_csv, index=False)
+
+    rng = np.random.default_rng(77)
+    for name, vf in zip(names, v_flats):
+        r = np.linspace(0.5, 15, 20)
+        rc_df = pd.DataFrame({
+            "r": r,
+            "v_obs": np.full(20, vf) + rng.normal(0, 3, 20),
+            "v_obs_err": np.full(20, 5.0),
+            "v_gas": 0.3 * vf * np.ones(20),
+            "v_disk": 0.8 * vf * np.ones(20),
+            "v_bul": np.zeros(20),
+            "SBdisk": np.zeros(20),
+            "SBbul": np.zeros(20),
+        })
+        rc_df.to_csv(tmp_path / f"{name}_rotmod.dat", sep=" ", index=False, header=False)
 
     return tmp_path
 
@@ -252,3 +290,159 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _write_vif_table
+# ---------------------------------------------------------------------------
+
+class TestWriteVifTable:
+    """Tests for _write_vif_table() helper."""
+
+    def _audit_df(self, n=30):
+        """Synthetic audit DataFrame with well-conditioned predictors."""
+        rng = np.random.default_rng(0)
+        return pd.DataFrame({
+            "galaxy": [f"G{i:03d}" for i in range(n)],
+            "logM": rng.uniform(8.0, 11.0, n),
+            "log_gbar": rng.uniform(-12.0, -9.0, n),
+            "log_j": rng.uniform(2.5, 4.5, n),
+        })
+
+    def test_writes_csv(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "audit" / "vif_table.csv"
+        _write_vif_table(df, out)
+        assert out.exists()
+
+    def test_creates_parent_dir(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "new_dir" / "sub" / "vif_table.csv"
+        _write_vif_table(df, out)
+        assert out.exists()
+
+    def test_expected_variables(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "vif_table.csv"
+        vif_df = _write_vif_table(df, out)
+        assert vif_df is not None
+        assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+
+    def test_vif_columns(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "vif_table.csv"
+        vif_df = _write_vif_table(df, out)
+        assert "variable" in vif_df.columns
+        assert "VIF" in vif_df.columns
+
+    def test_csv_readable(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "vif_table.csv"
+        _write_vif_table(df, out)
+        result = pd.read_csv(out)
+        assert list(result.columns) == ["variable", "VIF"]
+        assert len(result) == 5  # const + 4 predictors
+
+    def test_missing_columns_raises(self, tmp_path):
+        df = pd.DataFrame({"galaxy": ["G0"], "logM": [9.0]})
+        out = tmp_path / "vif_table.csv"
+        with pytest.raises(ValueError, match="missing columns"):
+            _write_vif_table(df, out)
+
+    def test_nan_rows_dropped(self, tmp_path):
+        """Rows with NaN in any predictor are silently dropped."""
+        df = self._audit_df(20)
+        df.loc[0, "logM"] = float("nan")
+        out = tmp_path / "vif_table.csv"
+        vif_df = _write_vif_table(df, out)
+        assert vif_df is not None  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# run_pipeline — new audit outputs
+# ---------------------------------------------------------------------------
+
+class TestRunPipelineAuditOutputs:
+    """Verify that run_pipeline writes the new audit artefacts."""
+
+    def test_creates_sparc_global_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "sparc_global.csv").exists()
+
+    def test_sparc_global_columns(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        df = pd.read_csv(out_dir / "audit" / "sparc_global.csv")
+        for col in ("galaxy", "logM", "log_gbar", "log_j"):
+            assert col in df.columns, f"sparc_global.csv missing column: {col}"
+
+    def test_creates_vif_table_csv(self, sparc_dir_large, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir_large, out_dir, verbose=False)
+        assert (out_dir / "audit" / "vif_table.csv").exists()
+
+    def test_vif_table_has_expected_rows(self, sparc_dir_large, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir_large, out_dir, verbose=False)
+        df = pd.read_csv(out_dir / "audit" / "vif_table.csv")
+        assert set(df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+
+
+# ---------------------------------------------------------------------------
+# compute_vif_table (public API)
+# ---------------------------------------------------------------------------
+
+class TestVIFDiagnostics:
+    """Tests for the public compute_vif_table() function."""
+
+    def test_compute_vif_table_structure_and_values(self):
+        rng = np.random.default_rng(123)
+        n = 50
+        df = pd.DataFrame({
+            "logM": rng.normal(10.0, 0.3, n),
+            "log_gbar": rng.normal(-10.0, 0.4, n),
+            "log_j": rng.normal(2.0, 0.2, n),
+        })
+        vif = compute_vif_table(df, logg0=-10.45)
+
+        assert "variable" in vif.columns
+        assert "VIF" in vif.columns
+
+        vars_ = set(vif["variable"].tolist())
+        assert "const" in vars_
+        assert "logM" in vars_
+        assert "log_gbar" in vars_
+        assert "log_j" in vars_
+        assert "hinge" in vars_
+
+        for v in vif["VIF"].tolist():
+            assert isinstance(v, float)
+            assert math.isfinite(v)
+            assert v > 0.0
+
+    def test_missing_columns_raises(self):
+        df = pd.DataFrame({"galaxy": ["G0"], "logM": [9.0]})
+        with pytest.raises(ValueError, match="missing columns"):
+            compute_vif_table(df)
+
+    def test_too_few_rows_raises(self):
+        rng = np.random.default_rng(7)
+        df = pd.DataFrame({
+            "logM": rng.normal(10.0, 0.3, 5),
+            "log_gbar": rng.normal(-10.0, 0.4, 5),
+            "log_j": rng.normal(2.0, 0.2, 5),
+        })
+        with pytest.raises(ValueError, match="not enough valid rows"):
+            compute_vif_table(df)
+
+    def test_returns_five_variables(self):
+        rng = np.random.default_rng(42)
+        n = 40
+        df = pd.DataFrame({
+            "logM": rng.normal(10.0, 0.3, n),
+            "log_gbar": rng.normal(-10.0, 0.4, n),
+            "log_j": rng.normal(2.0, 0.2, n),
+        })
+        vif = compute_vif_table(df)
+        assert len(vif) == 5  # const + logM + log_gbar + log_j + hinge
