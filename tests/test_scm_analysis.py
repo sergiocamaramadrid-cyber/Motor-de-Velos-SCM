@@ -21,6 +21,7 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _write_vif_table,
 )
 
 
@@ -252,3 +253,100 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _write_vif_table
+# ---------------------------------------------------------------------------
+
+class TestWriteVifTable:
+    """Tests for _write_vif_table() helper."""
+
+    def _audit_df(self, n=30):
+        """Synthetic audit DataFrame with well-conditioned predictors."""
+        rng = np.random.default_rng(0)
+        return pd.DataFrame({
+            "galaxy": [f"G{i:03d}" for i in range(n)],
+            "logM": rng.uniform(8.0, 11.0, n),
+            "log_gbar": rng.uniform(-12.0, -9.0, n),
+            "log_j": rng.uniform(2.5, 4.5, n),
+        })
+
+    def test_writes_csv(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "audit" / "vif_table.csv"
+        _write_vif_table(df, out)
+        assert out.exists()
+
+    def test_creates_parent_dir(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "new_dir" / "sub" / "vif_table.csv"
+        _write_vif_table(df, out)
+        assert out.exists()
+
+    def test_expected_variables(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "vif_table.csv"
+        vif_df = _write_vif_table(df, out)
+        assert vif_df is not None
+        assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+
+    def test_vif_columns(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "vif_table.csv"
+        vif_df = _write_vif_table(df, out)
+        assert "variable" in vif_df.columns
+        assert "VIF" in vif_df.columns
+
+    def test_csv_readable(self, tmp_path):
+        df = self._audit_df()
+        out = tmp_path / "vif_table.csv"
+        _write_vif_table(df, out)
+        result = pd.read_csv(out)
+        assert list(result.columns) == ["variable", "VIF"]
+        assert len(result) == 5  # const + 4 predictors
+
+    def test_missing_columns_raises(self, tmp_path):
+        df = pd.DataFrame({"galaxy": ["G0"], "logM": [9.0]})
+        out = tmp_path / "vif_table.csv"
+        with pytest.raises(ValueError, match="missing columns"):
+            _write_vif_table(df, out)
+
+    def test_nan_rows_dropped(self, tmp_path):
+        """Rows with NaN in any predictor are silently dropped."""
+        df = self._audit_df(20)
+        df.loc[0, "logM"] = float("nan")
+        out = tmp_path / "vif_table.csv"
+        vif_df = _write_vif_table(df, out)
+        assert vif_df is not None  # should not raise
+
+
+# ---------------------------------------------------------------------------
+# run_pipeline — new audit outputs
+# ---------------------------------------------------------------------------
+
+class TestRunPipelineAuditOutputs:
+    """Verify that run_pipeline writes the new audit artefacts."""
+
+    def test_creates_sparc_global_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "sparc_global.csv").exists()
+
+    def test_sparc_global_columns(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        df = pd.read_csv(out_dir / "audit" / "sparc_global.csv")
+        for col in ("galaxy", "logM", "log_gbar", "log_j"):
+            assert col in df.columns, f"sparc_global.csv missing column: {col}"
+
+    def test_creates_vif_table_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "vif_table.csv").exists()
+
+    def test_vif_table_has_expected_rows(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        df = pd.read_csv(out_dir / "audit" / "vif_table.csv")
+        assert set(df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
