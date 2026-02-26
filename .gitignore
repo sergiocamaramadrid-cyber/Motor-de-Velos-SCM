@@ -20,6 +20,10 @@ env/
 # Data (large files not tracked)
 data/SPARC/raw/
 data/SPARC/processed/
+data/_smoke_*.csv
+
+# Generated audit/smoke results
+results/_smoke_audit/
 
 # Editor / OS
 .DS_Store
