@@ -1,0 +1,4 @@
+predictor,vif,status
+intercept,1.0,PASS
+baryonic,4.1523,PASS
+hinge,4.1523,PASS

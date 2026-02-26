@@ -1,0 +1,4 @@
+OVERALL STATUS: PASS
+
+hinge VIF:          4.1523  (PASS)
+condition_number:   18.53  (stable)
