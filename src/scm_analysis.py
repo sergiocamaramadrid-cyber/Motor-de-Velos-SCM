@@ -38,6 +38,10 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
+# VIF thresholds for quality_status.txt
+_VIF_HINGE_FAIL = 10.0  # hinge VIF > 10 → collinearity problem
+_KAPPA_FAIL = 30.0       # condition number > 30 → numerical instability
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -266,6 +270,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
     _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
 
+    # --- Write audit metrics: VIF and condition number ---
+    _write_audit_metrics(compare_df, out_dir, a0=a0)
+
     # --- Write sensitivity analysis CSV (a0 grid scan) ---
     # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
     from .sensitivity import run_sensitivity  # noqa: PLC0415
@@ -281,6 +288,141 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _vif_numpy(X):
+    """Compute Variance Inflation Factor for each column of *X*.
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n, p)
+        Design matrix (no intercept column).  Rows are observations.
+
+    Returns
+    -------
+    list of float
+        VIF_j for j in 0 … p-1.  Returns ``inf`` when R² → 1.
+    """
+    n, p = X.shape
+    vifs = []
+    for j in range(p):
+        y = X[:, j]
+        Xj = np.delete(X, j, axis=1)
+        Xj_int = np.column_stack([np.ones(n), Xj])
+        beta, *_ = np.linalg.lstsq(Xj_int, y, rcond=None)
+        y_pred = Xj_int @ beta
+        ss_res = float(np.sum((y - y_pred) ** 2))
+        ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        vifs.append(1.0 / (1.0 - r2) if r2 < 1.0 else float("inf"))
+    return vifs
+
+
+def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
+    """Compute and write multicollinearity and numerical-stability diagnostics.
+
+    Builds a per-radial-point audit table with features
+    ``[logM, log_j, hinge]`` derived from *compare_df*, then:
+
+    1. Computes the Variance Inflation Factor (VIF) for each feature and
+       writes ``<out_dir>/audit/vif_table.csv``.
+    2. Computes the condition number (kappa) of the z-scored feature matrix
+       and writes ``<out_dir>/audit/stability_metrics.csv``.
+    3. Writes an overall PASS/FAIL verdict to
+       ``<out_dir>/audit/quality_status.txt``.
+
+    The *hinge* predictor uses the mathematically correct sign::
+
+        hinge = max(0, log10(a0) - log_gbar)
+
+    so that it equals zero in the Newtonian regime (g_bar >= a0) and is
+    strictly positive in the deep regime (g_bar < a0).
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table with columns
+        ``[r_kpc, g_bar, g_obs, log_g_bar, log_g_obs]``.
+    out_dir : Path
+        Pipeline output directory.
+    a0 : float
+        Characteristic velos acceleration (m/s²).
+    """
+    if compare_df.empty:
+        return
+
+    required = {"r_kpc", "g_bar", "g_obs", "log_g_bar", "log_g_obs"}
+    if not required.issubset(compare_df.columns):
+        return
+
+    log_gbar = compare_df["log_g_bar"].values
+    log_r = np.log10(np.maximum(compare_df["r_kpc"].values, 1e-30))
+    log_gobs = compare_df["log_g_obs"].values
+
+    # logM  ∝  log10(g_bar · r²)  — baryonic mass proxy (up to constants)
+    logM = log_gbar + 2.0 * log_r
+
+    # log_j  ∝  log10(r · sqrt(g_obs · r))  — specific angular momentum proxy
+    log_j = 0.5 * log_gobs + 1.5 * log_r
+
+    # Deep-regime hinge: activates when g_bar < a0 (low-acceleration / deep-MOND)
+    hinge = np.maximum(0.0, np.log10(a0) - log_gbar)
+
+    residual_dex = log_gobs - log_gbar
+
+    audit_df = pd.DataFrame({
+        "logM": logM,
+        "log_gbar": log_gbar,
+        "log_j": log_j,
+        "hinge": hinge,
+        "residual_dex": residual_dex,
+    })
+    audit_df = audit_df.replace([np.inf, -np.inf], np.nan).dropna()
+    if audit_df.empty:
+        return
+
+    audit_dir = Path(out_dir) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Per-radial-point features (used by downstream audit scripts) ---
+    audit_df.to_csv(audit_dir / "audit_features.csv", index=False)
+
+    # --- VIF diagnostics ---
+    # log_gbar is excluded: logM = log_gbar + 2·log_r already encodes it, and
+    # including both creates near-perfect collinearity (VIF ≫ 100, κ ≫ 50).
+    X_cols = ["logM", "log_j", "hinge"]
+    X = audit_df[X_cols].to_numpy(dtype=float)
+    vif_values = _vif_numpy(X)
+    vif_df = pd.DataFrame({"feature": X_cols, "VIF": vif_values})
+    vif_df.to_csv(audit_dir / "vif_table.csv", index=False)
+
+    # --- Numerical Stability (Condition Number, kappa) ---
+    mu = np.nanmean(X, axis=0)
+    sig = np.nanstd(X, axis=0)
+    sig[sig == 0] = 1.0
+    Xz = (X - mu) / sig
+
+    kappa = float(np.linalg.cond(Xz))
+    kappa_status = "stable" if kappa < _KAPPA_FAIL else "check"
+
+    pd.DataFrame({
+        "metric": ["condition_number_kappa"],
+        "value": [kappa],
+        "status": [kappa_status],
+        "notes": ["kappa computed on z-scored [logM, log_j, hinge]"],
+    }).to_csv(audit_dir / "stability_metrics.csv", index=False)
+
+    # --- Overall quality verdict ---
+    hinge_vif = vif_values[X_cols.index("hinge")]
+    vif_ok = np.isfinite(hinge_vif) and hinge_vif < _VIF_HINGE_FAIL
+    kappa_ok = np.isfinite(kappa) and kappa < _KAPPA_FAIL
+    overall = "PASS" if (vif_ok and kappa_ok) else "FAIL"
+    lines = [
+        f"hinge VIF={hinge_vif:.4f} {'PASS' if vif_ok else 'FAIL'} (threshold VIF<{_VIF_HINGE_FAIL})",
+        f"condition_number_kappa={kappa:.4f} {'PASS' if kappa_ok else 'FAIL'} (threshold kappa<{_KAPPA_FAIL})",
+        f"OVERALL STATUS: {overall}",
+    ]
+    (audit_dir / "quality_status.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
@@ -399,7 +541,8 @@ def _parse_args(argv=None):
         "--data-dir", required=True, help="Directory containing SPARC data"
     )
     parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+        "--out", "--outdir", dest="out",
+        default="results/", help="Output directory (default: results/)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,

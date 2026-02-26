@@ -1,0 +1,4 @@
+SCM Pipeline — Executive Summary
+N_galaxies: 175
+chi2_reduced median: 0.5319
+upsilon_disk median: 1.6324
