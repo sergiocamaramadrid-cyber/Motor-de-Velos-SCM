@@ -49,6 +49,9 @@ _A0_DEFAULT = 1.2e-10
 # Frozen log10 of the characteristic baryonic acceleration g0 (m/s²) used in VIF analysis
 _DEFAULT_LOGG0 = -10.45
 
+# Public alias — used in compute_vif_table() and available to callers
+FROZEN_LOGG0 = _DEFAULT_LOGG0
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -435,14 +438,77 @@ def _write_top10_latex(df, path):
         fh.write("\n".join(lines) + "\n")
 
 
-def _write_vif_table(audit_df, out_csv, logg0=-10.45):
-    """Compute VIF for the global-feature design matrix.
+def compute_vif_table(audit_df, logg0=FROZEN_LOGG0):
+    """Compute VIF diagnostics for the SCM global-feature design matrix.
 
-    Predictors: ``logM``, ``log_gbar``, ``log_j``, and a hinge term
-    ``hinge = max(0, logg0 - log_gbar)``.  Results are written to *out_csv*.
+    Required columns in *audit_df*: ``logM``, ``log_gbar``, ``log_j``.
 
-    Requires ``statsmodels``.  If it is not installed a warning is printed and
-    ``None`` is returned without raising an exception.
+    A hinge term ``hinge = max(0, logg0 - log_gbar)`` is derived from the
+    frozen characteristic acceleration — it is positive only in the deep
+    acceleration regime (log_gbar < logg0).
+
+    Parameters
+    ----------
+    audit_df : pd.DataFrame
+        Per-galaxy table with columns ``logM``, ``log_gbar``, ``log_j``.
+    logg0 : float
+        Frozen log10 characteristic acceleration (default: :data:`FROZEN_LOGG0`).
+
+    Returns
+    -------
+    pd.DataFrame
+        Table with columns ``variable`` and ``VIF``
+        (rows: ``const``, ``logM``, ``log_gbar``, ``log_j``, ``hinge``).
+
+    Raises
+    ------
+    ImportError
+        If ``statsmodels`` is not installed.
+    ValueError
+        If required columns are missing or fewer than 10 valid rows remain
+        after cleaning infinite/NaN values.
+    """
+    if not _HAS_STATSMODELS:
+        raise ImportError(
+            "compute_vif_table requires statsmodels. "
+            "Install it with: pip install statsmodels"
+        )
+
+    required = ["logM", "log_gbar", "log_j"]
+    missing = [c for c in required if c not in audit_df.columns]
+    if missing:
+        raise ValueError(f"compute_vif_table: missing columns: {missing}")
+
+    X = pd.DataFrame({
+        "logM": pd.to_numeric(audit_df["logM"], errors="coerce"),
+        "log_gbar": pd.to_numeric(audit_df["log_gbar"], errors="coerce"),
+        "log_j": pd.to_numeric(audit_df["log_j"], errors="coerce"),
+    })
+    X["hinge"] = np.maximum(0.0, float(logg0) - X["log_gbar"].values)  # deep-regime indicator
+
+    X = X.replace([np.inf, -np.inf], np.nan).dropna()
+    if len(X) < 10:
+        raise ValueError(
+            f"compute_vif_table: not enough valid rows after cleaning (<10); got {len(X)}."
+        )
+
+    Xc = sm.add_constant(X, has_constant="add")
+
+    cols = list(Xc.columns)
+    values = Xc.values
+    vif = pd.DataFrame({
+        "variable": cols,
+        "VIF": [float(variance_inflation_factor(values, i)) for i in range(len(cols))],
+    })
+    return vif
+
+
+def _write_vif_table(audit_df, out_csv, logg0=FROZEN_LOGG0):
+    """Compute VIF for the global-feature design matrix and write to *out_csv*.
+
+    Delegates computation to :func:`compute_vif_table`.  If ``statsmodels``
+    is not installed a warning is printed and ``None`` is returned without
+    raising an exception.
 
     Parameters
     ----------
@@ -451,7 +517,7 @@ def _write_vif_table(audit_df, out_csv, logg0=-10.45):
     out_csv : str or Path
         Destination CSV path (parent directories are created if needed).
     logg0 : float
-        Frozen characteristic log-acceleration (default: ``-10.45``).
+        Frozen characteristic log-acceleration (default: :data:`FROZEN_LOGG0`).
 
     Returns
     -------
@@ -470,21 +536,11 @@ def _write_vif_table(audit_df, out_csv, logg0=-10.45):
     if missing:
         raise ValueError(f"Cannot compute VIF; missing columns: {missing}")
 
-    X = pd.DataFrame(index=audit_df.index)
-    X["logM"] = pd.to_numeric(audit_df["logM"], errors="coerce")
-    X["log_gbar"] = pd.to_numeric(audit_df["log_gbar"], errors="coerce")
-    X["log_j"] = pd.to_numeric(audit_df["log_j"], errors="coerce")
-    X["hinge"] = np.maximum(0.0, float(logg0) - X["log_gbar"])  # deep-regime indicator: positive only when log_gbar < logg0
-
-    X = X.replace([np.inf, -np.inf], np.nan).dropna()
-
-    Xc = sm.add_constant(X, has_constant="add")
-
-    vif = pd.DataFrame({"variable": Xc.columns})
-    vif["VIF"] = [
-        variance_inflation_factor(Xc.values, i)
-        for i in range(Xc.shape[1])
-    ]
+    try:
+        vif = compute_vif_table(audit_df, logg0=logg0)
+    except ValueError as exc:
+        print(f"[scm_analysis] WARNING: skipping VIF table — {exc}")
+        return None
 
     out_csv = Path(out_csv)
     out_csv.parent.mkdir(parents=True, exist_ok=True)
