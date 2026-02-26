@@ -238,7 +238,8 @@ def main(argv: list[str] | None = None) -> dict:
             "Run 'python -m src.scm_analysis --data-dir data/SPARC --out results/' first."
         )
 
-    df = pd.read_csv(csv_path)
+    with open(csv_path) as fh:
+        df = pd.read_csv(fh)
     required = {"log_g_bar", "log_g_obs"}
     missing = required - set(df.columns)
     if missing:

@@ -379,7 +379,8 @@ def _load_galaxy_table(data_dir: Path) -> pd.DataFrame:
     for p in candidates:
         if p.exists():
             sep = "," if p.suffix == ".csv" else r"\s+"
-            return pd.read_csv(p, sep=sep, comment="#")
+            with open(p) as fh:
+                return pd.read_csv(fh, sep=sep, comment="#")
     raise FileNotFoundError(
         f"SPARC galaxy table not found in {data_dir}. "
         "Expected SPARC_Lelli2016c.csv or .mrt"
@@ -393,11 +394,12 @@ def _load_rotation_curve(data_dir: Path, name: str) -> pd.DataFrame:
     ]
     for p in candidates:
         if p.exists():
-            df = pd.read_csv(
-                p, sep=r"\s+", comment="#",
-                names=["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul",
-                       "SBdisk", "SBbul"],
-            )
+            with open(p) as fh:
+                df = pd.read_csv(
+                    fh, sep=r"\s+", comment="#",
+                    names=["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul",
+                           "SBdisk", "SBbul"],
+                )
             cols = ["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul"]
             if "SBdisk" in df.columns:
                 cols.append("SBdisk")
@@ -589,7 +591,8 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
         if log_lines is not None:
             log_lines.append(msg)
 
-    pg = pd.read_csv(csv_path)
+    with open(csv_path) as fh:
+        pg = pd.read_csv(fh)
     required = {"galaxy", "chi2_reduced", "n_points"}
     missing = required - set(pg.columns)
     if missing:
