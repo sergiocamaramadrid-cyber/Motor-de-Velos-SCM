@@ -12,6 +12,7 @@ Or import and call :func:`run_pipeline` programmatically.
 
 import argparse
 import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -266,6 +267,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
     _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
 
+    # --- Write audit artifacts (VIF, kappa, quality status) ---
+    _write_audit_artifacts(compare_df, out_dir / "audit", a0=a0)
+
     # --- Write sensitivity analysis CSV (a0 grid scan) ---
     # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
     from .sensitivity import run_sensitivity  # noqa: PLC0415
@@ -281,6 +285,108 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _vif_from_matrix(X):
+    """Return VIF for each column of *X* (no intercept column assumed removed).
+
+    Uses OLS-based R² for each regressor regressed on the rest.
+    """
+    n, k = X.shape
+    vifs = []
+    for j in range(k):
+        y = X[:, j]
+        others = np.delete(X, j, axis=1)
+        # Add intercept column for the auxiliary regression
+        ones = np.ones((n, 1))
+        Z = np.hstack([ones, others])
+        coeffs, _, _, _ = np.linalg.lstsq(Z, y, rcond=None)
+        y_pred = Z @ coeffs
+        ss_res = float(np.sum((y - y_pred) ** 2))
+        ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+        r2 = 1.0 - ss_res / max(ss_tot, 1e-30)
+        vifs.append(1.0 / max(1.0 - r2, 1e-15))
+    return vifs
+
+
+def _condition_number(X):
+    """Return the condition number of the column-standardised matrix *X*."""
+    means = X.mean(axis=0)
+    stds = X.std(axis=0)
+    stds = np.where(stds < 1e-15, 1.0, stds)
+    X_std = (X - means) / stds
+    sv = np.linalg.svd(X_std, compute_uv=False)
+    return float(sv.max() / max(sv.min(), 1e-30))
+
+
+def _write_audit_artifacts(compare_df, audit_dir, a0=_A0_DEFAULT):
+    """Generate audit artifacts in *audit_dir*.
+
+    Writes:
+      * ``audit_features.csv``  — per-radial-point feature matrix
+      * ``vif_table.csv``        — variance inflation factors
+      * ``stability_metrics.csv``— condition number (kappa)
+      * ``quality_status.txt``   — PASS / WARNING verdict
+    """
+    audit_dir = Path(audit_dir)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    if compare_df.empty or not {"log_g_bar", "g_bar"}.issubset(compare_df.columns):
+        # Write empty stubs so downstream scripts don't crash
+        pd.DataFrame(columns=["feature", "VIF"]).to_csv(
+            audit_dir / "vif_table.csv", index=False
+        )
+        pd.DataFrame(columns=["metric", "value"]).to_csv(
+            audit_dir / "stability_metrics.csv", index=False
+        )
+        (audit_dir / "quality_status.txt").write_text("WARNING: no data\n")
+        (audit_dir / "audit_features.csv").write_text("")
+        return
+
+    log_g_bar = compare_df["log_g_bar"].values
+    g_bar = compare_df["g_bar"].values
+    log_a0 = np.log10(a0)
+    hinge = np.maximum(log_g_bar - log_a0, 0.0)
+
+    # --- audit_features.csv --------------------------------------------------
+    feat_df = compare_df[["galaxy", "r_kpc", "log_g_bar", "log_g_obs"]].copy()
+    feat_df["hinge"] = hinge
+    feat_df.to_csv(audit_dir / "audit_features.csv", index=False)
+
+    # --- VIF table -----------------------------------------------------------
+    # Features: log_g_bar, hinge (intercept excluded from VIF computation)
+    X = np.column_stack([log_g_bar, hinge])
+    vif_values = _vif_from_matrix(X)
+    vif_df = pd.DataFrame({
+        "feature": ["log_g_bar", "hinge"],
+        "VIF": [round(v, 4) for v in vif_values],
+    })
+    vif_df.to_csv(audit_dir / "vif_table.csv", index=False)
+
+    # --- stability_metrics.csv -----------------------------------------------
+    kappa = _condition_number(X)
+    stab_df = pd.DataFrame({
+        "metric": ["kappa"],
+        "value": [round(kappa, 4)],
+    })
+    stab_df.to_csv(audit_dir / "stability_metrics.csv", index=False)
+
+    # --- quality_status.txt --------------------------------------------------
+    hinge_vif = vif_values[1]
+    messages = []
+    status = "PASS"
+    if hinge_vif > 10.0:
+        status = "WARNING"
+        messages.append(f"hinge VIF={hinge_vif:.2f} > 10 (severe multicollinearity)")
+    if kappa >= 30.0:
+        status = "WARNING"
+        messages.append(f"kappa={kappa:.2f} >= 30 (condition number too high)")
+    if status == "PASS":
+        messages.append(
+            f"hinge VIF={hinge_vif:.2f} (OK), kappa={kappa:.2f} (OK)"
+        )
+    lines = [status] + messages
+    (audit_dir / "quality_status.txt").write_text("\n".join(lines) + "\n")
 
 
 def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
@@ -399,7 +505,11 @@ def _parse_args(argv=None):
         "--data-dir", required=True, help="Directory containing SPARC data"
     )
     parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+        "--out", default=None, help="Output directory (default: results/)"
+    )
+    parser.add_argument(
+        "--outdir", default=None,
+        help="Output directory — alias for --out (default: results/)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,
@@ -413,9 +523,10 @@ def _parse_args(argv=None):
 
 def main(argv=None):
     args = _parse_args(argv)
+    out_dir = args.outdir or args.out or "results/"
     run_pipeline(
         data_dir=args.data_dir,
-        out_dir=args.out,
+        out_dir=out_dir,
         a0=args.a0,
         verbose=not args.quiet,
     )
