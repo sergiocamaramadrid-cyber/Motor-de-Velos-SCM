@@ -123,6 +123,9 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     assert (audit_dir / "audit_features.csv").exists(), (
         "audit/audit_features.csv not written"
     )
+    assert (audit_dir / "sparc_global.csv").exists(), (
+        "audit/sparc_global.csv not written"
+    )
     # vif_table must contain 'feature' and 'vif' columns and a 'hinge' row
     vif_df = pd.read_csv(audit_dir / "vif_table.csv")
     assert "feature" in vif_df.columns, "vif_table.csv missing 'feature' column"
@@ -136,6 +139,11 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     # quality_status must report PASS or WARNING
     qs = (audit_dir / "quality_status.txt").read_text(encoding="utf-8")
     assert "quality_status: PASS" in qs or "quality_status: WARNING" in qs
+    # sparc_global must have the same rows as the per-radial-point compare table
+    sg = pd.read_csv(audit_dir / "sparc_global.csv")
+    assert {"galaxy", "log_g_bar", "log_g_obs"}.issubset(sg.columns), (
+        "sparc_global.csv missing required columns"
+    )
 
 
 def test_run_pipeline_sorted(sparc175_dir, tmp_path):

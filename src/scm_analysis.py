@@ -440,6 +440,12 @@ def _write_audit_artifacts(compare_df, audit_dir, a0=_A0_DEFAULT):
     pd.DataFrame(feature_rows).to_csv(audit_dir / "audit_features.csv", index=False)
 
     # ------------------------------------------------------------------
+    # sparc_global.csv — full per-radial-point comparison table; consumed
+    # by scripts/audit_scm.py --input for the OOS residual diagnostic.
+    # ------------------------------------------------------------------
+    compare_df.to_csv(audit_dir / "sparc_global.csv", index=False)
+
+    # ------------------------------------------------------------------
     # vif_table.csv — VIF for each predictor in the hinge regression
     # Design matrix: [intercept, log_g_bar, hinge=max(0, log_a0-log_g_bar)]
     # ------------------------------------------------------------------

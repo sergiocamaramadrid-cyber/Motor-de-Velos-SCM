@@ -372,14 +372,108 @@ def _plot_residual_vs_hinge(oos_df: pd.DataFrame, out_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Limited mode: use pre-computed universal_term_comparison_full.csv
+# OOS residuals from pre-computed comparison CSV (no rotmod files needed)
 # ---------------------------------------------------------------------------
 
-def run_from_csv(csv_path: Path, audit_dir: Path, a0: float = _A0_DEFAULT) -> None:
-    """Run a limited audit using only the pre-computed comparison CSV.
+def _compute_oos_from_compare_df(
+    compare_df: pd.DataFrame,
+    a0: float = _A0_DEFAULT,
+) -> pd.DataFrame:
+    """Compute OOS-style residuals directly from a pre-computed comparison CSV.
 
-    The residual-vs-hinge plot is not available in this mode (no rotation-curve
-    data), so only the VIF / stability / quality artefacts are written.
+    This is the log-space equivalent of :func:`compute_oos_residuals` and is
+    used when individual rotation-curve files are not available.  The SCM
+    prediction is derived from the physics:
+
+        g_pred_scm  = g_bar + a0   (velos term adds a0 uniformly)
+        g_pred_bary = g_bar        (pure baryonic baseline)
+
+    Residuals are in log10 units; ``v_hinge`` is computed as
+    ``sqrt(a0_kpc × r_kpc)`` when the radius column is present.
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Must contain ``galaxy``, ``log_g_bar``, ``log_g_obs``; optionally
+        ``r_kpc``, ``g_bar``, ``g_obs``.
+    a0 : float
+        Characteristic SCM acceleration (m/s²).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``galaxy``, ``r_kpc``, ``v_hinge``, ``residual_scm``,
+        ``residual_bary``, ``improvement``, ``log_g_bar``, ``log_g_obs``.
+    """
+    a0_kpc = a0 / _CONV  # (km/s)² / kpc
+
+    # Check column availability once, outside the row loop
+    has_r_kpc = "r_kpc" in compare_df.columns
+    has_g_bar = "g_bar" in compare_df.columns
+
+    rows = []
+    for _, row in compare_df.iterrows():
+        log_gb = float(row["log_g_bar"])
+        log_go = float(row["log_g_obs"])
+        r_kpc  = float(row["r_kpc"]) if has_r_kpc else float("nan")
+        galaxy = str(row.get("galaxy", ""))
+
+        # g_bar value (m/s²) — use pre-computed column when present
+        g_bar_val = float(row["g_bar"]) if has_g_bar else 10.0 ** log_gb
+
+        # SCM prediction: V² = V_bar² + V_velos², so g_pred = g_bar + a0
+        g_pred_scm = g_bar_val + a0
+        log_g_pred_scm = np.log10(max(g_pred_scm, 1e-30))
+
+        # v_hinge = sqrt(a0_kpc × r) [km/s] — monotone proxy for hinge activation
+        v_hinge = (
+            np.sqrt(max(a0_kpc * r_kpc, 0.0))
+            if np.isfinite(r_kpc) and r_kpc > 0
+            else 0.0
+        )
+
+        # Log-space normalised residuals
+        residual_bary = log_go - log_gb
+        residual_scm  = log_go - log_g_pred_scm
+        improvement   = abs(residual_bary) - abs(residual_scm)
+
+        rows.append({
+            "galaxy":       galaxy,
+            "r_kpc":        r_kpc,
+            "v_hinge":      v_hinge,
+            "residual_scm":  residual_scm,
+            "residual_bary": residual_bary,
+            "improvement":   improvement,
+            "log_g_bar":    log_gb,
+            "log_g_obs":    log_go,
+        })
+
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# Limited mode: use pre-computed comparison CSV (sparc_global.csv or similar)
+# ---------------------------------------------------------------------------
+
+def run_from_csv(csv_path: Path, audit_dir: Path, a0: float = _A0_DEFAULT,
+                 verbose: bool = True) -> None:
+    """Run the full audit using a pre-computed per-radial-point comparison CSV.
+
+    Writes *all* artefacts — including ``residual_vs_hinge.csv`` and
+    ``residual_vs_hinge.png`` — so the OOS diagnostic is available even
+    without individual rotation-curve files.
+
+    Parameters
+    ----------
+    csv_path : Path
+        Pre-computed CSV with columns ``galaxy``, ``log_g_bar``, ``log_g_obs``
+        (and ideally ``r_kpc``, ``g_bar``, ``g_obs``).
+    audit_dir : Path
+        Destination directory.
+    a0 : float
+        Characteristic acceleration (m/s²).
+    verbose : bool
+        Print progress if True.
     """
     compare_df = pd.read_csv(csv_path)
     required = {"galaxy", "log_g_bar", "log_g_obs"}
@@ -392,16 +486,23 @@ def run_from_csv(csv_path: Path, audit_dir: Path, a0: float = _A0_DEFAULT) -> No
             "universal_term_comparison_full.csv."
         )
 
+    # 1. VIF / stability / quality / sparc_global artefacts
     try:
         from src.scm_analysis import _write_audit_artifacts  # noqa: PLC0415
         _write_audit_artifacts(compare_df, audit_dir, a0=a0)
     except ImportError:
         pass
 
-    print(
-        f"  [csv-mode] Audit artefacts written to {audit_dir}\n"
-        "  NOTE: residual_vs_hinge.csv/.png require --data-dir."
-    )
+    # 2. OOS residuals from compare_df → residual_vs_hinge.csv + .png
+    oos_df = _compute_oos_from_compare_df(compare_df, a0=a0)
+    write_residual_vs_hinge(oos_df, audit_dir)
+
+    if verbose:
+        print(
+            f"  [csv-mode] Audit artefacts written to {audit_dir}\n"
+            f"  residual_vs_hinge.csv : {len(oos_df)} rows\n"
+            f"  residual_vs_hinge.png : generated"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -419,7 +520,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     src.add_argument(
         "--csv", metavar="FILE",
-        help="Pre-computed universal_term_comparison_full.csv (limited mode).",
+        help="Pre-computed comparison CSV (universal_term_comparison_full.csv "
+             "or sparc_global.csv).",
+    )
+    src.add_argument(
+        "--input", metavar="FILE",
+        help="Alias for --csv: pre-computed per-radial-point comparison CSV.",
     )
     parser.add_argument(
         "--outdir", required=True, metavar="DIR",
@@ -428,6 +534,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--a0", type=float, default=_A0_DEFAULT,
         help=f"Characteristic acceleration in m/s² (default: {_A0_DEFAULT:.2e}).",
+    )
+    parser.add_argument(
+        "--seed", type=int, default=None, metavar="INT",
+        help="Random seed for reproducibility (passed to numpy; default: no seed).",
     )
     parser.add_argument(
         "--quiet", action="store_true", help="Suppress progress output."
@@ -441,6 +551,9 @@ def main(argv: list[str] | None = None) -> None:
     audit_dir = out_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
     verbose = not args.quiet
+
+    if args.seed is not None:
+        np.random.seed(args.seed)
 
     if args.data_dir:
         data_dir = Path(args.data_dir)
@@ -465,8 +578,9 @@ def main(argv: list[str] | None = None) -> None:
             if png_path.exists():
                 print(f"  residual_vs_hinge.png : generated")
     else:
-        # CSV-only mode
-        run_from_csv(Path(args.csv), audit_dir, a0=args.a0)
+        # CSV / --input mode: full audit from pre-computed comparison table
+        csv_file = args.input if args.input is not None else args.csv
+        run_from_csv(Path(csv_file), audit_dir, a0=args.a0, verbose=verbose)
 
 
 if __name__ == "__main__":

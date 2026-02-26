@@ -152,11 +152,41 @@ class TestAuditScmCli:
         audit_out = tmp_path / "audit_csv_mode"
         audit_scm.main(["--csv", str(csv_file),
                         "--outdir", str(audit_out), "--quiet"])
-        # In csv-mode we only get structural audit artefacts (no residual_vs_hinge)
+        # csv-mode now produces all artefacts including residual_vs_hinge
         audit_dir = audit_out / "audit"
         assert (audit_dir / "vif_table.csv").exists()
         assert (audit_dir / "stability_metrics.csv").exists()
         assert (audit_dir / "quality_status.txt").exists()
+        assert (audit_dir / "residual_vs_hinge.csv").exists()
+        assert (audit_dir / "residual_vs_hinge.png").exists()
+
+    def test_input_flag_alias(self, sparc_tiny_dir, tmp_path):
+        """--input is an alias for --csv and produces identical artefacts."""
+        pipeline_out = tmp_path / "pipeline_input"
+        run_pipeline(sparc_tiny_dir, pipeline_out, verbose=False)
+        sparc_global = pipeline_out / "audit" / "sparc_global.csv"
+        assert sparc_global.exists(), "sparc_global.csv must be written by run_pipeline"
+
+        audit_out = tmp_path / "audit_input_mode"
+        audit_scm.main(["--input", str(sparc_global),
+                        "--outdir", str(audit_out), "--quiet"])
+        audit_dir = audit_out / "audit"
+        assert (audit_dir / "residual_vs_hinge.csv").exists()
+        assert (audit_dir / "residual_vs_hinge.png").exists()
+        assert (audit_dir / "vif_table.csv").exists()
+        assert (audit_dir / "quality_status.txt").exists()
+
+    def test_seed_flag_accepted(self, sparc_tiny_dir, tmp_path):
+        """--seed is accepted without error."""
+        pipeline_out = tmp_path / "pipeline_seed"
+        run_pipeline(sparc_tiny_dir, pipeline_out, verbose=False)
+        csv_file = pipeline_out / "universal_term_comparison_full.csv"
+        audit_out = tmp_path / "audit_seed"
+        # should not raise
+        audit_scm.main(["--csv", str(csv_file),
+                        "--outdir", str(audit_out),
+                        "--seed", "20260211",
+                        "--quiet"])
 
 
 # ---------------------------------------------------------------------------
@@ -172,6 +202,7 @@ class TestOutdirArgument:
         assert (out / "audit" / "vif_table.csv").exists()
         assert (out / "audit" / "stability_metrics.csv").exists()
         assert (out / "audit" / "quality_status.txt").exists()
+        assert (out / "audit" / "sparc_global.csv").exists()
 
     def test_out_legacy_still_works(self, sparc_tiny_dir, tmp_path):
         from src.scm_analysis import main as scm_main
