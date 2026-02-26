@@ -12,6 +12,7 @@ Or import and call :func:`run_pipeline` programmatically.
 
 import argparse
 import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -29,6 +30,8 @@ from .scm_models import (
     baryonic_tully_fisher,
 )
 
+# (matplotlib only used for visual audit; keep import local in helper)
+
 # Convert (km/s)²/kpc → m/s² (used for per-point g_bar / g_obs)
 _CONV = 1e6 / KPC_TO_M
 
@@ -37,6 +40,184 @@ _MIN_RADIUS_KPC = 1e-10
 
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
+
+# Frozen acceleration scale (log10 m/s²) used consistently across diagnostics
+_DEFAULT_LOGG0 = -10.45
+
+
+def _ensure_audit_dir(out_dir: Path) -> Path:
+    audit_dir = Path(out_dir) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    return audit_dir
+
+
+def _binned_summary(x: pd.Series, y: pd.Series, nbins: int = 12) -> pd.DataFrame:
+    x = pd.to_numeric(x, errors="coerce")
+    y = pd.to_numeric(y, errors="coerce")
+    m = np.isfinite(x) & np.isfinite(y)
+    x = x[m]
+    y = y[m]
+    if len(x) == 0:
+        return pd.DataFrame(columns=["hinge_center", "resid_median", "resid_p16", "resid_p84", "n"])
+
+    bins = np.linspace(float(x.min()), float(x.max()), nbins + 1)
+    centers = (bins[:-1] + bins[1:]) / 2.0
+
+    rows = []
+    for i in range(len(bins) - 1):
+        last = i == len(bins) - 2
+        mask = (x >= bins[i]) & (x <= bins[i + 1] if last else x < bins[i + 1])
+        yi = y[mask]
+        if len(yi) == 0:
+            continue
+        rows.append({
+            "hinge_center": float(centers[i]),
+            "resid_median": float(np.median(yi)),
+            "resid_p16": float(np.quantile(yi, 0.16)),
+            "resid_p84": float(np.quantile(yi, 0.84)),
+            "n": int(len(yi)),
+        })
+    return pd.DataFrame(rows)
+
+
+def _write_json(path: Path, obj: dict) -> None:
+    path.write_text(json.dumps(obj, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _generate_visual_audit(
+    audit_df: pd.DataFrame,
+    out_dir: Path,
+    logg0: float = _DEFAULT_LOGG0,
+    nbins: int = 12,
+) -> None:
+    """PR #70: Visual diagnostic artifacts (Residual vs Hinge).
+
+    Requires *audit_df* with columns:
+
+    - ``log_gbar``
+    - ``v_obs``
+    - ``v_pred_full`` (preferred) **or** ``residual`` (precomputed)
+
+    Optional:
+
+    - ``v_pred_btfr`` (to compute delta residual vs BTFR)
+
+    Outputs are written to ``out_dir/audit/``:
+
+    - ``residual_vs_hinge.png``
+    - ``binned_residuals.csv``
+    - ``audit_meta.json``
+    """
+    import matplotlib  # local import — keep top-level namespace clean
+    matplotlib.use("Agg")  # headless / CI-safe
+    import matplotlib.pyplot as plt  # noqa: PLC0415
+
+    audit_dir = _ensure_audit_dir(Path(out_dir))
+
+    df = audit_df.copy()
+
+    # --- 1. Ensure 'hinge' column (log_gbar normalised by frozen logg0) ---
+    if "hinge" not in df.columns:
+        if "log_gbar" not in df.columns:
+            raise ValueError(
+                "audit_df must contain 'log_gbar' to compute 'hinge'."
+            )
+        df["hinge"] = pd.to_numeric(df["log_gbar"], errors="coerce") - logg0
+
+    # --- 2. Ensure 'residual' column ---
+    if "residual" not in df.columns:
+        if "v_pred_full" in df.columns and "v_obs" in df.columns:
+            df["residual"] = (
+                pd.to_numeric(df["v_obs"], errors="coerce")
+                - pd.to_numeric(df["v_pred_full"], errors="coerce")
+            )
+        else:
+            raise ValueError(
+                "audit_df must contain either 'residual' or both 'v_obs' and "
+                "'v_pred_full' columns to compute velocity residuals."
+            )
+
+    # --- 3. Binned summary ---
+    binned = _binned_summary(df["hinge"], df["residual"], nbins=nbins)
+    binned_path = audit_dir / "binned_residuals.csv"
+    binned.to_csv(binned_path, index=False)
+
+    # --- 4. Optional delta-BTFR binned residual ---
+    delta_binned = None
+    if "v_pred_btfr" in df.columns and "v_obs" in df.columns:
+        df["delta_btfr"] = (
+            pd.to_numeric(df["v_obs"], errors="coerce")
+            - pd.to_numeric(df["v_pred_btfr"], errors="coerce")
+        )
+        delta_binned = _binned_summary(df["hinge"], df["delta_btfr"], nbins=nbins)
+
+    # --- 5. Plot ---
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    valid = df[["hinge", "residual"]].copy()
+    valid["hinge"] = pd.to_numeric(valid["hinge"], errors="coerce")
+    valid["residual"] = pd.to_numeric(valid["residual"], errors="coerce")
+    valid = valid.dropna()
+
+    ax.scatter(
+        valid["hinge"], valid["residual"],
+        alpha=0.3, s=8, color="steelblue", label="per-point",
+    )
+
+    if not binned.empty:
+        ax.errorbar(
+            binned["hinge_center"],
+            binned["resid_median"],
+            yerr=[
+                binned["resid_median"] - binned["resid_p16"],
+                binned["resid_p84"] - binned["resid_median"],
+            ],
+            fmt="o", color="navy", ms=5, capsize=3, label="binned median ±1σ",
+        )
+
+    if delta_binned is not None and not delta_binned.empty:
+        ax.plot(
+            delta_binned["hinge_center"], delta_binned["resid_median"],
+            "s--", color="firebrick", ms=5, label="BTFR delta",
+        )
+
+    ax.axhline(0, color="black", lw=0.8, ls="--")
+    ax.set_xlabel(r"$\log_{10}(g_{\mathrm{bar}}/g_0)$ [hinge]")
+    ax.set_ylabel(r"$v_{\mathrm{obs}} - v_{\mathrm{pred}}$ (km/s)")
+    ax.set_title("Residual vs Hinge diagnostic (PR #70)")
+    ax.legend(fontsize=9)
+    fig.tight_layout()
+
+    plot_path = audit_dir / "residual_vs_hinge.png"
+    fig.savefig(plot_path, dpi=120)
+    plt.close(fig)
+
+    # --- 6. Sidecar JSON metadata ---
+    src_cols = [
+        c for c in ["log_gbar", "v_obs", "v_pred_full", "v_pred_btfr", "hinge", "residual"]
+        if c in audit_df.columns
+    ]
+    hinge_finite = pd.to_numeric(df["hinge"], errors="coerce").dropna()
+    if len(hinge_finite) > 0:
+        bins_arr = [
+            round(b, 6)
+            for b in np.linspace(float(hinge_finite.min()), float(hinge_finite.max()), nbins + 1)
+        ]
+    else:
+        bins_arr = []
+
+    meta = {
+        "logg0": logg0,
+        "nbins": nbins,
+        "n_rows": int(len(audit_df)),
+        "source_columns": src_cols,
+        "bins": bins_arr,
+        "outputs": {
+            "binned_csv": binned_path.name,
+            "plot_png": plot_path.name,
+        },
+    }
+    _write_json(audit_dir / "audit_meta.json", meta)
 
 
 # ---------------------------------------------------------------------------

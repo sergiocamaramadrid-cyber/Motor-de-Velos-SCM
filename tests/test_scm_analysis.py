@@ -21,6 +21,11 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _ensure_audit_dir,
+    _binned_summary,
+    _write_json,
+    _generate_visual_audit,
+    _DEFAULT_LOGG0,
 )
 
 
@@ -252,3 +257,154 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _ensure_audit_dir
+# ---------------------------------------------------------------------------
+
+class TestEnsureAuditDir:
+    def test_creates_audit_subdir(self, tmp_path):
+        audit_dir = _ensure_audit_dir(tmp_path / "out")
+        assert audit_dir.exists()
+        assert audit_dir.name == "audit"
+
+    def test_idempotent(self, tmp_path):
+        _ensure_audit_dir(tmp_path)
+        _ensure_audit_dir(tmp_path)  # second call must not raise
+        assert (tmp_path / "audit").exists()
+
+
+# ---------------------------------------------------------------------------
+# _binned_summary
+# ---------------------------------------------------------------------------
+
+class TestBinnedSummary:
+    def test_returns_expected_columns(self):
+        x = pd.Series(np.linspace(-3, 3, 60))
+        y = pd.Series(np.sin(np.linspace(-3, 3, 60)))
+        result = _binned_summary(x, y, nbins=6)
+        for col in ["hinge_center", "resid_median", "resid_p16", "resid_p84", "n"]:
+            assert col in result.columns
+
+    def test_empty_input(self):
+        result = _binned_summary(pd.Series([], dtype=float), pd.Series([], dtype=float))
+        assert result.empty
+
+    def test_non_numeric_coerced(self):
+        x = pd.Series(["1.0", "2.0", "bad", "3.0"])
+        y = pd.Series([0.1, 0.2, 0.3, 0.4])
+        result = _binned_summary(x, y, nbins=3)
+        assert not result.empty
+
+    def test_n_bins_respected(self):
+        x = pd.Series(np.linspace(0, 1, 100))
+        y = pd.Series(np.zeros(100))
+        result = _binned_summary(x, y, nbins=5)
+        assert len(result) <= 5
+
+    def test_percentiles_ordered(self):
+        rng = np.random.default_rng(0)
+        x = pd.Series(np.linspace(0, 1, 200))
+        y = pd.Series(rng.normal(0, 1, 200))
+        result = _binned_summary(x, y, nbins=10)
+        assert (result["resid_p16"] <= result["resid_median"]).all()
+        assert (result["resid_median"] <= result["resid_p84"]).all()
+
+
+# ---------------------------------------------------------------------------
+# _write_json
+# ---------------------------------------------------------------------------
+
+class TestWriteJson:
+    def test_writes_valid_json(self, tmp_path):
+        path = tmp_path / "meta.json"
+        _write_json(path, {"logg0": -10.45, "nbins": 12})
+        import json
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["logg0"] == -10.45
+        assert data["nbins"] == 12
+
+
+# ---------------------------------------------------------------------------
+# _generate_visual_audit
+# ---------------------------------------------------------------------------
+
+class TestGenerateVisualAudit:
+    def _make_df(self, n=80, include_btfr=False, use_precomputed_residual=False):
+        rng = np.random.default_rng(7)
+        log_gbar = rng.uniform(-12, -9, n)
+        v_obs = rng.uniform(100, 300, n)
+        v_pred_full = v_obs + rng.normal(0, 5, n)
+        df = pd.DataFrame({"log_gbar": log_gbar, "v_obs": v_obs})
+        if use_precomputed_residual:
+            df["residual"] = v_obs - v_pred_full
+        else:
+            df["v_pred_full"] = v_pred_full
+        if include_btfr:
+            df["v_pred_btfr"] = v_obs + rng.normal(0, 8, n)
+        return df
+
+    def test_creates_output_files(self, tmp_path):
+        df = self._make_df()
+        _generate_visual_audit(df, tmp_path)
+        audit_dir = tmp_path / "audit"
+        assert (audit_dir / "residual_vs_hinge.png").exists()
+        assert (audit_dir / "binned_residuals.csv").exists()
+        assert (audit_dir / "audit_meta.json").exists()
+
+    def test_saves_in_audit_subdir(self, tmp_path):
+        df = self._make_df()
+        _generate_visual_audit(df, tmp_path)
+        # Files must be inside out_dir/audit/, not directly in out_dir
+        assert not (tmp_path / "residual_vs_hinge.png").exists()
+
+    def test_computes_hinge_when_missing(self, tmp_path):
+        df = self._make_df()
+        assert "hinge" not in df.columns
+        _generate_visual_audit(df, tmp_path, logg0=_DEFAULT_LOGG0)
+        # Should succeed without error
+
+    def test_accepts_precomputed_residual(self, tmp_path):
+        df = self._make_df(use_precomputed_residual=True)
+        assert "residual" in df.columns
+        _generate_visual_audit(df, tmp_path)
+        assert (tmp_path / "audit" / "residual_vs_hinge.png").exists()
+
+    def test_raises_when_missing_log_gbar(self, tmp_path):
+        df = pd.DataFrame({"v_obs": [100.0], "v_pred_full": [105.0]})
+        with pytest.raises(ValueError, match="log_gbar"):
+            _generate_visual_audit(df, tmp_path)
+
+    def test_raises_when_missing_residual_cols(self, tmp_path):
+        df = pd.DataFrame({"log_gbar": [-11.0], "v_obs": [100.0]})
+        with pytest.raises(ValueError, match="residual"):
+            _generate_visual_audit(df, tmp_path)
+
+    def test_sidecar_json_content(self, tmp_path):
+        import json
+        df = self._make_df(n=50)
+        _generate_visual_audit(df, tmp_path, logg0=_DEFAULT_LOGG0, nbins=8)
+        meta = json.loads((tmp_path / "audit" / "audit_meta.json").read_text(encoding="utf-8"))
+        assert meta["logg0"] == _DEFAULT_LOGG0
+        assert meta["nbins"] == 8
+        assert meta["n_rows"] == 50
+        assert "log_gbar" in meta["source_columns"]
+        assert len(meta["bins"]) == 9  # nbins + 1
+
+    def test_with_btfr_column(self, tmp_path):
+        df = self._make_df(include_btfr=True)
+        _generate_visual_audit(df, tmp_path)
+        assert (tmp_path / "audit" / "residual_vs_hinge.png").exists()
+
+    def test_custom_logg0(self, tmp_path):
+        import json
+        df = self._make_df()
+        _generate_visual_audit(df, tmp_path, logg0=-10.0)
+        meta = json.loads((tmp_path / "audit" / "audit_meta.json").read_text(encoding="utf-8"))
+        assert meta["logg0"] == -10.0
+
+    def test_idempotent_second_call(self, tmp_path):
+        df = self._make_df()
+        _generate_visual_audit(df, tmp_path)
+        _generate_visual_audit(df, tmp_path)  # second call must not raise
