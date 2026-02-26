@@ -301,6 +301,7 @@ class TestRunAudit:
         for fname in (
             "groupkfold_metrics.csv",
             "groupkfold_per_galaxy.csv",
+            "oos_per_point.csv",
             "coeffs_by_fold.csv",
             "permutation_summary.json",
             "master_coeffs.json",

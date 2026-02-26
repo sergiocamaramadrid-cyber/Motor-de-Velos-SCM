@@ -443,6 +443,11 @@ def run_audit(
         outdir / "groupkfold_per_galaxy.csv", index=False
     )
 
+    # Per-radial-point OOS residuals — consumed by scripts/residual_vs_hinge.py
+    pd.DataFrame(per_point_rows).to_csv(
+        outdir / "oos_per_point.csv", index=False
+    )
+
     r2_oos_mean = float(
         np.mean([m["r2_oos"] for m in fold_metrics]) if fold_metrics else 0.0
     )
@@ -499,6 +504,7 @@ def run_audit(
         "artefacts": [
             "groupkfold_metrics.csv",
             "groupkfold_per_galaxy.csv",
+            "oos_per_point.csv",
             "coeffs_by_fold.csv",
             "permutation_summary.json",
             "master_coeffs.json",
