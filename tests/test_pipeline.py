@@ -111,6 +111,32 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     )
     assert df2["galaxy"].notna().all(), "galaxy column contains NaN values"
 
+    # (v) audit sub-directory artefacts
+    audit_dir = out / "audit"
+    assert (audit_dir / "vif_table.csv").exists(), "audit/vif_table.csv not written"
+    assert (audit_dir / "stability_metrics.csv").exists(), (
+        "audit/stability_metrics.csv not written"
+    )
+    assert (audit_dir / "quality_status.txt").exists(), (
+        "audit/quality_status.txt not written"
+    )
+    assert (audit_dir / "audit_features.csv").exists(), (
+        "audit/audit_features.csv not written"
+    )
+    # vif_table must contain 'feature' and 'vif' columns and a 'hinge' row
+    vif_df = pd.read_csv(audit_dir / "vif_table.csv")
+    assert "feature" in vif_df.columns, "vif_table.csv missing 'feature' column"
+    assert "vif" in vif_df.columns, "vif_table.csv missing 'vif' column"
+    assert "hinge" in vif_df["feature"].values, "vif_table.csv missing 'hinge' row"
+    # stability_metrics must contain kappa and hinge_vif
+    stab_df = pd.read_csv(audit_dir / "stability_metrics.csv")
+    assert "metric" in stab_df.columns
+    assert "kappa" in stab_df["metric"].values
+    assert "hinge_vif" in stab_df["metric"].values
+    # quality_status must report PASS or WARNING
+    qs = (audit_dir / "quality_status.txt").read_text(encoding="utf-8")
+    assert "quality_status: PASS" in qs or "quality_status: WARNING" in qs
+
 
 def test_run_pipeline_sorted(sparc175_dir, tmp_path):
     """Returned DataFrame must be sorted by galaxy name."""
