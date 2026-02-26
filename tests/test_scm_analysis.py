@@ -21,6 +21,8 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _write_audit_metrics,
+    _A0_DEFAULT,
 )
 
 
@@ -252,3 +254,114 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _write_audit_metrics
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def sample_compare_df():
+    """Synthetic per-radial-point DataFrame spanning Newtonian and deep regime."""
+    rng = np.random.default_rng(0)
+    a0 = _A0_DEFAULT
+    log_a0 = np.log10(a0)
+    n = 300
+    # Mix of deep-regime (g_bar < a0) and Newtonian (g_bar > a0) points
+    log_gbar = rng.uniform(log_a0 - 2.5, log_a0 + 1.5, n)
+    log_gobs = 0.5 * log_gbar + rng.normal(0, 0.1, n)
+    r_kpc = 10 ** rng.uniform(-0.5, 1.5, n)
+    g_bar = 10.0 ** log_gbar
+    g_obs = 10.0 ** log_gobs
+    return pd.DataFrame({
+        "galaxy": [f"G{i % 10:03d}" for i in range(n)],
+        "r_kpc": r_kpc,
+        "g_bar": g_bar,
+        "g_obs": g_obs,
+        "log_g_bar": log_gbar,
+        "log_g_obs": log_gobs,
+    })
+
+
+class TestWriteAuditMetrics:
+    def test_creates_audit_dir(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        assert (out_dir / "audit").is_dir()
+
+    def test_creates_vif_table(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        vif_path = out_dir / "audit" / "vif_table.csv"
+        assert vif_path.exists()
+        df = pd.read_csv(vif_path)
+        assert set(df.columns) == {"feature", "VIF"}
+        assert list(df["feature"]) == ["logM", "log_j", "hinge"]
+
+    def test_creates_stability_metrics(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        sm_path = out_dir / "audit" / "stability_metrics.csv"
+        assert sm_path.exists()
+        df = pd.read_csv(sm_path)
+        assert "metric" in df.columns
+        assert "value" in df.columns
+        assert "status" in df.columns
+        assert df["metric"].iloc[0] == "condition_number_kappa"
+        assert df["value"].iloc[0] > 0
+
+    def test_creates_quality_status(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        status_path = out_dir / "audit" / "quality_status.txt"
+        assert status_path.exists()
+        text = status_path.read_text(encoding="utf-8")
+        assert "OVERALL STATUS:" in text
+
+    def test_stability_status_values(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        df = pd.read_csv(out_dir / "audit" / "stability_metrics.csv")
+        assert df["status"].iloc[0] in {"stable", "check"}
+
+    def test_empty_dataframe_no_output(self, tmp_path):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(pd.DataFrame(), out_dir)
+        assert not (out_dir / "audit").exists()
+
+    def test_hinge_sign_deep_regime(self, tmp_path):
+        """hinge = max(0, log10(a0) - log_gbar) must be positive in deep regime."""
+        a0 = _A0_DEFAULT
+        log_a0 = np.log10(a0)
+        g_deep = np.array([1e-12, 5e-12, 1e-11])
+        hinge_deep = np.maximum(0.0, log_a0 - np.log10(g_deep))
+        assert np.all(hinge_deep > 0), "Hinge must be >0 in deep regime"
+        g_newton = np.array([1e-9, 5e-9, 1e-8])
+        hinge_newton = np.maximum(0.0, log_a0 - np.log10(g_newton))
+        assert np.all(hinge_newton == 0.0), "Hinge must be 0 in Newtonian regime"
+
+    def test_run_pipeline_creates_audit_files(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "vif_table.csv").exists()
+        assert (out_dir / "audit" / "stability_metrics.csv").exists()
+        assert (out_dir / "audit" / "quality_status.txt").exists()
+        assert (out_dir / "audit" / "audit_features.csv").exists()
+
+
+class TestParseArgsOutdirAlias:
+    def test_outdir_alias_accepted(self):
+        from src.scm_analysis import _parse_args
+        args = _parse_args(["--data-dir", "data/sparc", "--outdir", "results/myout"])
+        assert args.out == "results/myout"
+
+    def test_out_flag_still_works(self):
+        from src.scm_analysis import _parse_args
+        args = _parse_args(["--data-dir", "data/sparc", "--out", "results/myout"])
+        assert args.out == "results/myout"

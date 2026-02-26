@@ -1,0 +1,2 @@
+metric,value,status,notes
+condition_number_kappa,5.083445423777714,stable,"kappa computed on z-scored [logM, log_j, hinge]"
