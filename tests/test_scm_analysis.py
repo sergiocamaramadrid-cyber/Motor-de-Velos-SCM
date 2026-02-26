@@ -21,6 +21,7 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _write_audit_metrics,
 )
 
 
@@ -252,3 +253,75 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _write_audit_metrics
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def sample_compare_df():
+    """Return a small synthetic per-radial-point DataFrame."""
+    rng = np.random.default_rng(0)
+    n = 30
+    r_kpc = np.linspace(0.5, 10.0, n)
+    g_bar = 1e-11 * rng.uniform(0.5, 5.0, n)
+    g_obs = g_bar * rng.uniform(1.0, 3.0, n)
+    return pd.DataFrame({
+        "galaxy": ["G1"] * n,
+        "r_kpc": r_kpc,
+        "g_bar": g_bar,
+        "g_obs": g_obs,
+        "log_g_bar": np.log10(g_bar),
+        "log_g_obs": np.log10(g_obs),
+    })
+
+
+class TestWriteAuditMetrics:
+    def test_creates_audit_dir(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        assert (out_dir / "audit").is_dir()
+
+    def test_creates_vif_table(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        vif_path = out_dir / "audit" / "vif_table.csv"
+        assert vif_path.exists()
+        df = pd.read_csv(vif_path)
+        assert set(df.columns) == {"feature", "VIF"}
+        assert list(df["feature"]) == ["logM", "log_gbar", "log_j", "hinge"]
+
+    def test_creates_stability_metrics(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        sm_path = out_dir / "audit" / "stability_metrics.csv"
+        assert sm_path.exists()
+        df = pd.read_csv(sm_path)
+        assert "metric" in df.columns
+        assert "value" in df.columns
+        assert "status" in df.columns
+        assert df["metric"].iloc[0] == "condition_number_kappa"
+        assert df["value"].iloc[0] > 0
+
+    def test_stability_status_values(self, tmp_path, sample_compare_df):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(sample_compare_df, out_dir)
+        df = pd.read_csv(out_dir / "audit" / "stability_metrics.csv")
+        assert df["status"].iloc[0] in {"stable", "check"}
+
+    def test_empty_dataframe_no_output(self, tmp_path):
+        out_dir = tmp_path / "results"
+        out_dir.mkdir()
+        _write_audit_metrics(pd.DataFrame(), out_dir)
+        assert not (out_dir / "audit").exists()
+
+    def test_run_pipeline_creates_audit_files(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "vif_table.csv").exists()
+        assert (out_dir / "audit" / "stability_metrics.csv").exists()
