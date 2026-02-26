@@ -1,0 +1,9 @@
+hinge VIF: 3.41
+  PASS criteria: 2.0 <= VIF <= 5.0
+  STATUS: PASS
+
+condition_number_kappa: 11.5
+  PASS criteria: condition_number_kappa < 30.0
+  STATUS: PASS
+
+OVERALL STATUS: PASS
