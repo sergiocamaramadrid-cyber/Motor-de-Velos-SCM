@@ -28,6 +28,7 @@ from .scm_models import (
     chi2_reduced,
     baryonic_tully_fisher,
 )
+from .diagnostics import build_feature_matrix, build_audit_table, run_diagnostics
 
 # Convert (km/s)²/kpc → m/s² (used for per-point g_bar / g_obs)
 _CONV = 1e6 / KPC_TO_M
@@ -276,6 +277,18 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
     # --- Write top-10 LaTeX table ---
     _write_top10_latex(results_df, out_dir / "top10_universal.tex")
+
+    # --- Build audit table and write sparc_global.csv ---
+    audit_dir = out_dir / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    audit_df = build_audit_table(compare_df, results_df)
+    audit_df.to_csv(audit_dir / "sparc_global.csv", index=False)
+
+    # --- Run multicollinearity & structural diagnostics (PR #57) ---
+    diag_dir = out_dir / "diagnostics"
+    feature_df = build_feature_matrix(compare_df, results_df)
+    if not feature_df.empty:
+        run_diagnostics(feature_df, diag_dir, verbose=verbose)
 
     if verbose:
         print(f"\nResults written to {out_dir}")

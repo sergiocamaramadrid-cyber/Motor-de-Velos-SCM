@@ -51,9 +51,15 @@ The repository focuses on:
 - Transparent dataset handling.
 - Documented validation diagnostics.
 
+**Scope boundary:** the computational framework evaluates galactic
+rotation-curve phenomenology only. No cosmological claims (including
+statements regarding dark matter or ΛCDM) are implied beyond the
+statistical evidence documented in this repository.
+
 Readers interested in the reproducible framework should refer to:
 
 - `README.md`
+- `docs/METHODOLOGY.md`
 - `docs/SPARC_EXPECTED_BEHAVIOUR.md`
 - `CITATION.md`
 

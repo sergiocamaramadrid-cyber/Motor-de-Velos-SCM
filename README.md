@@ -38,57 +38,51 @@ Design goals
 The repository is organized as follows:
 
 - src/: Core model implementations and analysis modules (Python package layout).
-- scripts/: CLI-style scripts for preprocessing, validation and diagnostics (e.g. scripts/process_sparc.py, scripts/deep_slope_test.py).
+- scripts/: CLI-style scripts for validation and diagnostics (e.g. scripts/compare_nu_models.py, scripts/deep_slope_test.py).
 - data/: Data ingestion instructions and small fixtures; large raw datasets are not included (see docs/ for data contracts).
 - results/: Generated outputs (not versioned). Follow naming convention: results/<module>/<artifact>-v<semver>.csv
 - docs/: Formal documentation, data contracts and validation protocols (machine- and reviewer-oriented).
 - notebooks/: Exploratory and validation notebooks (non-deterministic; for inspection and figure generation).
 - paper/: Manuscript figures, supplementary materials and submission assets.
 - tests/ (if present): Unit and integration tests for code and pipelines.
-- Top-level metadata: CITATION.md, LICENSE, requirements.txt, environment.yml.
+- Top-level metadata: CITATION.md, LICENSE, requirements.txt.
 
 ---
 
 ## Installation
 
-### Requirements
+Choose **one** of the two options below. Do **not** run both.
 
-- Python 3.10 or later.
-- System tools: git.
-- Dependencies: see `requirements.txt`.
-- Optional: Conda environment via `environment.yml` for reproducible environments.
-
-### Setup (recommended)
+### Option A — venv + pip (recommended)
 
 ```bash
 git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
 cd Motor-de-Velos-SCM
 
-# create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate     # Windows: .venv\Scripts\activate
+source .venv/bin/activate          # Windows: .venv\Scripts\activate
 
-# upgrade pip and install dependencies
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Optional (Conda)
+### Option B — conda
 
 ```bash
-conda env create -f environment.yml
-conda activate motor-de-velos
-pip install -r requirements.txt    # if additional deps are needed
+git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
+cd Motor-de-Velos-SCM
+
+conda create -n scm python=3.10
+conda activate scm
+
+pip install -r requirements.txt
 ```
 
-### Developer / tests (if present)
+### Running the tests
 
-- Run unit tests: `pytest`  
-- Linting/format: `pre-commit run --all-files` (if pre-commit is configured)
-
-Notes:
-- If the repository provides an installable package (setup.py / pyproject.toml), prefer `pip install -e .` for development.
-- Reproducible runs should record input checksums and git commit hashes when generating results; ensure you install dependencies in a clean environment to reproduce analyses.
+```bash
+pytest
+```
 
 ---
 
@@ -103,15 +97,29 @@ See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
 
 ## Running the Framework
 
-### SPARC Validation (Example)
+### Full SPARC pipeline
 
 ```bash
-python scripts/process_sparc.py \
-  --input data/SPARC/sparc_raw.csv \
-  --out results/SPARC/rotation_curves-v1.0.csv
+python -m src.scm_analysis \
+  --data-dir data/SPARC \
+  --out results/ \
+  --a0 1.2e-10
 ```
 
-### Deep-Regime Slope Diagnostic
+Produces `results/per_galaxy_summary.csv`, `results/audit/sparc_global.csv`,
+and `results/diagnostics/` (VIF, condition number, partial correlations).
+
+### ν-model comparison
+
+```bash
+python scripts/compare_nu_models.py \
+  --data-dir data/SPARC \
+  --out results/diagnostics/compare_nu_models \
+  --a0 1.2e-10 \
+  --deep-threshold 0.3
+```
+
+### Deep-regime slope diagnostic
 
 ```bash
 python scripts/deep_slope_test.py \
@@ -133,33 +141,62 @@ The evaluation framework follows fixed rules:
 - Explicit deep-regime slope test
 - Versioned output naming
 
-Details: `docs/SPARC_EXPECTED_BEHAVIOUR.md`
+Full methodological scope (validated claims, out-of-scope claims, falsifiable
+predictions): `docs/METHODOLOGY.md`
+
+Technical data contract: `docs/SPARC_EXPECTED_BEHAVIOUR.md`
 
 ---
 
 ## Reproducibility
 
-Reproducible runs should record input checksums and git commit hashes when generating results.
+To reproduce a specific run (e.g. one cited in a manuscript or report):
+
+```bash
+git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
+cd Motor-de-Velos-SCM
+git checkout <commit-sha>
+
+# Option A
+source .venv/bin/activate
+# Option B
+# conda activate scm
+
+python -m src.scm_analysis \
+  --data-dir data/SPARC \
+  --out results/ \
+  --a0 1.2e-10
+```
 
 Each run should record:
 
-- Git commit hash  
-- Input file checksums  
-- Command-line arguments  
-- Parameter values (e.g., g0, thresholds)
+- Git commit hash (`git rev-parse HEAD`)
+- Input file checksums (`sha256sum data/SPARC/*.csv`)
+- Exact command-line arguments and parameter values
 
-Outputs should be written under:
+Outputs follow the naming convention:
 ```
 results/<module>/<artifact>-v<semver>.csv
 ```
 
 ---
 
-## Limitations
+## Scope
 
-The framework evaluates rotation-curve behavior; it does not claim cosmological completeness.  
-Statistical validation is dataset-dependent.  
-Interpretation remains separate from computational reproducibility.
+This repository evaluates galaxy rotation-curve phenomenology using a
+reproducible statistical framework.
+
+The project implements:
+
+- Galaxy-level out-of-sample validation (GroupKFold)
+- Structural permutation testing
+- Hinge positivity constraint
+- Frozen acceleration scale sensitivity analysis
+- Multicollinearity diagnostics (VIF and condition number)
+
+The scope of the repository is limited to galaxy-scale computational
+analysis. No cosmological claims are made beyond the statistical
+performance reported in the results.
 
 ---
 
