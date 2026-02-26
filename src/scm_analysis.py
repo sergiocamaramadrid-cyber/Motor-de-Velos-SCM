@@ -195,6 +195,7 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
     records = []
     compare_rows = []  # per-radial-point rows for universal_term_comparison_full.csv
+    vif_records = []   # per-galaxy VIF (disk and bulge variance inflation factors)
     for name in galaxy_names:
         try:
             rc = load_rotation_curve(data_dir, name)
@@ -227,6 +228,10 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
                     "log_g_obs": float(np.log10(g_obs_arr[k])),
                 })
 
+        # VIF diagnostics: Variance Inflation Factors for disk and bulge components
+        vif = _compute_vif(rc["v_gas"].values, rc["v_disk"].values, rc["v_bul"].values)
+        vif_records.append({"galaxy": name, **vif})
+
         v_flat = float(row.get("Vflat", np.nan))
         m_bar_pred = baryonic_tully_fisher(v_flat, a0=a0) if np.isfinite(v_flat) else np.nan
 
@@ -257,6 +262,10 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     per_galaxy_path = out_dir / "per_galaxy_summary.csv"
     results_df.to_csv(per_galaxy_path, index=False)
 
+    # --- Write VIF diagnostics (Variance Inflation Factors for disk and bulge) ---
+    vif_df = pd.DataFrame(vif_records).sort_values("galaxy").reset_index(drop=True)
+    vif_df.to_csv(out_dir / "vif_diagnostics.csv", index=False)
+
     # --- Write universal term comparison CSV (per radial point for RAR/deep-slope) ---
     # Columns: galaxy, r_kpc, g_bar, g_obs, log_g_bar, log_g_obs
     compare_df = pd.DataFrame(compare_rows)
@@ -281,6 +290,62 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _compute_vif(v_gas, v_disk, v_bul):
+    """Compute Variance Inflation Factors for the disk and bulge velocity components.
+
+    For each stellar component (disk, bulge), VIF = 1 / (1 − R²) where R² is
+    the coefficient of determination from regressing that component's squared
+    velocity contribution on the squared contributions of the other two
+    components.  High VIF indicates collinearity with the remaining predictors,
+    which inflates the uncertainty of the corresponding mass-to-light ratio.
+
+    Parameters
+    ----------
+    v_gas : array_like
+        Gas rotation-curve velocity (km/s).
+    v_disk : array_like
+        Stellar-disk rotation-curve velocity (km/s).
+    v_bul : array_like
+        Bulge rotation-curve velocity (km/s).
+
+    Returns
+    -------
+    dict
+        Keys: ``vif_disk``, ``vif_bul``.  Values are ``float``; ``nan`` when
+        the component is identically zero or the regression is degenerate.
+    """
+    v_gas = np.asarray(v_gas, dtype=float)
+    v_disk = np.asarray(v_disk, dtype=float)
+    v_bul = np.asarray(v_bul, dtype=float)
+
+    # Signed squared contributions (preserves direction of baryonic term)
+    x_gas = v_gas * np.abs(v_gas)
+    x_disk = v_disk * np.abs(v_disk)
+    x_bul = v_bul * np.abs(v_bul)
+
+    def _vif_one(target, *others):
+        """OLS R² of *target* on *others*; return 1/(1-R²)."""
+        if not np.any(target != 0):
+            return float("nan")
+        X = np.column_stack([np.ones(len(target))] + list(others))
+        try:
+            coef, _, _, _ = np.linalg.lstsq(X, target, rcond=None)
+        except np.linalg.LinAlgError:
+            return float("nan")
+        y_pred = X @ coef
+        ss_res = float(np.sum((target - y_pred) ** 2))
+        ss_tot = float(np.sum((target - target.mean()) ** 2))
+        if ss_tot <= 0:
+            return float("nan")
+        r2 = max(0.0, min(1.0 - ss_res / ss_tot, 1.0 - 1e-15))
+        return float(1.0 / (1.0 - r2))
+
+    return {
+        "vif_disk": _vif_one(x_disk, x_gas, x_bul),
+        "vif_bul": _vif_one(x_bul, x_gas, x_disk),
+    }
 
 
 def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):

@@ -21,6 +21,7 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _compute_vif,
 )
 
 
@@ -188,6 +189,17 @@ class TestRunPipeline:
         df = run_pipeline(sparc_dir, out_dir, a0=0.5e-10, verbose=False)
         assert len(df) == 3
 
+    def test_creates_vif_diagnostics(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results_vif"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        vif_path = out_dir / "vif_diagnostics.csv"
+        assert vif_path.exists(), "vif_diagnostics.csv not written"
+        vif_df = pd.read_csv(vif_path)
+        assert "galaxy" in vif_df.columns
+        assert "vif_disk" in vif_df.columns
+        assert "vif_bul" in vif_df.columns
+        assert len(vif_df) == 3
+
 
 # ---------------------------------------------------------------------------
 # _write_executive_summary
@@ -252,3 +264,44 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _compute_vif
+# ---------------------------------------------------------------------------
+
+class TestComputeVif:
+    def _make_components(self, n=20, seed=0):
+        rng = np.random.default_rng(seed)
+        v_gas = 30.0 * np.ones(n) + rng.normal(0, 1, n)
+        v_disk = 80.0 * np.ones(n) + rng.normal(0, 1, n)
+        v_bul = 20.0 * np.ones(n) + rng.normal(0, 1, n)
+        return v_gas, v_disk, v_bul
+
+    def test_returns_required_keys(self):
+        v_gas, v_disk, v_bul = self._make_components()
+        result = _compute_vif(v_gas, v_disk, v_bul)
+        assert "vif_disk" in result
+        assert "vif_bul" in result
+
+    def test_vif_disk_positive_and_finite(self):
+        v_gas, v_disk, v_bul = self._make_components()
+        result = _compute_vif(v_gas, v_disk, v_bul)
+        assert np.isfinite(result["vif_disk"])
+        assert result["vif_disk"] >= 1.0
+
+    def test_vif_bul_nan_when_bulge_zero(self):
+        """When all bulge velocities are zero, VIF for bulge must be NaN."""
+        v_gas, v_disk, _ = self._make_components()
+        v_bul = np.zeros_like(v_gas)
+        result = _compute_vif(v_gas, v_disk, v_bul)
+        assert np.isnan(result["vif_bul"])
+
+    def test_vif_at_least_one(self):
+        """VIF is always ≥ 1 when well-defined."""
+        v_gas, v_disk, v_bul = self._make_components(n=50, seed=7)
+        result = _compute_vif(v_gas, v_disk, v_bul)
+        if np.isfinite(result["vif_disk"]):
+            assert result["vif_disk"] >= 1.0
+        if np.isfinite(result["vif_bul"]):
+            assert result["vif_bul"] >= 1.0

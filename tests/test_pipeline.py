@@ -96,6 +96,7 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     top10 = out / "top10_universal.tex"
     deep_slope = out / "deep_slope_test.csv"
     sensitivity = out / "sensitivity_a0.csv"
+    vif_diag = out / "vif_diagnostics.csv"
 
     assert per_gal.exists(), "per_galaxy_summary.csv not written"
     assert uni.exists(), "universal_term_comparison_full.csv not written"
@@ -103,6 +104,7 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     assert top10.exists(), "top10_universal.tex not written"
     assert deep_slope.exists(), "deep_slope_test.csv not written"
     assert sensitivity.exists(), "sensitivity_a0.csv not written"
+    assert vif_diag.exists(), "vif_diagnostics.csv not written"
 
     # (iv) per_galaxy_summary contract and data sanity
     df2 = pd.read_csv(per_gal)
