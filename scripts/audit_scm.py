@@ -86,6 +86,33 @@ def _rmse(y_true: np.ndarray, y_pred: np.ndarray) -> float:
     return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
 
 
+def _vif_numpy(X: np.ndarray) -> list[float]:
+    """Variance Inflation Factor for each column of *X* (pure NumPy).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (n, p)
+        Design matrix without intercept column.
+
+    Returns
+    -------
+    list[float]
+        VIF_j for j = 0 … p-1.  Returns ``inf`` when R² → 1.
+    """
+    n, p = X.shape
+    vifs: list[float] = []
+    for j in range(p):
+        y_j = X[:, j]
+        Xj = np.delete(X, j, axis=1)
+        coeffs_j, intercept_j = _ols(Xj, y_j)
+        y_pred_j = Xj @ coeffs_j + intercept_j
+        ss_res = float(np.sum((y_j - y_pred_j) ** 2))
+        ss_tot = float(np.sum((y_j - np.mean(y_j)) ** 2))
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0.0 else 0.0
+        vifs.append(1.0 / (1.0 - r2) if r2 < 1.0 else float("inf"))
+    return vifs
+
+
 # ---------------------------------------------------------------------------
 # GroupKFold (pure NumPy — no sklearn dependency)
 # ---------------------------------------------------------------------------
@@ -455,6 +482,54 @@ def run_audit(
     if verbose:
         print(f"  OOS R² (mean over folds): {r2_oos_mean:.4f}")
 
+    # --- 1b. audit/ sub-artefacts (VIF, stability, residual_vs_hinge) ---
+    audit_subdir = outdir / "audit"
+    audit_subdir.mkdir(parents=True, exist_ok=True)
+
+    X_feat = df[_FEATURES].to_numpy(dtype=float)
+
+    # VIF for each feature
+    vif_values = _vif_numpy(X_feat)
+    vif_df = pd.DataFrame([
+        {"feature": feat, "VIF": vif}
+        for feat, vif in zip(_FEATURES, vif_values)
+    ])
+    vif_df.to_csv(audit_subdir / "vif_table.csv", index=False)
+
+    # Condition number (kappa) on z-scored features
+    mu_feat = np.nanmean(X_feat, axis=0)
+    sig_feat = np.nanstd(X_feat, axis=0)
+    sig_feat[sig_feat == 0] = 1.0
+    Xz_feat = (X_feat - mu_feat) / sig_feat
+    kappa = float(np.linalg.cond(Xz_feat))
+    stability_df = pd.DataFrame({
+        "metric": ["condition_number_kappa"],
+        "value": [kappa],
+        "status": ["stable" if kappa < 30.0 else "check"],
+        "notes": ["kappa computed on z-scored [logM, log_gbar, log_j, hinge]"],
+    })
+    stability_df.to_csv(audit_subdir / "stability_metrics.csv", index=False)
+
+    if verbose:
+        print(f"  VIF (max)                : {max(vif_values):.2f}")
+        print(f"  Condition number κ       : {kappa:.2f}")
+
+    # residual_vs_hinge.csv — OOS per-point hinge and residual columns.
+    # residual_dex is the raw target; residual_dex_oos is the OOS prediction
+    # error (target minus test-fold fitted value). Both are retained so the
+    # CSV is self-contained for downstream diagnostics.
+    if per_point_rows:
+        rvh_df = pd.DataFrame(per_point_rows)[
+            ["galaxy", "hinge", "residual_dex", "residual_dex_oos", "fold"]
+        ]
+        rvh_df.to_csv(audit_subdir / "residual_vs_hinge.csv", index=False)
+
+        # residual_vs_hinge.png — scatter + binned-median plot
+        plot_residual_vs_hinge_oos(
+            per_point_rows,
+            audit_subdir / "residual_vs_hinge.png",
+        )
+
     # --- 2. Master OLS coefficients ---
     master = master_coefficients(df)
     with open(outdir / "master_coeffs.json", "w", encoding="utf-8") as fh:
@@ -510,6 +585,10 @@ def run_audit(
             "master_coeffs.json",
             "audit_summary.json",
             "residual_vs_hinge_oos.png",
+            "audit/vif_table.csv",
+            "audit/stability_metrics.csv",
+            "audit/residual_vs_hinge.csv",
+            "audit/residual_vs_hinge.png",
         ],
     }
     with open(outdir / "audit_summary.json", "w", encoding="utf-8") as fh:

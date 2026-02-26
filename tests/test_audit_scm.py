@@ -26,6 +26,7 @@ from scripts.audit_scm import (
     _ols,
     _r2,
     _rmse,
+    _vif_numpy,
     _group_kfold_splits,
     run_groupkfold,
     aggregate_per_galaxy,
@@ -89,6 +90,44 @@ def audit_csv(tmp_path: Path) -> Path:
 @pytest.fixture()
 def audit_df() -> pd.DataFrame:
     return _make_audit_features(n_galaxies=10, n_pts_per=15)
+
+
+# ---------------------------------------------------------------------------
+# _vif_numpy
+# ---------------------------------------------------------------------------
+
+class TestVifNumpy:
+    def test_returns_one_per_feature(self):
+        rng = np.random.default_rng(42)
+        X = rng.normal(size=(50, 4))
+        result = _vif_numpy(X)
+        assert len(result) == 4
+
+    def test_independent_features_vif_near_one(self):
+        """Orthogonal features → VIF ≈ 1."""
+        rng = np.random.default_rng(0)
+        n = 200
+        X = rng.normal(size=(n, 4))
+        vifs = _vif_numpy(X)
+        for vif in vifs:
+            assert vif == pytest.approx(1.0, abs=0.5)
+
+    def test_all_vif_positive(self):
+        rng = np.random.default_rng(1)
+        X = rng.normal(size=(100, 4))
+        for vif in _vif_numpy(X):
+            assert vif > 0.0
+
+    def test_collinear_features_high_vif(self):
+        """Strongly collinear feature should yield high VIF."""
+        rng = np.random.default_rng(2)
+        n = 200
+        x1 = rng.normal(size=n)
+        x2 = x1 + rng.normal(scale=0.01, size=n)  # nearly identical
+        x3 = rng.normal(size=n)
+        X = np.column_stack([x1, x2, x3])
+        vifs = _vif_numpy(X)
+        assert max(vifs[:2]) > 100.0
 
 
 # ---------------------------------------------------------------------------
@@ -375,6 +414,56 @@ class TestRunAudit:
         outdir = tmp_path / "plot_test"
         run_audit(audit_csv, outdir, seed=0, n_folds=3, n_perm=9)
         assert (outdir / "residual_vs_hinge_oos.png").exists()
+
+    def test_creates_audit_subdir_artefacts(self, audit_csv, tmp_path):
+        outdir = tmp_path / "audit_sub"
+        run_audit(audit_csv, outdir, seed=0, n_folds=3, n_perm=9)
+        for fname in (
+            "audit/vif_table.csv",
+            "audit/stability_metrics.csv",
+            "audit/residual_vs_hinge.csv",
+            "audit/residual_vs_hinge.png",
+        ):
+            assert (outdir / fname).exists(), f"{fname} was not created"
+
+    def test_vif_table_columns(self, audit_csv, tmp_path):
+        outdir = tmp_path / "vif_cols"
+        run_audit(audit_csv, outdir, seed=0, n_folds=3, n_perm=9)
+        vif_df = pd.read_csv(outdir / "audit" / "vif_table.csv")
+        assert "feature" in vif_df.columns
+        assert "VIF" in vif_df.columns
+        # One row per feature
+        assert len(vif_df) == len(_FEATURES)
+        # All VIF values must be finite and positive
+        assert (vif_df["VIF"] > 0).all()
+
+    def test_stability_metrics_columns(self, audit_csv, tmp_path):
+        outdir = tmp_path / "stability_cols"
+        run_audit(audit_csv, outdir, seed=0, n_folds=3, n_perm=9)
+        stab_df = pd.read_csv(outdir / "audit" / "stability_metrics.csv")
+        assert "metric" in stab_df.columns
+        assert "value" in stab_df.columns
+        assert "status" in stab_df.columns
+        assert float(stab_df.loc[0, "value"]) > 0.0
+
+    def test_residual_vs_hinge_csv_columns(self, audit_csv, tmp_path):
+        outdir = tmp_path / "rvh_csv"
+        run_audit(audit_csv, outdir, seed=0, n_folds=3, n_perm=9)
+        rvh_df = pd.read_csv(outdir / "audit" / "residual_vs_hinge.csv")
+        for col in ("galaxy", "hinge", "residual_dex_oos", "fold"):
+            assert col in rvh_df.columns
+
+    def test_audit_artefacts_in_summary(self, audit_csv, tmp_path):
+        outdir = tmp_path / "summary_check"
+        result = run_audit(audit_csv, outdir, seed=0, n_folds=3, n_perm=9)
+        for fname in (
+            "audit/vif_table.csv",
+            "audit/stability_metrics.csv",
+            "audit/residual_vs_hinge.csv",
+            "audit/residual_vs_hinge.png",
+        ):
+            assert fname in result["artefacts"], \
+                f"{fname} missing from audit_summary artefacts list"
 
 
 # ---------------------------------------------------------------------------
