@@ -428,7 +428,7 @@ def _write_audit_artifacts(compare_df, audit_dir, a0=_A0_DEFAULT):
                 "max": round(float(vals.max()), 6),
             })
     if "log_g_bar" in compare_df.columns and len(compare_df):
-        hv = np.maximum(compare_df["log_g_bar"].values - log_a0, 0.0)
+        hv = np.maximum(0.0, log_a0 - compare_df["log_g_bar"].values)
         feature_rows.append({
             "feature": "hinge",
             "n_points": len(hv),
@@ -441,12 +441,12 @@ def _write_audit_artifacts(compare_df, audit_dir, a0=_A0_DEFAULT):
 
     # ------------------------------------------------------------------
     # vif_table.csv — VIF for each predictor in the hinge regression
-    # Design matrix: [intercept, log_g_bar, hinge=max(log_g_bar-log_a0, 0)]
+    # Design matrix: [intercept, log_g_bar, hinge=max(0, log_a0-log_g_bar)]
     # ------------------------------------------------------------------
     vif_rows = []
     if "log_g_bar" in compare_df.columns and len(compare_df) >= 3:
         log_gbar = compare_df["log_g_bar"].values
-        hinge = np.maximum(log_gbar - log_a0, 0.0)
+        hinge = np.maximum(0.0, log_a0 - log_gbar)
         X = np.column_stack([np.ones(len(log_gbar)), log_gbar, hinge])
         for j, fname in enumerate(("intercept", "log_g_bar", "hinge")):
             y_j = X[:, j]
@@ -471,7 +471,7 @@ def _write_audit_artifacts(compare_df, audit_dir, a0=_A0_DEFAULT):
     kappa = float("nan")
     if "log_g_bar" in compare_df.columns and len(compare_df) >= 3:
         log_gbar = compare_df["log_g_bar"].values
-        hinge = np.maximum(log_gbar - log_a0, 0.0)
+        hinge = np.maximum(0.0, log_a0 - log_gbar)
         Xf = np.column_stack([log_gbar, hinge])
         std = Xf.std(axis=0)
         std = np.where(std < 1e-15, 1.0, std)
