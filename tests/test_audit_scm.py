@@ -12,6 +12,7 @@ from pathlib import Path
 from scripts.audit_scm import (
     plot_vif,
     plot_stability,
+    plot_residual_vs_hinge,
     run_audit,
     main,
     _format_report,
@@ -20,6 +21,27 @@ from scripts.audit_scm import (
     _KAPPA_WARN,
     _KAPPA_SEVERE,
 )
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _make_features_df(n: int = 50, rng_seed: int = 0) -> pd.DataFrame:
+    """Synthetic per-radial-point features dataframe."""
+    rng = np.random.default_rng(rng_seed)
+    log_gbar = rng.uniform(-13, -9, n)
+    log_gobs = log_gbar + rng.normal(0, 0.1, n)
+    a0 = 1.2e-10
+    hinge = np.maximum(0.0, np.log10(a0) - log_gbar)
+    residual_dex = log_gobs - log_gbar
+    return pd.DataFrame({
+        "logM": log_gbar + 2.0,
+        "log_gbar": log_gbar,
+        "log_j": 0.5 * log_gobs + 1.5,
+        "hinge": hinge,
+        "residual_dex": residual_dex,
+    })
 
 
 # ---------------------------------------------------------------------------
@@ -45,6 +67,8 @@ def audit_dir_with_csvs(tmp_path):
         "notes": ["kappa computed on z-scored [logM, log_gbar, log_j, hinge]"],
     })
     sm_df.to_csv(audit_dir / "stability_metrics.csv", index=False)
+
+    _make_features_df().to_csv(audit_dir / "audit_features.csv", index=False)
 
     return audit_dir
 
@@ -123,6 +147,45 @@ class TestPlotStability:
 
 
 # ---------------------------------------------------------------------------
+# plot_residual_vs_hinge
+# ---------------------------------------------------------------------------
+
+class TestPlotResidualVsHinge:
+    def test_creates_png_and_csv(self, tmp_path):
+        feat_df = _make_features_df()
+        out_csv = tmp_path / "residual_vs_hinge.csv"
+        out_png = tmp_path / "residual_vs_hinge.png"
+        summary = plot_residual_vs_hinge(feat_df, out_csv, out_png)
+        assert out_png.exists()
+        assert out_png.stat().st_size > 0
+        assert out_csv.exists()
+        assert "hinge_bin_centre" in summary.columns
+        assert "residual_median" in summary.columns
+
+    def test_csv_has_correct_columns(self, tmp_path):
+        feat_df = _make_features_df()
+        out_csv = tmp_path / "rv.csv"
+        out_png = tmp_path / "rv.png"
+        summary = plot_residual_vs_hinge(feat_df, out_csv, out_png)
+        expected = {"hinge_bin_centre", "residual_median", "residual_std", "n"}
+        assert expected.issubset(set(summary.columns))
+
+    def test_units_are_dex(self, tmp_path):
+        """x-axis label must say dex for the hinge quantity."""
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+        feat_df = _make_features_df()
+        out_csv = tmp_path / "rv.csv"
+        out_png = tmp_path / "rv.png"
+        plot_residual_vs_hinge(feat_df, out_csv, out_png)
+        # Read back the CSV and verify it has real numeric values
+        df = pd.read_csv(out_csv)
+        assert len(df) > 0
+        assert df["hinge_bin_centre"].notna().any()
+
+
+# ---------------------------------------------------------------------------
 # _format_report — unit labels
 # ---------------------------------------------------------------------------
 
@@ -164,6 +227,28 @@ class TestRunAudit:
         run_audit(audit_dir_with_csvs)
         assert (audit_dir_with_csvs / "stability_metrics.png").exists()
 
+    def test_creates_residual_vs_hinge_outputs(self, audit_dir_with_csvs):
+        """When audit_features.csv is present, both residual_vs_hinge files must be created."""
+        run_audit(audit_dir_with_csvs)
+        assert (audit_dir_with_csvs / "residual_vs_hinge.csv").exists()
+        assert (audit_dir_with_csvs / "residual_vs_hinge.png").exists()
+
+    def test_no_residual_outputs_without_features_csv(self, tmp_path):
+        """When audit_features.csv is absent, residual_vs_hinge files must NOT be created."""
+        audit_dir = tmp_path / "audit"
+        audit_dir.mkdir()
+        pd.DataFrame({
+            "feature": ["logM"], "VIF": [1.5],
+        }).to_csv(audit_dir / "vif_table.csv", index=False)
+        pd.DataFrame({
+            "metric": ["condition_number_kappa"],
+            "value": [10.0], "status": ["stable"],
+            "notes": ["n/a"],
+        }).to_csv(audit_dir / "stability_metrics.csv", index=False)
+        run_audit(audit_dir)
+        assert not (audit_dir / "residual_vs_hinge.csv").exists()
+        assert not (audit_dir / "residual_vs_hinge.png").exists()
+
     def test_raises_on_missing_csv(self, tmp_path):
         empty_dir = tmp_path / "empty_audit"
         empty_dir.mkdir()
@@ -191,3 +276,4 @@ class TestMain:
     def test_main_requires_one_of_out_or_audit_dir(self):
         with pytest.raises(SystemExit):
             main([])
+

@@ -355,11 +355,15 @@ def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
     # Deep-regime hinge: activates when g_bar < a0 (low-acceleration / deep-MOND)
     hinge = np.maximum(0.0, np.log10(a0) - log_gbar)
 
+    # residual_dex: deviation of log_g_obs from log_g_bar (in dex, not km/s)
+    residual_dex = log_gobs - log_gbar
+
     audit_df = pd.DataFrame({
         "logM": logM,
         "log_gbar": log_gbar,
         "log_j": log_j,
         "hinge": hinge,
+        "residual_dex": residual_dex,
     })
     # Drop rows with any NaN/inf (e.g. from log of non-positive values)
     audit_df = audit_df.replace([np.inf, -np.inf], np.nan).dropna()
@@ -368,6 +372,9 @@ def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
 
     audit_dir = out_dir / "audit"
     audit_dir.mkdir(parents=True, exist_ok=True)
+
+    # --- Per-radial-point features (used by audit_scm.py for residual_vs_hinge) ---
+    audit_df.to_csv(audit_dir / "audit_features.csv", index=False)
 
     # --- VIF diagnostics ---
     X_cols = ["logM", "log_gbar", "log_j", "hinge"]

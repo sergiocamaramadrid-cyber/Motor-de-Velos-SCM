@@ -338,3 +338,4 @@ class TestWriteAuditMetrics:
         run_pipeline(sparc_dir, out_dir, verbose=False)
         assert (out_dir / "audit" / "vif_table.csv").exists()
         assert (out_dir / "audit" / "stability_metrics.csv").exists()
+        assert (out_dir / "audit" / "audit_features.csv").exists()

@@ -2,11 +2,13 @@
 scripts/audit_scm.py — Visual audit for VIF and numerical-stability diagnostics.
 
 Reads the CSV files produced by :func:`src.scm_analysis._write_audit_metrics`
-(``<out_dir>/audit/vif_table.csv`` and ``<out_dir>/audit/stability_metrics.csv``)
-and writes:
+(``<out_dir>/audit/vif_table.csv``, ``<out_dir>/audit/stability_metrics.csv``,
+and ``<out_dir>/audit/audit_features.csv``) and writes:
 
-* ``<out_dir>/audit/vif_table.png``      — bar chart of VIF per feature
+* ``<out_dir>/audit/vif_table.png``         — bar chart of VIF per feature
 * ``<out_dir>/audit/stability_metrics.png`` — condition-number summary panel
+* ``<out_dir>/audit/residual_vs_hinge.csv`` — per-bin summary of residual vs hinge
+* ``<out_dir>/audit/residual_vs_hinge.png`` — scatter + binned-median plot
 
 Unit note
 ---------
@@ -153,9 +155,105 @@ def plot_stability(sm_df: pd.DataFrame, out_path: Path) -> None:
     plt.close(fig)
 
 
-# ---------------------------------------------------------------------------
-# Report formatting
-# ---------------------------------------------------------------------------
+def plot_residual_vs_hinge(
+    features_df: pd.DataFrame,
+    out_csv: Path,
+    out_png: Path,
+    n_bins: int = 10,
+) -> pd.DataFrame:
+    """Save a scatter + binned-median plot of residual_dex vs hinge.
+
+    Also writes a per-bin summary CSV to *out_csv*.
+
+    Parameters
+    ----------
+    features_df : pd.DataFrame
+        Must have columns ``hinge`` and ``residual_dex``.
+    out_csv : Path
+        Destination CSV (per-bin summary).
+    out_png : Path
+        Destination PNG file.
+    n_bins : int
+        Number of equal-width bins along the hinge axis.
+
+    Returns
+    -------
+    pd.DataFrame
+        Per-bin summary with columns
+        ``hinge_bin_centre``, ``residual_median``, ``residual_std``, ``n``.
+    """
+    hinge = features_df["hinge"].values
+    residual = features_df["residual_dex"].values
+
+    # Bin along the hinge axis
+    h_min, h_max = float(np.nanmin(hinge)), float(np.nanmax(hinge))
+    if h_max <= h_min:
+        h_max = h_min + 1.0
+    edges = np.linspace(h_min, h_max, n_bins + 1)
+    centres = 0.5 * (edges[:-1] + edges[1:])
+
+    bin_idx = np.digitize(hinge, edges) - 1
+    bin_idx = np.clip(bin_idx, 0, n_bins - 1)
+
+    bin_med, bin_std, bin_n = [], [], []
+    for i in range(n_bins):
+        mask = bin_idx == i
+        vals = residual[mask]
+        if len(vals) >= 2:
+            bin_med.append(float(np.median(vals)))
+            bin_std.append(float(np.std(vals, ddof=1)))
+        elif len(vals) == 1:
+            bin_med.append(float(vals[0]))
+            bin_std.append(float("nan"))
+        else:
+            bin_med.append(float("nan"))
+            bin_std.append(float("nan"))
+        bin_n.append(int(mask.sum()))
+
+    summary = pd.DataFrame({
+        "hinge_bin_centre": centres,
+        "residual_median": bin_med,
+        "residual_std": bin_std,
+        "n": bin_n,
+    })
+    summary.to_csv(out_csv, index=False)
+
+    # --- Plot ---
+    fig, ax = plt.subplots(figsize=(6, 4))
+
+    # Scatter (subsample for clarity if large)
+    _MAX_SCATTER = 5000
+    if len(hinge) > _MAX_SCATTER:
+        rng = np.random.default_rng(42)
+        idx = rng.choice(len(hinge), _MAX_SCATTER, replace=False)
+        ax.scatter(hinge[idx], residual[idx], s=4, alpha=0.3,
+                   color="#aec7e8", label="radial points (sample)")
+    else:
+        ax.scatter(hinge, residual, s=4, alpha=0.3,
+                   color="#aec7e8", label="radial points")
+
+    # Binned median ± 1σ
+    valid = ~np.isnan(np.array(bin_med, dtype=float))
+    bm = np.array(bin_med, dtype=float)
+    bs = np.array(bin_std, dtype=float)
+    bc = centres
+    ax.plot(bc[valid], bm[valid], "o-", color="#1f77b4",
+            linewidth=1.5, markersize=5, label="binned median")
+    eb_mask = valid & ~np.isnan(bs)
+    ax.errorbar(bc[eb_mask], bm[eb_mask], yerr=bs[eb_mask],
+                fmt="none", ecolor="#1f77b4", alpha=0.5, linewidth=1.0)
+
+    ax.axhline(0.0, color="black", linewidth=0.8, linestyle="--", alpha=0.6)
+    ax.set_xlabel("hinge  [dex]  (= max(0, log₁₀(a₀) − log₁₀(ḡ)))")
+    ax.set_ylabel("residual_dex  [dex]  (= log₁₀(g_obs) − log₁₀(ḡ))")
+    ax.set_title("Residual vs deep-regime hinge\n"
+                 "hinge > 0 ↔ deep-MOND regime (ḡ < a₀)")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(out_png, dpi=150)
+    plt.close(fig)
+
+    return summary
 
 def _format_report(vif_df: pd.DataFrame, sm_df: pd.DataFrame) -> list[str]:
     """Return list of lines for the text report."""
@@ -200,7 +298,8 @@ def run_audit(audit_dir: Path) -> None:
     Parameters
     ----------
     audit_dir : Path
-        Directory containing ``vif_table.csv`` and ``stability_metrics.csv``.
+        Directory containing ``vif_table.csv``, ``stability_metrics.csv``,
+        and optionally ``audit_features.csv``.
     """
     vif_path = audit_dir / "vif_table.csv"
     sm_path = audit_dir / "stability_metrics.csv"
@@ -230,6 +329,17 @@ def run_audit(audit_dir: Path) -> None:
     sm_png = audit_dir / "stability_metrics.png"
     plot_stability(sm_df, sm_png)
     print(f"  Stability chart saved → {sm_png}")
+
+    # --- Residual vs hinge (requires audit_features.csv from the pipeline) ---
+    features_path = audit_dir / "audit_features.csv"
+    if features_path.exists():
+        feat_df = pd.read_csv(features_path)
+        if {"hinge", "residual_dex"}.issubset(feat_df.columns):
+            rvh_csv = audit_dir / "residual_vs_hinge.csv"
+            rvh_png = audit_dir / "residual_vs_hinge.png"
+            plot_residual_vs_hinge(feat_df, rvh_csv, rvh_png)
+            print(f"  Residual-vs-hinge CSV saved → {rvh_csv}")
+            print(f"  Residual-vs-hinge plot saved → {rvh_png}")
 
 
 # ---------------------------------------------------------------------------
