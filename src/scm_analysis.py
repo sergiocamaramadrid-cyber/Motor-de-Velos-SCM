@@ -38,6 +38,9 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
+# Hinge knot for the deep-regime piecewise term (log10 of g in m/s²)
+_LOGG0_DEFAULT = -10.45
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -218,6 +221,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         valid = (g_bar_arr > 0) & (g_obs_arr > 0)
         for k in range(len(r_arr)):
             if valid[k]:
+                r_m = r_arr[k] * KPC_TO_M
+                # log_j = log10(j) where j = v_obs * r = sqrt(g_obs) * r^1.5 (m²/s)
+                log_j = 0.5 * np.log10(g_obs_arr[k]) + 1.5 * np.log10(r_m)
                 compare_rows.append({
                     "galaxy": name,
                     "r_kpc": float(r_arr[k]),
@@ -225,6 +231,7 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
                     "g_obs": float(g_obs_arr[k]),
                     "log_g_bar": float(np.log10(g_bar_arr[k])),
                     "log_g_obs": float(np.log10(g_obs_arr[k])),
+                    "log_j": float(log_j),
                 })
 
         v_flat = float(row.get("Vflat", np.nan))
@@ -258,10 +265,13 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     results_df.to_csv(per_galaxy_path, index=False)
 
     # --- Write universal term comparison CSV (per radial point for RAR/deep-slope) ---
-    # Columns: galaxy, r_kpc, g_bar, g_obs, log_g_bar, log_g_obs
+    # Columns: galaxy, r_kpc, g_bar, g_obs, log_g_bar, log_g_obs, log_j
     compare_df = pd.DataFrame(compare_rows)
     csv_path = out_dir / "universal_term_comparison_full.csv"
     compare_df.to_csv(csv_path, index=False)
+
+    # --- Write audit directory: sparc_global.csv and condition_number.csv ---
+    _write_audit_csvs(compare_df, results_df, out_dir / "audit")
 
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
     _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
@@ -388,8 +398,166 @@ def _write_top10_latex(df, path):
 
 
 # ---------------------------------------------------------------------------
-# CLI
+# Audit: sparc_global, design matrix, VIF, condition number
 # ---------------------------------------------------------------------------
+
+def _build_audit_df(df, logg0=_LOGG0_DEFAULT):
+    """Build the regression design matrix from the sparc_global audit table.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Must contain columns ``logM``, ``log_gbar``, ``log_j``.
+    logg0 : float
+        Hinge knot in log10(g / (m/s²)) units (default ``_LOGG0_DEFAULT``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Design matrix with columns: ``const``, ``logM``, ``log_gbar``,
+        ``log_j``, ``hinge``.
+    """
+    X = pd.DataFrame({
+        "const": np.ones(len(df)),
+        "logM": df["logM"].values,
+        "log_gbar": df["log_gbar"].values,
+        "log_j": df["log_j"].values,
+        "hinge": np.maximum(0.0, logg0 - df["log_gbar"].values),
+    })
+    return X
+
+
+def compute_vif_table(df, logg0=_LOGG0_DEFAULT):
+    """Compute the Variance Inflation Factor (VIF) for each predictor.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        sparc_global audit table with columns ``logM``, ``log_gbar``,
+        ``log_j``.
+    logg0 : float
+        Hinge knot (default ``_LOGG0_DEFAULT``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Table with columns ``variable`` and ``VIF``.
+    """
+    X = _build_audit_df(df, logg0=logg0)
+    X_vals = X.values
+    vif_rows = []
+    for i in range(X_vals.shape[1]):
+        y = X_vals[:, i]
+        X_other = np.delete(X_vals, i, axis=1)
+        try:
+            coeffs, _, _, _ = np.linalg.lstsq(X_other, y, rcond=None)
+            y_pred = X_other @ coeffs
+        except np.linalg.LinAlgError:
+            vif_rows.append({"variable": X.columns[i], "VIF": float("inf")})
+            continue
+        ss_res = float(np.sum((y - y_pred) ** 2))
+        ss_tot = float(np.sum((y - y.mean()) ** 2))
+        r2 = 1.0 - ss_res / ss_tot if ss_tot > 0 else 0.0
+        vif = 1.0 / (1.0 - r2) if r2 < 1.0 else float("inf")
+        vif_rows.append({"variable": X.columns[i], "VIF": vif})
+    return pd.DataFrame(vif_rows)
+
+
+def compute_condition_number(df, logg0=_LOGG0_DEFAULT):
+    """Compute the condition number of the regression design matrix.
+
+    The condition number κ = σ_max / σ_min (ratio of largest to smallest
+    singular value) measures global numerical stability of the predictor
+    matrix.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        sparc_global audit table with columns ``logM``, ``log_gbar``,
+        ``log_j``.
+    logg0 : float
+        Hinge knot (default ``_LOGG0_DEFAULT``).
+
+    Returns
+    -------
+    pd.DataFrame
+        Single-row table with columns ``condition_number`` and ``verdict``.
+        Verdict thresholds: ``EXCELLENT`` (<10), ``GOOD`` (10–30),
+        ``MODERATE`` (30–100), ``WARNING`` (100–1000),
+        ``SEVERE COLLINEARITY`` (>1000).
+    """
+    X = _build_audit_df(df, logg0=logg0)
+    try:
+        cn = float(np.linalg.cond(X.values))
+    except np.linalg.LinAlgError:
+        cn = float("inf")
+    if not np.isfinite(cn):
+        return pd.DataFrame({"condition_number": [cn], "verdict": ["SEVERE COLLINEARITY"]})
+    if cn < 10:
+        verdict = "EXCELLENT"
+    elif cn < 30:
+        verdict = "GOOD"
+    elif cn < 100:
+        verdict = "MODERATE"
+    elif cn < 1000:
+        verdict = "WARNING"
+    else:
+        verdict = "SEVERE COLLINEARITY"
+    return pd.DataFrame({"condition_number": [cn], "verdict": [verdict]})
+
+
+def _write_audit_csvs(compare_df, results_df, audit_dir):
+    """Build and write the sparc_global and condition_number audit CSVs.
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table (from ``universal_term_comparison_full.csv``)
+        including columns ``galaxy``, ``log_g_bar``, ``log_j``.
+    results_df : pd.DataFrame
+        Per-galaxy results table including ``galaxy`` and
+        ``M_bar_BTFR_Msun``.
+    audit_dir : Path
+        Directory where ``sparc_global.csv`` and ``condition_number.csv``
+        are written (created if needed).
+    """
+    audit_dir = Path(audit_dir)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    if compare_df.empty or "log_j" not in compare_df.columns:
+        return
+
+    # Build logM map: log10(M_bar_BTFR_Msun) per galaxy
+    logM_map = {}
+    for _, row in results_df.iterrows():
+        m = row.get("M_bar_BTFR_Msun", float("nan"))
+        if np.isfinite(m) and m > 0:
+            logM_map[row["galaxy"]] = float(np.log10(m))
+
+    # Assemble sparc_global with the three predictor columns
+    sparc_rows = []
+    for _, pt in compare_df.iterrows():
+        gal = pt["galaxy"]
+        if gal not in logM_map:
+            continue
+        sparc_rows.append({
+            "galaxy": gal,
+            "logM": logM_map[gal],
+            "log_gbar": float(pt["log_g_bar"]),
+            "log_j": float(pt["log_j"]),
+        })
+
+    if not sparc_rows:
+        return
+
+    sparc_global = pd.DataFrame(sparc_rows)
+    sparc_global.to_csv(audit_dir / "sparc_global.csv", index=False)
+
+    # Compute condition number and write
+    cn_df = compute_condition_number(sparc_global)
+    cn_df.to_csv(audit_dir / "condition_number.csv", index=False)
+
+
 
 def _parse_args(argv=None):
     parser = argparse.ArgumentParser(
