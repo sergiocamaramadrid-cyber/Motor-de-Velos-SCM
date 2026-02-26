@@ -44,6 +44,9 @@ _G_SI = 6.674e-11
 # Floor value applied before log10 to avoid log(0); physically irrelevant (≈ −300 dex)
 _LOG_FLOOR = 1e-300
 
+# Frozen characteristic acceleration scale (log10 m/s²) used in VIF hinge term.
+_DEFAULT_LOGG0 = -10.45
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -269,6 +272,18 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     csv_path = out_dir / "universal_term_comparison_full.csv"
     compare_df.to_csv(csv_path, index=False)
 
+    # --- Write audit artefacts (per-galaxy global-feature table + VIF diagnostic) ---
+    try:
+        audit_df = _build_audit_df(results_df, compare_df)
+        export_sparc_global(audit_df, out_dir / "audit" / "sparc_global.csv")
+        vif_df = compute_vif_table(audit_df, logg0=_DEFAULT_LOGG0)
+        (out_dir / "audit").mkdir(parents=True, exist_ok=True)
+        vif_df.to_csv(out_dir / "audit" / "vif_table.csv", index=False)
+    except Exception as e:  # noqa: BLE001
+        # Pipeline remains usable even if audit artefacts fail on partial datasets.
+        if verbose:
+            print(f"[SCM] WARNING: audit artefacts not written: {e}")
+
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
     _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
 
@@ -397,98 +412,187 @@ def _write_top10_latex(df, path):
 # VIF audit helpers
 # ---------------------------------------------------------------------------
 
-def _build_audit_df(compare_df):
-    """Build an audit DataFrame with ``logM``, ``log_gbar``, and ``log_j``.
+def export_sparc_global(df, out_csv):
+    """Export a per-galaxy audit CSV for scripts/audit_scm.py.
 
-    Derives three log-space features per radial point from the per-point
-    table produced by :func:`run_pipeline` (``universal_term_comparison_full.csv``):
-
-    * ``logM``     — log₁₀ of baryonic enclosed mass (kg) via Newton:
-                     M = g_bar × r² / G
-    * ``log_gbar`` — log₁₀(g_bar)  (already stored as ``log_g_bar``)
-    * ``log_j``    — log₁₀ of specific angular momentum (m² s⁻¹):
-                     j = r^(3/2) × √(g_obs)
+    Required columns in *df*:
+      - galaxy_id (str)
+      - logM      (float)  = log10(Mbar / Msun)
+      - log_gbar  (float)  = log10(gbar / (m s^-2))
+      - log_j     (float)  = log10(j_* / (kpc km s^-1))
+      - v_obs     (float)  = log10(v_obs / (km s^-1))
 
     Parameters
     ----------
+    df : pd.DataFrame
+        Per-galaxy audit table (output of :func:`_build_audit_df`).
+    out_csv : str or Path
+        Destination file (parent directories are created automatically).
+    """
+    req = ["galaxy_id", "logM", "log_gbar", "log_j", "v_obs"]
+    missing = [c for c in req if c not in df.columns]
+    if missing:
+        raise ValueError(f"export_sparc_global: missing columns: {missing}")
+
+    out_csv = Path(out_csv)
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+
+    out = df[req].copy()
+    out["galaxy_id"] = out["galaxy_id"].astype(str)
+    for c in ["logM", "log_gbar", "log_j", "v_obs"]:
+        out[c] = pd.to_numeric(out[c], errors="coerce")
+    out = out.replace([np.inf, -np.inf], np.nan).dropna(subset=req)
+
+    out.to_csv(out_csv, index=False)
+
+
+def _build_audit_df(results_df, compare_df):
+    """Build per-galaxy global-feature table for OOS audits.
+
+    Derives five per-galaxy columns by aggregating over the radial-point data:
+
+    * ``galaxy_id`` — galaxy identifier
+    * ``logM``      — log10(M_bar_BTFR_Msun) from per-galaxy results
+    * ``log_gbar``  — median log10(g_bar) over radial points
+    * ``log_j``     — median log10(r_kpc × v_obs_kms) where v_obs is
+                      reconstructed from g_obs and r_kpc
+    * ``v_obs``     — log10(Vflat_kms) from per-galaxy results
+
+    Parameters
+    ----------
+    results_df : pd.DataFrame
+        Per-galaxy results table.  Must contain ``galaxy``,
+        ``M_bar_BTFR_Msun``, and ``Vflat_kms``.
     compare_df : pd.DataFrame
-        Per-radial-point table.  Must contain the columns
-        ``r_kpc``, ``g_bar``, ``g_obs``, and ``log_g_bar``.
+        Per-radial-point table.  Must contain ``galaxy``,
+        ``r_kpc``, ``g_bar``, and ``g_obs``.
 
     Returns
     -------
     pd.DataFrame
-        Columns: ``logM``, ``log_gbar``, ``log_j``.
+        Columns: ``galaxy_id``, ``logM``, ``log_gbar``, ``log_j``, ``v_obs``.
     """
-    df = compare_df.copy()
-    r_m = df["r_kpc"].values * KPC_TO_M          # metres
-    g_bar = df["g_bar"].values                    # m/s²
-    g_obs = df["g_obs"].values                    # m/s²
+    if "galaxy" not in results_df.columns:
+        raise ValueError("_build_audit_df: results_df must contain 'galaxy'")
+    if "M_bar_BTFR_Msun" not in results_df.columns:
+        raise ValueError("_build_audit_df: results_df missing 'M_bar_BTFR_Msun'")
+    if "Vflat_kms" not in results_df.columns:
+        raise ValueError("_build_audit_df: results_df missing 'Vflat_kms'")
 
-    # Baryonic enclosed mass via Newton's law: M = g_bar × r² / G
-    M_bar = g_bar * r_m ** 2 / _G_SI
-    logM = np.log10(np.maximum(M_bar, _LOG_FLOOR))
+    needed_c = {"galaxy", "r_kpc", "g_bar", "g_obs"}
+    missing_c = [c for c in needed_c if c not in compare_df.columns]
+    if missing_c:
+        raise ValueError(f"_build_audit_df: compare_df missing columns: {missing_c}")
 
-    log_gbar = df["log_g_bar"].values
+    # Per-galaxy logM and v_obs (log10 Vflat)
+    base = results_df[["galaxy", "M_bar_BTFR_Msun", "Vflat_kms"]].copy()
+    base = base.rename(columns={"galaxy": "galaxy_id"})
+    base["logM"] = np.log10(pd.to_numeric(base["M_bar_BTFR_Msun"], errors="coerce"))
+    base["v_obs"] = np.log10(pd.to_numeric(base["Vflat_kms"], errors="coerce"))
 
-    # Specific angular momentum: j = v_obs × r = sqrt(g_obs × r) × r = r^(3/2) √g_obs
-    j = r_m ** 1.5 * np.sqrt(np.maximum(g_obs, 0.0))
-    log_j = np.log10(np.maximum(j, _LOG_FLOOR))
+    # Per-point log_gbar and log_j aggregated by galaxy
+    cdf = compare_df[["galaxy", "r_kpc", "g_bar", "g_obs"]].copy()
+    cdf = cdf.rename(columns={"galaxy": "galaxy_id"})
+    for col in ["r_kpc", "g_bar", "g_obs"]:
+        cdf[col] = pd.to_numeric(cdf[col], errors="coerce")
+    cdf = cdf.replace([np.inf, -np.inf], np.nan).dropna()
 
-    return pd.DataFrame({"logM": logM, "log_gbar": log_gbar, "log_j": log_j})
+    # log_gbar per point (guard against <=0)
+    gbar = np.clip(cdf["g_bar"].to_numpy(dtype=float), 1e-99, None)
+    cdf["log_gbar_pt"] = np.log10(gbar)
+
+    # Reconstruct v_obs (km/s) from g_obs and r_kpc:  g_obs = v² / r_m
+    # Note: KPC_TO_M (from scm_models) equals 1 pc in metres; use explicit value here.
+    _KPC_TO_M_LOCAL = 3.0856775814913673e19  # 1 kpc in metres
+    r_m = cdf["r_kpc"].to_numpy(dtype=float) * _KPC_TO_M_LOCAL
+    gobs = np.clip(cdf["g_obs"].to_numpy(dtype=float), 0.0, None)
+    v_ms = np.sqrt(gobs * r_m)   # m/s
+    v_kms = v_ms / 1e3
+    j = np.clip(cdf["r_kpc"].to_numpy(dtype=float) * v_kms, 1e-99, None)  # kpc·km/s
+    cdf["log_j_pt"] = np.log10(j)
+
+    agg = cdf.groupby("galaxy_id", as_index=False).agg(
+        log_gbar=("log_gbar_pt", "median"),
+        log_j=("log_j_pt", "median"),
+    )
+
+    audit = base.merge(agg, on="galaxy_id", how="inner")
+    audit = audit[["galaxy_id", "logM", "log_gbar", "log_j", "v_obs"]]
+    audit = audit.replace([np.inf, -np.inf], np.nan).dropna()
+    return audit
 
 
-def compute_vif_table(audit_df, features=None):
-    """Compute the Variance Inflation Factor (VIF) for audit log-space features.
+def compute_vif_table(audit_df, logg0=_DEFAULT_LOGG0):
+    """Compute VIF table for ``[const, logM, log_gbar, log_j, hinge]``.
 
-    Rows containing NaN or ±inf values are silently dropped before the VIF
-    is evaluated so that ``statsmodels`` does not raise on non-finite inputs.
+    The hinge term is ``max(0, logg0 − log_gbar)`` with *logg0* frozen by
+    default to :data:`_DEFAULT_LOGG0`.  VIF is computed via numpy least-squares
+    (no statsmodels dependency):
+
+    .. math::  VIF_i = 1 / (1 - R_i^2)
+
+    where :math:`R_i^2` is obtained by regressing column *i* on all others.
+
+    Rows containing NaN or ±inf in any of ``logM``, ``log_gbar``, ``log_j``
+    are silently dropped before the computation.
 
     Parameters
     ----------
     audit_df : pd.DataFrame
-        DataFrame that must contain at minimum the columns
-        ``logM``, ``log_gbar``, and ``log_j``
-        (the output of :func:`_build_audit_df`).
-    features : list of str, optional
-        Subset of columns to include in the VIF computation.
-        Defaults to ``["logM", "log_gbar", "log_j"]``.
+        Per-galaxy audit table.  Must contain ``logM``, ``log_gbar``,
+        ``log_j`` (output of :func:`_build_audit_df`).
+    logg0 : float
+        Frozen log10 characteristic acceleration for the hinge term.
+        Default: :data:`_DEFAULT_LOGG0` (−10.45).
 
     Returns
     -------
     pd.DataFrame
-        Two-column DataFrame with ``feature`` and ``VIF``.
+        Columns: ``variable``, ``VIF``.
+        Variables: ``const``, ``logM``, ``log_gbar``, ``log_j``, ``hinge``.
 
     Raises
     ------
-    ImportError
-        If ``statsmodels`` is not installed.
     ValueError
         If fewer than 2 finite rows remain after cleaning.
     """
-    try:
-        from statsmodels.stats.outliers_influence import variance_inflation_factor
-    except ImportError as exc:
-        raise ImportError(
-            "statsmodels is required for compute_vif_table. "
-            "Install it with: pip install 'statsmodels>=0.14'"
-        ) from exc
+    req = ["logM", "log_gbar", "log_j"]
+    missing = [c for c in req if c not in audit_df.columns]
+    if missing:
+        raise ValueError(f"compute_vif_table: missing columns: {missing}")
 
-    if features is None:
-        features = ["logM", "log_gbar", "log_j"]
-
-    df = audit_df[features].copy()
-    df = df.apply(pd.to_numeric, errors="coerce")
-    df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=features)
+    df = audit_df.copy()
+    for c in req:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=req)
 
     if len(df) < 2:
         raise ValueError(
             f"Need at least 2 finite rows to compute VIF, got {len(df)}"
         )
 
-    X = df.values
-    vif_values = [float(variance_inflation_factor(X, i)) for i in range(len(features))]
-    return pd.DataFrame({"feature": features, "VIF": vif_values})
+    hinge = np.maximum(0.0, float(logg0) - df["log_gbar"].to_numpy(dtype=float))
+    X = np.column_stack([
+        np.ones(len(df), dtype=float),
+        df["logM"].to_numpy(dtype=float),
+        df["log_gbar"].to_numpy(dtype=float),
+        df["log_j"].to_numpy(dtype=float),
+        hinge.astype(float),
+    ])
+    names = ["const", "logM", "log_gbar", "log_j", "hinge"]
+
+    vifs = []
+    for i in range(X.shape[1]):
+        y = X[:, i]
+        others = np.delete(X, i, axis=1)
+        w, *_ = np.linalg.lstsq(others, y, rcond=None)
+        yhat = others @ w
+        ss_res = float(np.sum((y - yhat) ** 2))
+        ss_tot = float(np.sum((y - float(np.mean(y))) ** 2))
+        r2 = 0.0 if ss_tot <= 0.0 else max(0.0, min(1.0, 1.0 - ss_res / ss_tot))
+        vifs.append(1.0 / max(1e-12, 1.0 - r2))
+
+    return pd.DataFrame({"variable": names, "VIF": vifs})
 
 
 # ---------------------------------------------------------------------------

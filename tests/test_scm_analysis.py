@@ -19,10 +19,12 @@ from src.scm_analysis import (
     load_rotation_curve,
     fit_galaxy,
     run_pipeline,
+    export_sparc_global,
+    compute_vif_table,
+    _build_audit_df,
+    _DEFAULT_LOGG0,
     _write_executive_summary,
     _write_top10_latex,
-    _build_audit_df,
-    compute_vif_table,
 )
 
 
@@ -190,6 +192,24 @@ class TestRunPipeline:
         df = run_pipeline(sparc_dir, out_dir, a0=0.5e-10, verbose=False)
         assert len(df) == 3
 
+    def test_creates_audit_sparc_global(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        p = out_dir / "audit" / "sparc_global.csv"
+        assert p.exists()
+        df = pd.read_csv(p)
+        assert set(df.columns) == {"galaxy_id", "logM", "log_gbar", "log_j", "v_obs"}
+        assert len(df) == 3
+
+    def test_creates_vif_table(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        p = out_dir / "audit" / "vif_table.csv"
+        assert p.exists()
+        vif = pd.read_csv(p)
+        assert set(vif.columns) == {"variable", "VIF"}
+        assert "hinge" in set(vif["variable"].astype(str))
+
 
 # ---------------------------------------------------------------------------
 # _write_executive_summary
@@ -261,49 +281,54 @@ class TestWriteTop10Latex:
 # ---------------------------------------------------------------------------
 
 @pytest.fixture()
-def compare_df_sample():
-    """Minimal per-radial-point compare_df with 10 clean rows."""
+def audit_inputs():
+    """Synthetic results_df + compare_df compatible with new _build_audit_df."""
     rng = np.random.default_rng(7)
-    n = 10
-    r_kpc = np.linspace(1.0, 10.0, n)
-    g_bar = 1e-11 * np.ones(n) + rng.uniform(-1e-12, 1e-12, n)
-    g_obs = g_bar * 1.5
-    return pd.DataFrame({
-        "galaxy": [f"G{i}" for i in range(n)],
-        "r_kpc": r_kpc,
-        "g_bar": g_bar,
-        "g_obs": g_obs,
-        "log_g_bar": np.log10(g_bar),
-        "log_g_obs": np.log10(g_obs),
+    n_gal = 5
+    galaxy_names = [f"G{i}" for i in range(n_gal)]
+    results_df = pd.DataFrame({
+        "galaxy": galaxy_names,
+        "M_bar_BTFR_Msun": [1e10, 2e10, 3e10, 4e10, 5e10],
+        "Vflat_kms": [150.0, 180.0, 200.0, 220.0, 250.0],
     })
+    # 4 radial points per galaxy
+    rows = []
+    for name in galaxy_names:
+        for r in [1.0, 3.0, 6.0, 10.0]:
+            g_bar = 1e-11 + rng.uniform(-1e-12, 1e-12)
+            g_obs = g_bar * 1.5
+            rows.append({"galaxy": name, "r_kpc": r, "g_bar": g_bar, "g_obs": g_obs})
+    compare_df = pd.DataFrame(rows)
+    return results_df, compare_df
 
 
 class TestBuildAuditDf:
-    def test_returns_expected_columns(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        assert set(audit.columns) == {"logM", "log_gbar", "log_j"}
+    def test_returns_expected_columns(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
+        assert set(audit.columns) == {"galaxy_id", "logM", "log_gbar", "log_j", "v_obs"}
 
-    def test_row_count_matches_input(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        assert len(audit) == len(compare_df_sample)
+    def test_row_count_matches_galaxies(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
+        assert len(audit) == len(results_df)
 
-    def test_log_gbar_matches_log_g_bar(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        np.testing.assert_allclose(
-            audit["log_gbar"].values,
-            compare_df_sample["log_g_bar"].values,
-        )
-
-    def test_all_finite(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        for col in ["logM", "log_gbar", "log_j"]:
+    def test_all_finite(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
+        for col in ["logM", "log_gbar", "log_j", "v_obs"]:
             bad = (~np.isfinite(audit[col].values)).sum()
             assert bad == 0, f"{col} contains {bad} non-finite value(s)"
 
-    def test_does_not_mutate_input(self, compare_df_sample):
-        original_cols = list(compare_df_sample.columns)
-        _build_audit_df(compare_df_sample)
-        assert list(compare_df_sample.columns) == original_cols
+    def test_missing_results_column_raises(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        with pytest.raises(ValueError, match="M_bar_BTFR_Msun"):
+            _build_audit_df(results_df.drop(columns=["M_bar_BTFR_Msun"]), compare_df)
+
+    def test_missing_compare_column_raises(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        with pytest.raises(ValueError, match="g_bar"):
+            _build_audit_df(results_df, compare_df.drop(columns=["g_bar"]))
 
 
 # ---------------------------------------------------------------------------
@@ -311,48 +336,74 @@ class TestBuildAuditDf:
 # ---------------------------------------------------------------------------
 
 class TestComputeVifTable:
-    def test_returns_expected_columns(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
+    def test_returns_expected_columns(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
         vif_df = compute_vif_table(audit)
-        assert list(vif_df.columns) == ["feature", "VIF"]
+        assert set(vif_df.columns) == {"variable", "VIF"}
 
-    def test_returns_three_rows_by_default(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
+    def test_returns_five_rows(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
         vif_df = compute_vif_table(audit)
-        assert len(vif_df) == 3
+        assert len(vif_df) == 5
 
-    def test_feature_names_match(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
+    def test_variable_names(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
         vif_df = compute_vif_table(audit)
-        assert list(vif_df["feature"]) == ["logM", "log_gbar", "log_j"]
+        assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
 
-    def test_vif_values_are_positive(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
+    def test_vif_values_are_positive(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
         vif_df = compute_vif_table(audit)
         assert (vif_df["VIF"] > 0).all()
 
-    def test_nan_rows_are_dropped(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        # Inject a NaN row — should not crash
+    def test_nan_rows_are_dropped(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
         audit.loc[0, "logM"] = float("nan")
         vif_df = compute_vif_table(audit)
-        assert len(vif_df) == 3
+        assert set(vif_df.columns) == {"variable", "VIF"}
+        assert len(vif_df) == 5
+        assert (vif_df["VIF"] > 0).all()
 
-    def test_inf_rows_are_dropped(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        # Inject ±inf — should not crash
-        audit.loc[1, "log_j"] = float("inf")
-        audit.loc[2, "log_gbar"] = float("-inf")
+    def test_inf_rows_are_dropped(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
+        audit.loc[0, "log_j"] = float("inf")
         vif_df = compute_vif_table(audit)
-        assert len(vif_df) == 3
+        assert set(vif_df.columns) == {"variable", "VIF"}
+        assert len(vif_df) == 5
+        assert (vif_df["VIF"] > 0).all()
 
     def test_raises_on_insufficient_rows(self):
         audit = pd.DataFrame({"logM": [1.0], "log_gbar": [-10.0], "log_j": [20.0]})
         with pytest.raises(ValueError, match="Need at least 2 finite rows"):
             compute_vif_table(audit)
 
-    def test_custom_features(self, compare_df_sample):
-        audit = _build_audit_df(compare_df_sample)
-        vif_df = compute_vif_table(audit, features=["logM", "log_j"])
-        assert list(vif_df["feature"]) == ["logM", "log_j"]
-        assert len(vif_df) == 2
+    def test_custom_logg0(self, audit_inputs):
+        results_df, compare_df = audit_inputs
+        audit = _build_audit_df(results_df, compare_df)
+        vif_df = compute_vif_table(audit, logg0=-10.0)
+        assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+
+
+# ---------------------------------------------------------------------------
+# TestVIFHelpers (standalone, no pipeline required)
+# ---------------------------------------------------------------------------
+
+class TestVIFHelpers:
+    def test_compute_vif_table_returns_expected_rows(self):
+        audit_df = pd.DataFrame({
+            "galaxy_id": ["G1", "G2", "G3", "G4", "G5"],
+            "logM": [9.0, 9.5, 10.0, 10.5, 11.0],
+            "log_gbar": [-11.2, -10.8, -10.6, -10.4, -10.2],
+            "log_j": [2.0, 2.1, 2.2, 2.3, 2.4],
+            "v_obs": [2.1, 2.2, 2.25, 2.3, 2.35],
+        })
+        vif_df = compute_vif_table(audit_df, logg0=_DEFAULT_LOGG0)
+        assert set(vif_df.columns) == {"variable", "VIF"}
+        assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+        assert np.all(np.isfinite(vif_df["VIF"].to_numpy()))
