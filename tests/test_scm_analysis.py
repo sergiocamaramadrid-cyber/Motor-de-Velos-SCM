@@ -292,7 +292,7 @@ class TestWriteAuditMetrics:
         assert vif_path.exists()
         df = pd.read_csv(vif_path)
         assert set(df.columns) == {"feature", "VIF"}
-        assert list(df["feature"]) == ["logM", "log_gbar", "log_j", "hinge"]
+        assert list(df["feature"]) == ["logM", "log_j", "hinge"]
 
     def test_creates_stability_metrics(self, tmp_path, sample_compare_df):
         out_dir = tmp_path / "results"

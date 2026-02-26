@@ -318,7 +318,7 @@ def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
     """Compute and write multicollinearity and numerical-stability diagnostics.
 
     Builds a per-radial-point audit table with features
-    ``[logM, log_gbar, log_j, hinge]`` derived from *compare_df*, then:
+    ``[logM, log_j, hinge]`` derived from *compare_df*, then:
 
     1. Computes the Variance Inflation Factor (VIF) for each feature and
        writes ``<out_dir>/audit/vif_table.csv``.
@@ -377,7 +377,9 @@ def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
     audit_df.to_csv(audit_dir / "audit_features.csv", index=False)
 
     # --- VIF diagnostics ---
-    X_cols = ["logM", "log_gbar", "log_j", "hinge"]
+    # log_gbar is excluded: logM = log_gbar + 2·log_r already encodes it, and
+    # including both creates near-perfect collinearity (VIF ≫ 100, κ ≫ 50).
+    X_cols = ["logM", "log_j", "hinge"]
     X = audit_df[X_cols].to_numpy(dtype=float)
     vif_values = _vif_numpy(X)
     vif_data = [
@@ -404,7 +406,7 @@ def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
         "metric": ["condition_number_kappa"],
         "value": [kappa],
         "status": [status],
-        "notes": ["kappa computed on z-scored [logM, log_gbar, log_j, hinge]"],
+        "notes": ["kappa computed on z-scored [logM, log_j, hinge]"],
     })
     stability_report.to_csv(audit_dir / "stability_metrics.csv", index=False)
 
@@ -525,7 +527,8 @@ def _parse_args(argv=None):
         "--data-dir", required=True, help="Directory containing SPARC data"
     )
     parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+        "--out", "--outdir", dest="out",
+        default="results/", help="Output directory (default: results/)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,
