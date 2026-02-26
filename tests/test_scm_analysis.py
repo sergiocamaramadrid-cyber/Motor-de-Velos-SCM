@@ -424,3 +424,21 @@ class TestCLIArgs:
         args_out = _parse_args(["--data-dir", "data/sparc", "--out", "my_out/"])
         args_outdir = _parse_args(["--data-dir", "data/sparc", "--outdir", "my_out/"])
         assert args_out.out == args_outdir.out
+
+    def test_seed_default_is_none(self):
+        from src.scm_analysis import _parse_args
+        args = _parse_args(["--data-dir", "data/sparc"])
+        assert args.seed is None
+
+    def test_seed_accepted(self):
+        from src.scm_analysis import _parse_args
+        args = _parse_args(["--data-dir", "data/sparc", "--seed", "20260211"])
+        assert args.seed == 20260211
+
+    def test_seed_produces_deterministic_results(self, tmp_path, sparc_dir):
+        """run_pipeline with the same seed produces identical results tables."""
+        out1 = tmp_path / "run1"
+        out2 = tmp_path / "run2"
+        df1 = run_pipeline(sparc_dir, out1, verbose=False, seed=42)
+        df2 = run_pipeline(sparc_dir, out2, verbose=False, seed=42)
+        pd.testing.assert_frame_equal(df1, df2)

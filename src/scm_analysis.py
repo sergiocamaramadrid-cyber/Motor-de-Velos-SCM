@@ -172,7 +172,7 @@ def fit_galaxy(rc, a0=1.2e-10):
 # Full pipeline
 # ---------------------------------------------------------------------------
 
-def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
+def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True, seed=None):
     """Execute the full Motor de Velos SCM analysis pipeline.
 
     1. Load the SPARC galaxy table.
@@ -190,12 +190,17 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         Characteristic velos acceleration (m/s²).
     verbose : bool
         Print progress if True.
+    seed : int or None
+        Random seed for reproducibility.  When provided, ``numpy``'s global
+        random state is seeded before the pipeline runs.
 
     Returns
     -------
     pd.DataFrame
         Galaxy-level results table.
     """
+    if seed is not None:
+        np.random.seed(seed)
     data_dir = Path(data_dir)
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -616,6 +621,10 @@ def _parse_args(argv=None):
         help="Characteristic velos acceleration in m/s² (default: 1.2e-10)"
     )
     parser.add_argument(
+        "--seed", type=int, default=None,
+        help="Random seed for reproducibility (default: None)"
+    )
+    parser.add_argument(
         "--quiet", action="store_true", help="Suppress progress output"
     )
     return parser.parse_args(argv)
@@ -628,6 +637,7 @@ def main(argv=None):
         out_dir=args.out,
         a0=args.a0,
         verbose=not args.quiet,
+        seed=args.seed,
     )
 
 
