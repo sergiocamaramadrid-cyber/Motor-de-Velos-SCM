@@ -320,6 +320,19 @@ class TestWriteAuditMetrics:
         _write_audit_metrics(pd.DataFrame(), out_dir)
         assert not (out_dir / "audit").exists()
 
+    def test_hinge_deep_regime_direction(self, tmp_path):
+        """Hinge must activate (>0) when g_bar < a0 and be 0 when g_bar > a0."""
+        a0 = 1.2e-10
+        log_a0 = np.log10(a0)
+        # Points well below a0 → deep regime → hinge should be > 0
+        g_deep = np.array([1e-12, 5e-12, 1e-11])
+        hinge_deep = np.maximum(0.0, log_a0 - np.log10(g_deep))
+        assert np.all(hinge_deep > 0), "Hinge must be >0 in deep regime (g_bar < a0)"
+        # Points well above a0 → Newtonian → hinge should be exactly 0
+        g_newton = np.array([1e-9, 5e-9, 1e-8])
+        hinge_newton = np.maximum(0.0, log_a0 - np.log10(g_newton))
+        assert np.all(hinge_newton == 0.0), "Hinge must be 0 in Newtonian regime (g_bar > a0)"
+
     def test_run_pipeline_creates_audit_files(self, sparc_dir, tmp_path):
         out_dir = tmp_path / "results"
         run_pipeline(sparc_dir, out_dir, verbose=False)

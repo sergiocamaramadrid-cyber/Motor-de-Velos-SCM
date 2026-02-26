@@ -352,8 +352,8 @@ def _write_audit_metrics(compare_df, out_dir, a0=_A0_DEFAULT):
     # log_j  ∝  log10(r · sqrt(g_obs · r))  — specific angular momentum proxy
     log_j = 0.5 * log_gobs + 1.5 * log_r
 
-    # hinge  = max(log_g_bar − log10(a0), 0)  — deep-MOND regime indicator
-    hinge = np.maximum(log_gbar - np.log10(a0), 0.0)
+    # Deep-regime hinge: activates when g_bar < a0 (low-acceleration / deep-MOND)
+    hinge = np.maximum(0.0, np.log10(a0) - log_gbar)
 
     audit_df = pd.DataFrame({
         "logM": logM,
