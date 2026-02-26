@@ -202,3 +202,10 @@ class TestMain:
         csv_path = _make_vif_csv(tmp_path)
         main(["--csv", str(csv_path)])
         assert not (tmp_path / "vif_report.log").exists()
+
+    def test_input_alias_accepted(self, tmp_path):
+        """--input is a synonym for --csv and must work identically."""
+        csv_path = _make_vif_csv(tmp_path)
+        result = main(["--input", str(csv_path)])
+        assert isinstance(result, pd.DataFrame)
+        assert set(result.columns) == {"variable", "VIF"}

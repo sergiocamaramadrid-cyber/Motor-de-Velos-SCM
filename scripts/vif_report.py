@@ -40,6 +40,10 @@ Explicit CSV::
 
     python scripts/vif_report.py --csv results/audit/vif_table.csv
 
+``--input`` is accepted as a synonym for ``--csv``::
+
+    python scripts/vif_report.py --input results/audit/vif_table.csv
+
 Write report to file as well::
 
     python scripts/vif_report.py --out results/audit/
@@ -162,8 +166,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         description="Print a formatted VIF multicollinearity report.",
     )
     parser.add_argument(
-        "--csv", default=VIF_CSV_DEFAULT, metavar="PATH",
-        help=f"VIF table CSV (default: {VIF_CSV_DEFAULT}).",
+        "--csv", "--input", dest="csv", default=VIF_CSV_DEFAULT, metavar="PATH",
+        help=f"VIF table CSV (default: {VIF_CSV_DEFAULT}). '--input' is accepted as a synonym.",
     )
     parser.add_argument(
         "--out", default=None, metavar="DIR",
