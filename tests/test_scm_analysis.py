@@ -21,6 +21,8 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    compute_vif_table,
+    _build_audit_df,
 )
 
 
@@ -252,3 +254,78 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# compute_vif_table / _build_audit_df
+# ---------------------------------------------------------------------------
+
+class TestComputeVifTable:
+    def _make_audit_df(self, n=50, seed=0):
+        """Synthetic audit DataFrame with realistic SCM predictor ranges."""
+        rng = np.random.default_rng(seed)
+        return pd.DataFrame({
+            "logM": rng.uniform(8.0, 12.0, n),
+            "log_gbar": rng.uniform(-12.0, -9.0, n),
+            "log_j": rng.uniform(2.0, 5.0, n),
+        })
+
+    def test_returns_dataframe(self):
+        df = compute_vif_table(self._make_audit_df())
+        assert isinstance(df, pd.DataFrame)
+
+    def test_columns(self):
+        df = compute_vif_table(self._make_audit_df())
+        assert list(df.columns) == ["variable", "VIF"]
+
+    def test_variables(self):
+        df = compute_vif_table(self._make_audit_df())
+        assert list(df["variable"]) == ["const", "logM", "log_gbar", "log_j", "hinge"]
+
+    def test_vif_positive(self):
+        df = compute_vif_table(self._make_audit_df())
+        assert (df["VIF"] > 0).all()
+
+    def test_custom_logg0(self):
+        audit = self._make_audit_df()
+        df1 = compute_vif_table(audit, logg0=-10.45)
+        df2 = compute_vif_table(audit, logg0=-11.0)
+        # Different logg0 → different hinge values → different VIF for hinge row
+        hinge_vif1 = df1.loc[df1["variable"] == "hinge", "VIF"].iloc[0]
+        hinge_vif2 = df2.loc[df2["variable"] == "hinge", "VIF"].iloc[0]
+        assert hinge_vif1 != hinge_vif2
+
+    def test_pipeline_writes_vif_table(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results_vif"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        vif_path = out_dir / "audit" / "vif_table.csv"
+        assert vif_path.exists(), "vif_table.csv was not written"
+        vif_df = pd.read_csv(vif_path)
+        assert list(vif_df.columns) == ["variable", "VIF"]
+        assert list(vif_df["variable"]) == ["const", "logM", "log_gbar", "log_j", "hinge"]
+
+
+class TestBuildAuditDf:
+    def _make_compare_df(self, n=20):
+        """Synthetic compare_df similar to what run_pipeline produces."""
+        rng = np.random.default_rng(1)
+        g_bar = 10 ** rng.uniform(-12.0, -9.0, n)
+        g_obs = 10 ** rng.uniform(-12.0, -9.0, n)
+        r_kpc = rng.uniform(0.5, 15.0, n)
+        return pd.DataFrame({
+            "galaxy": ["G0"] * n,
+            "r_kpc": r_kpc,
+            "g_bar": g_bar,
+            "g_obs": g_obs,
+            "log_g_bar": np.log10(g_bar),
+            "log_g_obs": np.log10(g_obs),
+        })
+
+    def test_returns_correct_columns(self):
+        df = _build_audit_df(self._make_compare_df())
+        assert set(df.columns) == {"logM", "log_gbar", "log_j"}
+
+    def test_finite_values(self):
+        df = _build_audit_df(self._make_compare_df())
+        assert df.isna().sum().sum() == 0
+        assert np.isfinite(df.values).all()
