@@ -35,6 +35,14 @@ import argparse
 import sys
 from pathlib import Path
 
+# Ensure the repo root is on sys.path so that ``from src.scm_analysis import …``
+# works whether this script is run as ``python scripts/audit_scm.py`` (where
+# Python would otherwise place only the scripts/ directory on sys.path[0]) or
+# via ``python -m scripts.audit_scm`` (where the repo root is already present).
+_REPO_ROOT = Path(__file__).resolve().parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
 import matplotlib
 matplotlib.use("Agg")  # non-interactive backend for CI/headless environments
 import matplotlib.pyplot as plt
