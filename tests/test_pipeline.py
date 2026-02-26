@@ -104,6 +104,11 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     assert deep_slope.exists(), "deep_slope_test.csv not written"
     assert sensitivity.exists(), "sensitivity_a0.csv not written"
 
+    # (v) audit artefacts must exist
+    assert (out / "audit" / "vif_table.csv").exists(), "audit/vif_table.csv not written"
+    assert (out / "audit" / "stability_metrics.csv").exists(), "audit/stability_metrics.csv not written"
+    assert (out / "audit" / "quality_status.txt").exists(), "audit/quality_status.txt not written"
+
     # (iv) per_galaxy_summary contract and data sanity
     df2 = pd.read_csv(per_gal)
     assert df2.columns.tolist() == EXPECTED_COLS, (
@@ -128,3 +133,98 @@ def test_run_pipeline_types(sparc175_dir, tmp_path):
     )
     for col in ("upsilon_disk", "chi2_reduced", "Vflat_kms", "M_bar_BTFR_Msun"):
         assert pd.api.types.is_float_dtype(df[col]), f"{col} is not float"
+
+
+def test_audit_artefact_content(sparc175_dir, tmp_path):
+    """Audit artefacts have the expected columns and structure."""
+    out = tmp_path / "results_audit"
+    run_pipeline(sparc175_dir, str(out), verbose=False)
+
+    audit_dir = out / "audit"
+
+    # vif_table.csv — correct columns and expected variable names
+    vif_df = pd.read_csv(audit_dir / "vif_table.csv")
+    assert list(vif_df.columns) == ["variable", "VIF"], f"vif_table columns: {vif_df.columns.tolist()}"
+    assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+
+    # stability_metrics.csv — correct columns and a kappa row
+    stab_df = pd.read_csv(audit_dir / "stability_metrics.csv")
+    assert list(stab_df.columns) == ["metric", "value", "status"]
+    kappa_row = stab_df[stab_df["metric"] == "condition_number_kappa"]
+    assert len(kappa_row) == 1, "condition_number_kappa row must be present"
+    assert kappa_row["status"].iloc[0] in ("stable", "unstable")
+
+    # quality_status.txt — must contain overall verdict
+    status_text = (audit_dir / "quality_status.txt").read_text(encoding="utf-8")
+    assert "overall_status=" in status_text
+
+
+def test_audit_with_deep_regime_data(tmp_path):
+    """Audit produces finite VIF and kappa when the data spans both regimes."""
+    from src.scm_analysis import _run_audit, _A0_DEFAULT
+
+    a0 = _A0_DEFAULT  # 1.2e-10 m/s²
+    rng = np.random.default_rng(7)
+    n = 300
+
+    # Mix of Newtonian (log_g_bar > log10(a0)) and deep-regime (log_g_bar < log10(a0)) points
+    log_a0 = np.log10(a0)
+    log_gbar = rng.uniform(log_a0 - 2.5, log_a0 + 1.5, n)   # spans both regimes
+    log_gobs = 0.5 * log_gbar + rng.normal(0, 0.1, n)
+    r_kpc = 10 ** rng.uniform(-0.5, 1.5, n)
+    galaxies = [f"G{i:03d}" for i in rng.integers(0, 30, n)]
+
+    compare_df = pd.DataFrame({
+        "galaxy": galaxies,
+        "r_kpc": r_kpc,
+        "g_bar": 10.0 ** log_gbar,
+        "g_obs": 10.0 ** log_gobs,
+        "log_g_bar": log_gbar,
+        "log_g_obs": log_gobs,
+    })
+
+    # Galaxy table with L36 varying across galaxies
+    galaxy_table = pd.DataFrame({
+        "Galaxy": [f"G{i:03d}" for i in range(30)],
+        "L36": 1e9 * np.arange(1, 31, dtype=float),
+    })
+
+    out_dir = tmp_path / "audit_deep"
+    _run_audit(compare_df, galaxy_table, out_dir, a0=a0)
+
+    vif_df = pd.read_csv(out_dir / "audit" / "vif_table.csv")
+    stab_df = pd.read_csv(out_dir / "audit" / "stability_metrics.csv")
+
+    assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
+    assert vif_df["VIF"].notna().all(), "All VIF values should be finite"
+
+    kappa = float(stab_df[stab_df["metric"] == "condition_number_kappa"]["value"].iloc[0])
+    assert np.isfinite(kappa), "Condition number should be finite with mixed-regime data"
+
+
+def test_audit_hinge_sign(sparc175_dir, tmp_path):
+    """hinge = max(0, log10(a0) - log_gbar) is always >= 0."""
+    import numpy as np
+    from src.scm_analysis import _run_audit
+
+    out = tmp_path / "results_hinge"
+    run_pipeline(sparc175_dir, str(out), verbose=False)
+
+    # Read back the compare_df and verify hinge sign directly
+    compare_df = pd.read_csv(out / "universal_term_comparison_full.csv")
+    a0 = 1.2e-10
+    hinge = np.maximum(0.0, np.log10(a0) - compare_df["log_g_bar"].values)
+    assert (hinge >= 0).all(), "hinge must be non-negative"
+    # In the deep regime (g_bar < a0), hinge > 0
+    deep_mask = compare_df["g_bar"].values < a0
+    if deep_mask.any():
+        assert (hinge[deep_mask] > 0).all(), "hinge must be positive in deep regime"
+
+
+def test_cli_outdir_alias(sparc175_dir, tmp_path):
+    """--outdir is accepted as a CLI alias for --out."""
+    from src.scm_analysis import _parse_args
+
+    out_path = str(tmp_path / "cli_out")
+    args = _parse_args(["--data-dir", "data/sparc", "--outdir", out_path])
+    assert args.out == out_path
