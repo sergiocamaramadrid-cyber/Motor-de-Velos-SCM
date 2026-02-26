@@ -46,11 +46,8 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
-# Frozen log10 of the characteristic baryonic acceleration g0 (m/s²) used in VIF analysis
+# Frozen characteristic log-acceleration used in VIF hinge term
 _DEFAULT_LOGG0 = -10.45
-
-# Public alias — used in compute_vif_table() and available to callers
-FROZEN_LOGG0 = _DEFAULT_LOGG0
 
 
 # ---------------------------------------------------------------------------
@@ -438,7 +435,7 @@ def _write_top10_latex(df, path):
         fh.write("\n".join(lines) + "\n")
 
 
-def compute_vif_table(audit_df, logg0=FROZEN_LOGG0):
+def compute_vif_table(audit_df, logg0=_DEFAULT_LOGG0):
     """Compute VIF diagnostics for the SCM global-feature design matrix.
 
     Required columns in *audit_df*: ``logM``, ``log_gbar``, ``log_j``.
@@ -452,7 +449,7 @@ def compute_vif_table(audit_df, logg0=FROZEN_LOGG0):
     audit_df : pd.DataFrame
         Per-galaxy table with columns ``logM``, ``log_gbar``, ``log_j``.
     logg0 : float
-        Frozen log10 characteristic acceleration (default: :data:`FROZEN_LOGG0`).
+        Frozen log10 characteristic acceleration (default: ``_DEFAULT_LOGG0``).
 
     Returns
     -------
@@ -503,7 +500,7 @@ def compute_vif_table(audit_df, logg0=FROZEN_LOGG0):
     return vif
 
 
-def _write_vif_table(audit_df, out_csv, logg0=FROZEN_LOGG0):
+def _write_vif_table(audit_df, out_csv, logg0=_DEFAULT_LOGG0):
     """Compute VIF for the global-feature design matrix and write to *out_csv*.
 
     Delegates computation to :func:`compute_vif_table`.  If ``statsmodels``
@@ -517,7 +514,7 @@ def _write_vif_table(audit_df, out_csv, logg0=FROZEN_LOGG0):
     out_csv : str or Path
         Destination CSV path (parent directories are created if needed).
     logg0 : float
-        Frozen characteristic log-acceleration (default: :data:`FROZEN_LOGG0`).
+        Frozen characteristic log-acceleration (default: ``_DEFAULT_LOGG0``).
 
     Returns
     -------
