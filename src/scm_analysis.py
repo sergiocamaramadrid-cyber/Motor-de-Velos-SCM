@@ -19,6 +19,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
+from scipy.stats import linregress
 
 from .scm_models import (
     KPC_TO_M,
@@ -33,6 +34,9 @@ _CONV = 1e6 / KPC_TO_M
 
 # Guard against division by zero for near-zero radii (well below physical kpc)
 _MIN_RADIUS_KPC = 1e-10
+
+# Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
+_A0_DEFAULT = 1.2e-10
 
 
 # ---------------------------------------------------------------------------
@@ -259,6 +263,14 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     csv_path = out_dir / "universal_term_comparison_full.csv"
     compare_df.to_csv(csv_path, index=False)
 
+    # --- Write deep-slope test CSV (derived directly from compare_df) ---
+    _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
+
+    # --- Write sensitivity analysis CSV (a0 grid scan) ---
+    # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
+    from .sensitivity import run_sensitivity  # noqa: PLC0415
+    run_sensitivity(data_dir, out_dir, verbose=verbose)
+
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
@@ -269,6 +281,63 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
+    """Compute and write the deep-regime slope test CSV.
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table with columns ``log_g_bar`` and ``log_g_obs``.
+    path : Path
+        Destination file.
+    a0 : float
+        Characteristic acceleration (m/s²).
+    deep_threshold : float
+        Fraction of *a0* that defines the deep regime: a radial point is
+        "deep" if g_bar < deep_threshold × a0 (e.g. 0.3 means 30% of a0).
+    """
+    if compare_df.empty or not {"log_g_bar", "log_g_obs"}.issubset(compare_df.columns):
+        pd.DataFrame(columns=[
+            "n_total", "n_deep", "deep_frac", "slope", "intercept",
+            "stderr", "r_value", "p_value", "delta_from_mond", "log_g0_pred",
+        ]).to_csv(path, index=False)
+        return
+
+    log_gbar = compare_df["log_g_bar"].values
+    log_gobs = compare_df["log_g_obs"].values
+    g_bar = 10.0 ** log_gbar
+    deep_mask = g_bar < deep_threshold * a0
+    n_total = len(log_gbar)
+    n_deep = int(deep_mask.sum())
+
+    if n_deep < 2:
+        result = {
+            "n_total": n_total, "n_deep": n_deep,
+            "deep_frac": float(n_deep / max(n_total, 1)),
+            "slope": float("nan"), "intercept": float("nan"),
+            "stderr": float("nan"), "r_value": float("nan"),
+            "p_value": float("nan"), "delta_from_mond": float("nan"),
+            "log_g0_pred": float("nan"),
+        }
+    else:
+        slope, intercept, r_value, p_value, stderr = linregress(
+            log_gbar[deep_mask], log_gobs[deep_mask]
+        )
+        result = {
+            "n_total": n_total,
+            "n_deep": n_deep,
+            "deep_frac": float(n_deep / max(n_total, 1)),
+            "slope": float(slope),
+            "intercept": float(intercept),
+            "stderr": float(stderr),
+            "r_value": float(r_value),
+            "p_value": float(p_value),
+            "delta_from_mond": float(slope - 0.5),
+            "log_g0_pred": float(2.0 * intercept),
+        }
+    pd.DataFrame([result]).to_csv(path, index=False)
 
 
 def _write_executive_summary(df, path):

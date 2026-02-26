@@ -89,16 +89,20 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     # (ii) row count
     assert len(df) >= 150, f"Expected ≥150 rows, got {len(df)}"
 
-    # (iii) all four core artefacts must exist
+    # (iii) all six core artefacts must exist
     per_gal = out / "per_galaxy_summary.csv"
     uni = out / "universal_term_comparison_full.csv"
     summary = out / "executive_summary.txt"
     top10 = out / "top10_universal.tex"
+    deep_slope = out / "deep_slope_test.csv"
+    sensitivity = out / "sensitivity_a0.csv"
 
     assert per_gal.exists(), "per_galaxy_summary.csv not written"
     assert uni.exists(), "universal_term_comparison_full.csv not written"
     assert summary.exists(), "executive_summary.txt not written"
     assert top10.exists(), "top10_universal.tex not written"
+    assert deep_slope.exists(), "deep_slope_test.csv not written"
+    assert sensitivity.exists(), "sensitivity_a0.csv not written"
 
     # (iv) per_galaxy_summary contract and data sanity
     df2 = pd.read_csv(per_gal)
