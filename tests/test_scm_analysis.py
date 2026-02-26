@@ -6,7 +6,6 @@ that no real SPARC download is required.
 """
 
 import os
-import csv
 import tempfile
 from pathlib import Path
 
