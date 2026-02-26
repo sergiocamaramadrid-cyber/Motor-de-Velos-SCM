@@ -21,6 +21,8 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _build_audit_df,
+    compute_vif_table,
 )
 
 
@@ -252,3 +254,105 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# _build_audit_df
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def compare_df_sample():
+    """Minimal per-radial-point compare_df with 10 clean rows."""
+    rng = np.random.default_rng(7)
+    n = 10
+    r_kpc = np.linspace(1.0, 10.0, n)
+    g_bar = 1e-11 * np.ones(n) + rng.uniform(-1e-12, 1e-12, n)
+    g_obs = g_bar * 1.5
+    return pd.DataFrame({
+        "galaxy": [f"G{i}" for i in range(n)],
+        "r_kpc": r_kpc,
+        "g_bar": g_bar,
+        "g_obs": g_obs,
+        "log_g_bar": np.log10(g_bar),
+        "log_g_obs": np.log10(g_obs),
+    })
+
+
+class TestBuildAuditDf:
+    def test_returns_expected_columns(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        assert set(audit.columns) == {"logM", "log_gbar", "log_j"}
+
+    def test_row_count_matches_input(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        assert len(audit) == len(compare_df_sample)
+
+    def test_log_gbar_matches_log_g_bar(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        np.testing.assert_allclose(
+            audit["log_gbar"].values,
+            compare_df_sample["log_g_bar"].values,
+        )
+
+    def test_all_finite(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        for col in ["logM", "log_gbar", "log_j"]:
+            bad = (~np.isfinite(audit[col].values)).sum()
+            assert bad == 0, f"{col} contains {bad} non-finite value(s)"
+
+    def test_does_not_mutate_input(self, compare_df_sample):
+        original_cols = list(compare_df_sample.columns)
+        _build_audit_df(compare_df_sample)
+        assert list(compare_df_sample.columns) == original_cols
+
+
+# ---------------------------------------------------------------------------
+# compute_vif_table
+# ---------------------------------------------------------------------------
+
+class TestComputeVifTable:
+    def test_returns_expected_columns(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        vif_df = compute_vif_table(audit)
+        assert list(vif_df.columns) == ["feature", "VIF"]
+
+    def test_returns_three_rows_by_default(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        vif_df = compute_vif_table(audit)
+        assert len(vif_df) == 3
+
+    def test_feature_names_match(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        vif_df = compute_vif_table(audit)
+        assert list(vif_df["feature"]) == ["logM", "log_gbar", "log_j"]
+
+    def test_vif_values_are_positive(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        vif_df = compute_vif_table(audit)
+        assert (vif_df["VIF"] > 0).all()
+
+    def test_nan_rows_are_dropped(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        # Inject a NaN row — should not crash
+        audit.loc[0, "logM"] = float("nan")
+        vif_df = compute_vif_table(audit)
+        assert len(vif_df) == 3
+
+    def test_inf_rows_are_dropped(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        # Inject ±inf — should not crash
+        audit.loc[1, "log_j"] = float("inf")
+        audit.loc[2, "log_gbar"] = float("-inf")
+        vif_df = compute_vif_table(audit)
+        assert len(vif_df) == 3
+
+    def test_raises_on_insufficient_rows(self):
+        audit = pd.DataFrame({"logM": [1.0], "log_gbar": [-10.0], "log_j": [20.0]})
+        with pytest.raises(ValueError, match="Need at least 2 finite rows"):
+            compute_vif_table(audit)
+
+    def test_custom_features(self, compare_df_sample):
+        audit = _build_audit_df(compare_df_sample)
+        vif_df = compute_vif_table(audit, features=["logM", "log_j"])
+        assert list(vif_df["feature"]) == ["logM", "log_j"]
+        assert len(vif_df) == 2

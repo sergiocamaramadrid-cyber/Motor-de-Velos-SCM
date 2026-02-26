@@ -38,6 +38,12 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
+# Gravitational constant (SI: m³ kg⁻¹ s⁻²)
+_G_SI = 6.674e-11
+
+# Floor value applied before log10 to avoid log(0); physically irrelevant (≈ −300 dex)
+_LOG_FLOOR = 1e-300
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -385,6 +391,104 @@ def _write_top10_latex(df, path):
 
     with open(path, "w", encoding="utf-8") as fh:
         fh.write("\n".join(lines) + "\n")
+
+
+# ---------------------------------------------------------------------------
+# VIF audit helpers
+# ---------------------------------------------------------------------------
+
+def _build_audit_df(compare_df):
+    """Build an audit DataFrame with ``logM``, ``log_gbar``, and ``log_j``.
+
+    Derives three log-space features per radial point from the per-point
+    table produced by :func:`run_pipeline` (``universal_term_comparison_full.csv``):
+
+    * ``logM``     — log₁₀ of baryonic enclosed mass (kg) via Newton:
+                     M = g_bar × r² / G
+    * ``log_gbar`` — log₁₀(g_bar)  (already stored as ``log_g_bar``)
+    * ``log_j``    — log₁₀ of specific angular momentum (m² s⁻¹):
+                     j = r^(3/2) × √(g_obs)
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table.  Must contain the columns
+        ``r_kpc``, ``g_bar``, ``g_obs``, and ``log_g_bar``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``logM``, ``log_gbar``, ``log_j``.
+    """
+    df = compare_df.copy()
+    r_m = df["r_kpc"].values * KPC_TO_M          # metres
+    g_bar = df["g_bar"].values                    # m/s²
+    g_obs = df["g_obs"].values                    # m/s²
+
+    # Baryonic enclosed mass via Newton's law: M = g_bar × r² / G
+    M_bar = g_bar * r_m ** 2 / _G_SI
+    logM = np.log10(np.maximum(M_bar, _LOG_FLOOR))
+
+    log_gbar = df["log_g_bar"].values
+
+    # Specific angular momentum: j = v_obs × r = sqrt(g_obs × r) × r = r^(3/2) √g_obs
+    j = r_m ** 1.5 * np.sqrt(np.maximum(g_obs, 0.0))
+    log_j = np.log10(np.maximum(j, _LOG_FLOOR))
+
+    return pd.DataFrame({"logM": logM, "log_gbar": log_gbar, "log_j": log_j})
+
+
+def compute_vif_table(audit_df, features=None):
+    """Compute the Variance Inflation Factor (VIF) for audit log-space features.
+
+    Rows containing NaN or ±inf values are silently dropped before the VIF
+    is evaluated so that ``statsmodels`` does not raise on non-finite inputs.
+
+    Parameters
+    ----------
+    audit_df : pd.DataFrame
+        DataFrame that must contain at minimum the columns
+        ``logM``, ``log_gbar``, and ``log_j``
+        (the output of :func:`_build_audit_df`).
+    features : list of str, optional
+        Subset of columns to include in the VIF computation.
+        Defaults to ``["logM", "log_gbar", "log_j"]``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Two-column DataFrame with ``feature`` and ``VIF``.
+
+    Raises
+    ------
+    ImportError
+        If ``statsmodels`` is not installed.
+    ValueError
+        If fewer than 2 finite rows remain after cleaning.
+    """
+    try:
+        from statsmodels.stats.outliers_influence import variance_inflation_factor
+    except ImportError as exc:
+        raise ImportError(
+            "statsmodels is required for compute_vif_table. "
+            "Install it with: pip install 'statsmodels>=0.14'"
+        ) from exc
+
+    if features is None:
+        features = ["logM", "log_gbar", "log_j"]
+
+    df = audit_df[features].copy()
+    df = df.apply(pd.to_numeric, errors="coerce")
+    df = df.replace([np.inf, -np.inf], np.nan).dropna(subset=features)
+
+    if len(df) < 2:
+        raise ValueError(
+            f"Need at least 2 finite rows to compute VIF, got {len(df)}"
+        )
+
+    X = df.values
+    vif_values = [float(variance_inflation_factor(X, i)) for i in range(len(features))]
+    return pd.DataFrame({"feature": features, "VIF": vif_values})
 
 
 # ---------------------------------------------------------------------------
