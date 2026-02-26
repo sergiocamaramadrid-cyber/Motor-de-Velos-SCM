@@ -28,6 +28,7 @@ from .scm_models import (
     chi2_reduced,
     baryonic_tully_fisher,
 )
+from .session import create_session
 
 # Convert (km/s)²/kpc → m/s² (used for per-point g_bar / g_obs)
 _CONV = 1e6 / KPC_TO_M
@@ -276,6 +277,10 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
     # --- Write top-10 LaTeX table ---
     _write_top10_latex(results_df, out_dir / "top10_universal.tex")
+
+    # --- Write session metadata ---
+    session = create_session(data_dir, {"a0": a0})
+    session.save(out_dir / "session.json")
 
     if verbose:
         print(f"\nResults written to {out_dir}")
