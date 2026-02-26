@@ -11,7 +11,6 @@ Or import and call :func:`run_pipeline` programmatically.
 """
 
 import argparse
-import csv
 import os
 import sys
 from pathlib import Path
