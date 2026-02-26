@@ -38,6 +38,20 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
+# Frozen log10 acceleration scale for VIF hinge term (log10 m/s²)
+_DEFAULT_LOGG0 = -10.45
+
+# Physical constants for audit / VIF derived quantities
+_G_SI = 6.674e-11   # m³ kg⁻¹ s⁻²
+_M_SUN = 1.989e30   # kg
+
+# Floor value for log10 computations to avoid log(0)
+_LOG_FLOOR = 1e-30
+
+# Minimum number of rows needed for VIF computation (must exceed the number
+# of predictors in the design matrix: const, logM, log_gbar, log_j, hinge)
+_MIN_VIF_SAMPLE_SIZE = 5
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -159,6 +173,42 @@ def fit_galaxy(rc, a0=1.2e-10):
 
 
 # ---------------------------------------------------------------------------
+# VIF diagnostics
+# ---------------------------------------------------------------------------
+
+def compute_vif_table(df: pd.DataFrame, logg0: float = _DEFAULT_LOGG0) -> pd.DataFrame:
+    """Compute Variance Inflation Factor (VIF) table for SCM predictors.
+
+    Parameters
+    ----------
+    df : DataFrame
+        Must contain columns: ``logM``, ``log_gbar``, ``log_j``.
+    logg0 : float
+        Frozen log10 acceleration scale used for the SCM hinge term.
+
+    Returns
+    -------
+    vif_df : DataFrame
+        Columns: ``variable``, ``VIF``.
+    """
+    from statsmodels.stats.outliers_influence import variance_inflation_factor  # noqa: PLC0415
+
+    X = pd.DataFrame(index=df.index)
+    X["const"] = np.ones(len(df), dtype=float)
+    X["logM"] = df["logM"].astype(float)
+    X["log_gbar"] = df["log_gbar"].astype(float)
+    X["log_j"] = df["log_j"].astype(float)
+    X["hinge"] = np.maximum(0.0, logg0 - df["log_gbar"].astype(float))
+
+    vif_values = [
+        variance_inflation_factor(X.values, i)
+        for i in range(X.shape[1])
+    ]
+
+    return pd.DataFrame({"variable": X.columns, "VIF": vif_values})
+
+
+# ---------------------------------------------------------------------------
 # Full pipeline
 # ---------------------------------------------------------------------------
 
@@ -266,6 +316,15 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
     _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
 
+    # --- Compute and write VIF table (multicollinearity diagnostics) ---
+    if not compare_df.empty:
+        audit_df = _build_audit_df(compare_df)
+        if len(audit_df) >= _MIN_VIF_SAMPLE_SIZE:
+            vif_df = compute_vif_table(audit_df, logg0=_DEFAULT_LOGG0)
+            vif_out = out_dir / "audit" / "vif_table.csv"
+            vif_out.parent.mkdir(parents=True, exist_ok=True)
+            vif_df.to_csv(vif_out, index=False)
+
     # --- Write sensitivity analysis CSV (a0 grid scan) ---
     # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
     from .sensitivity import run_sensitivity  # noqa: PLC0415
@@ -281,6 +340,39 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _build_audit_df(compare_df: pd.DataFrame) -> pd.DataFrame:
+    """Derive SCM predictor columns needed for VIF analysis from *compare_df*.
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table produced by ``run_pipeline`` with columns
+        ``g_bar``, ``g_obs``, ``r_kpc``, ``log_g_bar``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``logM``, ``log_gbar``, ``log_j``.
+    """
+    g_bar = compare_df["g_bar"].values        # m/s²
+    g_obs = compare_df["g_obs"].values        # m/s²
+    r_kpc = compare_df["r_kpc"].values        # kpc
+    log_g_bar = compare_df["log_g_bar"].values
+
+    r_m = r_kpc * KPC_TO_M  # metres
+
+    # Enclosed baryonic mass from centripetal balance: M = g_bar * r² / G
+    m_bar_msun = g_bar * r_m ** 2 / (_G_SI * _M_SUN)
+    logM = np.log10(np.maximum(m_bar_msun, _LOG_FLOOR))
+
+    # Specific angular momentum j = r * v_obs (kpc · km/s)
+    # v_obs [km/s] = sqrt(g_obs [m/s²] * r [m]) / 1e3
+    j = r_kpc * np.sqrt(np.maximum(g_obs * r_m, 0.0)) / 1e3
+    log_j = np.log10(np.maximum(j, _LOG_FLOOR))
+
+    return pd.DataFrame({"logM": logM, "log_gbar": log_g_bar, "log_j": log_j})
 
 
 def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
