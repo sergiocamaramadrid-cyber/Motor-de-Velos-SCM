@@ -105,6 +105,11 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     assert deep_slope.exists(), "deep_slope_test.csv not written"
     assert sensitivity.exists(), "sensitivity_a0.csv not written"
     assert vif_table.exists(), "audit/vif_table.csv not written"
+    vif = pd.read_csv(vif_table)
+    assert set(vif.columns) == {"variable", "VIF"}, (
+        f"vif_table.csv column mismatch: got {set(vif.columns)}"
+    )
+    assert len(vif) >= 4, f"Expected ≥4 rows in vif_table.csv, got {len(vif)}"
 
     # (iv) per_galaxy_summary contract and data sanity
     df2 = pd.read_csv(per_gal)
