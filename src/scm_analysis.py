@@ -271,6 +271,11 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     from .sensitivity import run_sensitivity  # noqa: PLC0415
     run_sensitivity(data_dir, out_dir, verbose=verbose)
 
+    # --- Write audit/sparc_global.csv (per-galaxy quantities for VIF analysis) ---
+    audit_dir = out_dir / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+    _write_sparc_global(records, compare_rows, audit_dir / "sparc_global.csv")
+
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
@@ -338,6 +343,63 @@ def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
             "log_g0_pred": float(2.0 * intercept),
         }
     pd.DataFrame([result]).to_csv(path, index=False)
+
+
+def _write_sparc_global(records, compare_rows, path):
+    """Write per-galaxy global quantities for VIF and multicollinearity analysis.
+
+    Parameters
+    ----------
+    records : list of dict
+        Per-galaxy pipeline results (keys: galaxy, Vflat_kms, M_bar_BTFR_Msun).
+    compare_rows : list of dict
+        Per-radial-point rows with keys: galaxy, r_kpc, g_bar, log_g_bar.
+    path : Path
+        Destination file (``audit/sparc_global.csv``).
+
+    Columns written
+    ---------------
+    galaxy     : galaxy identifier
+    logM       : log10(M_bar_BTFR_Msun) — log baryonic mass
+    log_gbar   : median log10(g_bar) per galaxy — characteristic baryonic acceleration
+    log_j      : log10(Vflat_kms * r_outer_kpc) — proxy for log specific angular momentum
+    """
+    compare_df = pd.DataFrame(compare_rows) if compare_rows else pd.DataFrame(
+        columns=["galaxy", "r_kpc", "g_bar", "log_g_bar"]
+    )
+
+    # Median log_gbar per galaxy from per-radial-point data
+    if not compare_df.empty and "log_g_bar" in compare_df.columns:
+        gbar_median = compare_df.groupby("galaxy")["log_g_bar"].median()
+    else:
+        gbar_median = pd.Series(dtype=float)
+
+    # Outermost radius per galaxy (for log_j proxy)
+    if not compare_df.empty and "r_kpc" in compare_df.columns:
+        r_outer = compare_df.groupby("galaxy")["r_kpc"].max()
+    else:
+        r_outer = pd.Series(dtype=float)
+
+    rows = []
+    for rec in records:
+        galaxy = rec["galaxy"]
+        m_bar = rec["M_bar_BTFR_Msun"]
+        logM = (float(np.log10(m_bar))
+                if np.isfinite(m_bar) and m_bar > 0 else float("nan"))
+
+        log_gbar = float(gbar_median.get(galaxy, float("nan")))
+
+        vflat = rec["Vflat_kms"]
+        r_out = float(r_outer.get(galaxy, float("nan")))
+        log_j = (float(np.log10(vflat * r_out))
+                 if np.isfinite(vflat) and np.isfinite(r_out)
+                 and vflat > 0 and r_out > 0
+                 else float("nan"))
+
+        rows.append({"galaxy": galaxy, "logM": logM,
+                     "log_gbar": log_gbar, "log_j": log_j})
+
+    pd.DataFrame(rows).to_csv(path, index=False)
 
 
 def _write_executive_summary(df, path):

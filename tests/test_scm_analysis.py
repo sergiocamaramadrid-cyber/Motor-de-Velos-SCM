@@ -151,6 +151,15 @@ class TestRunPipeline:
         df = run_pipeline(sparc_dir, out_dir, verbose=False)
         assert len(df) == 3
 
+    def test_creates_audit_sparc_global(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        sparc_global = out_dir / "audit" / "sparc_global.csv"
+        assert sparc_global.exists(), "audit/sparc_global.csv not written"
+        sg = pd.read_csv(sparc_global)
+        assert {"galaxy", "logM", "log_gbar", "log_j"}.issubset(sg.columns)
+        assert len(sg) == 3
+
     def test_creates_csv(self, sparc_dir, tmp_path):
         out_dir = tmp_path / "results"
         run_pipeline(sparc_dir, out_dir, verbose=False)
