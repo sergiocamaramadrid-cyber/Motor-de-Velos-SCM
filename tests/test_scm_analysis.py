@@ -21,6 +21,9 @@ from src.scm_analysis import (
     run_pipeline,
     _write_executive_summary,
     _write_top10_latex,
+    _build_audit_df,
+    compute_vif_table,
+    compute_condition_number,
 )
 
 
@@ -252,3 +255,158 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# Fixture for audit functions
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def audit_df():
+    """Minimal sparc_global-style DataFrame for testing audit functions."""
+    rng = np.random.default_rng(0)
+    n = 50
+    log_gbar = rng.uniform(-12.0, -9.0, n)
+    return pd.DataFrame({
+        "galaxy": [f"G{i % 5:04d}" for i in range(n)],
+        "logM": rng.uniform(8.0, 11.0, n),
+        "log_gbar": log_gbar,
+        "log_j": rng.uniform(15.0, 20.0, n),
+    })
+
+
+# ---------------------------------------------------------------------------
+# _build_audit_df
+# ---------------------------------------------------------------------------
+
+class TestBuildAuditDf:
+    def test_returns_expected_columns(self, audit_df):
+        X = _build_audit_df(audit_df)
+        assert list(X.columns) == ["const", "logM", "log_gbar", "log_j", "hinge"]
+
+    def test_const_column_all_ones(self, audit_df):
+        X = _build_audit_df(audit_df)
+        assert (X["const"] == 1.0).all()
+
+    def test_hinge_non_negative(self, audit_df):
+        X = _build_audit_df(audit_df)
+        assert (X["hinge"] >= 0.0).all()
+
+    def test_hinge_formula(self, audit_df):
+        logg0 = -10.45
+        X = _build_audit_df(audit_df, logg0=logg0)
+        expected = np.maximum(0.0, logg0 - audit_df["log_gbar"].values)
+        np.testing.assert_allclose(X["hinge"].values, expected)
+
+    def test_row_count_matches_input(self, audit_df):
+        X = _build_audit_df(audit_df)
+        assert len(X) == len(audit_df)
+
+
+# ---------------------------------------------------------------------------
+# compute_vif_table
+# ---------------------------------------------------------------------------
+
+class TestComputeVifTable:
+    def test_returns_expected_columns(self, audit_df):
+        vif = compute_vif_table(audit_df)
+        assert "variable" in vif.columns
+        assert "VIF" in vif.columns
+
+    def test_returns_five_rows(self, audit_df):
+        vif = compute_vif_table(audit_df)
+        assert len(vif) == 5
+
+    def test_vif_positive(self, audit_df):
+        vif = compute_vif_table(audit_df)
+        assert (vif["VIF"] > 0).all()
+
+    def test_variable_names(self, audit_df):
+        vif = compute_vif_table(audit_df)
+        assert list(vif["variable"]) == ["const", "logM", "log_gbar", "log_j", "hinge"]
+
+
+# ---------------------------------------------------------------------------
+# compute_condition_number
+# ---------------------------------------------------------------------------
+
+class TestComputeConditionNumber:
+    def test_returns_expected_columns(self, audit_df):
+        cn_df = compute_condition_number(audit_df)
+        assert "condition_number" in cn_df.columns
+        assert "verdict" in cn_df.columns
+
+    def test_returns_single_row(self, audit_df):
+        cn_df = compute_condition_number(audit_df)
+        assert len(cn_df) == 1
+
+    def test_condition_number_positive(self, audit_df):
+        cn_df = compute_condition_number(audit_df)
+        assert cn_df["condition_number"].iloc[0] > 0
+
+    def test_verdict_is_valid_string(self, audit_df):
+        cn_df = compute_condition_number(audit_df)
+        valid_verdicts = {"EXCELLENT", "GOOD", "MODERATE", "WARNING", "SEVERE COLLINEARITY"}
+        assert cn_df["verdict"].iloc[0] in valid_verdicts
+
+    def test_verdict_thresholds(self):
+        """Verify verdict labels match the documented threshold rules."""
+        rng = np.random.default_rng(1)
+        n = 100
+        # Build a well-conditioned df with deep-regime points to ensure hinge varies
+        log_gbar = np.linspace(-12.0, -9.0, n)
+        df = pd.DataFrame({
+            "logM": rng.uniform(8.0, 11.0, n),
+            "log_gbar": log_gbar,
+            "log_j": rng.uniform(15.0, 20.0, n),
+        })
+        cn_df = compute_condition_number(df)
+        cn = cn_df["condition_number"].iloc[0]
+        verdict = cn_df["verdict"].iloc[0]
+        if cn < 10:
+            assert verdict == "EXCELLENT"
+        elif cn < 30:
+            assert verdict == "GOOD"
+        elif cn < 100:
+            assert verdict == "MODERATE"
+        elif cn < 1000:
+            assert verdict == "WARNING"
+        else:
+            assert verdict == "SEVERE COLLINEARITY"
+
+
+# ---------------------------------------------------------------------------
+# run_pipeline — audit artefacts
+# ---------------------------------------------------------------------------
+
+class TestRunPipelineAudit:
+    def test_creates_audit_directory(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit").is_dir()
+
+    def test_creates_sparc_global_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "sparc_global.csv").exists()
+
+    def test_sparc_global_has_required_columns(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        df = pd.read_csv(out_dir / "audit" / "sparc_global.csv")
+        for col in ["logM", "log_gbar", "log_j"]:
+            assert col in df.columns
+
+    def test_creates_condition_number_csv(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        assert (out_dir / "audit" / "condition_number.csv").exists()
+
+    def test_condition_number_csv_structure(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        cn_df = pd.read_csv(out_dir / "audit" / "condition_number.csv")
+        assert "condition_number" in cn_df.columns
+        assert "verdict" in cn_df.columns
+        assert len(cn_df) == 1
+
