@@ -6,6 +6,7 @@ Entry point
 Run as a module::
 
     python -m src.scm_analysis --data-dir data/SPARC --out results/
+    python -m src.scm_analysis --data-dir data/SPARC --outdir results/
 
 Or import and call :func:`run_pipeline` programmatically.
 """
@@ -607,7 +608,8 @@ def _parse_args(argv=None):
         "--data-dir", required=True, help="Directory containing SPARC data"
     )
     parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+        "--out", "--outdir", dest="out", default="results/",
+        help="Output directory (default: results/)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,

@@ -407,3 +407,20 @@ class TestVIFHelpers:
         assert set(vif_df.columns) == {"variable", "VIF"}
         assert set(vif_df["variable"]) == {"const", "logM", "log_gbar", "log_j", "hinge"}
         assert np.all(np.isfinite(vif_df["VIF"].to_numpy()))
+
+
+# ---------------------------------------------------------------------------
+# CLI argument parsing
+# ---------------------------------------------------------------------------
+
+class TestCLIArgs:
+    def test_outdir_alias_accepted(self):
+        from src.scm_analysis import _parse_args
+        args = _parse_args(["--data-dir", "data/sparc", "--outdir", "results/"])
+        assert args.out == "results/"
+
+    def test_out_and_outdir_are_equivalent(self):
+        from src.scm_analysis import _parse_args
+        args_out = _parse_args(["--data-dir", "data/sparc", "--out", "my_out/"])
+        args_outdir = _parse_args(["--data-dir", "data/sparc", "--outdir", "my_out/"])
+        assert args_out.out == args_outdir.out
