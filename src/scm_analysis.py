@@ -38,6 +38,9 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
+# Small epsilon used in VIF calculation to avoid division by zero when R² → 1
+_VIF_R2_EPS = 1e-12
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -271,6 +274,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     from .sensitivity import run_sensitivity  # noqa: PLC0415
     run_sensitivity(data_dir, out_dir, verbose=verbose)
 
+    # --- Write collinearity / stability audit artefacts ---
+    _run_audit(compare_df, galaxy_table, out_dir, a0=a0)
+
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
@@ -281,6 +287,147 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         print(f"\nResults written to {out_dir}")
 
     return results_df
+
+
+def _compute_vif(X):
+    """Compute Variance Inflation Factor for each column of design matrix *X*.
+
+    For each column *i*, regresses it on all other columns (OLS) and returns
+    ``VIF_i = 1 / (1 - R²_i)``.
+
+    Parameters
+    ----------
+    X : ndarray, shape (n_obs, n_vars)
+        Design matrix (must include the constant column if desired).
+
+    Returns
+    -------
+    list of float
+        One VIF value per column of *X*.
+    """
+    n_cols = X.shape[1]
+    vifs = []
+    for i in range(n_cols):
+        y = X[:, i]
+        X_others = np.delete(X, i, axis=1)
+        coeffs, _, _, _ = np.linalg.lstsq(X_others, y, rcond=None)
+        y_pred = X_others @ coeffs
+        ss_res = float(np.sum((y - y_pred) ** 2))
+        ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+        if ss_tot < _VIF_R2_EPS:
+            vifs.append(float("inf"))
+        else:
+            r2 = max(0.0, min(1.0 - ss_res / ss_tot, 1.0 - _VIF_R2_EPS))
+            vifs.append(1.0 / (1.0 - r2))
+    return vifs
+
+
+def _run_audit(compare_df, galaxy_table, out_dir, a0=_A0_DEFAULT):
+    """Generate collinearity and numerical-stability audit artefacts.
+
+    Writes three files inside ``<out_dir>/audit/``:
+
+    * ``vif_table.csv`` — Variance Inflation Factors for the regression design
+      matrix columns ``(const, logM, log_gbar, log_j, hinge)``.
+    * ``stability_metrics.csv`` — Condition number κ of the design matrix.
+    * ``quality_status.txt`` — PASS/FAIL verdict.
+
+    The *hinge* predictor uses the mathematically correct sign::
+
+        hinge = max(0, log10(a0) - log_gbar)
+
+    so that it equals zero in the Newtonian regime (g_bar > a0) and is
+    strictly positive in the deep regime (g_bar < a0).
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table (output of :func:`run_pipeline`).  Must contain
+        columns ``log_g_bar``, ``log_g_obs``, and ``r_kpc``.
+    galaxy_table : pd.DataFrame
+        Galaxy-level properties (must contain ``Galaxy`` and ``L36``).
+    out_dir : str or Path
+        Base output directory; audit files are written to ``out_dir/audit/``.
+    a0 : float
+        Characteristic acceleration (m/s²).
+    """
+    audit_dir = Path(out_dir) / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    col_names = ["const", "logM", "log_gbar", "log_j", "hinge"]
+
+    if compare_df.empty or not {"log_g_bar", "log_g_obs", "r_kpc"}.issubset(compare_df.columns):
+        pd.DataFrame({"variable": col_names, "VIF": [float("nan")] * len(col_names)}).to_csv(
+            audit_dir / "vif_table.csv", index=False
+        )
+        pd.DataFrame({"metric": ["condition_number_kappa"], "value": [float("nan")], "status": ["no_data"]}).to_csv(
+            audit_dir / "stability_metrics.csv", index=False
+        )
+        (audit_dir / "quality_status.txt").write_text("overall_status=FAIL\n", encoding="utf-8")
+        return
+
+    # Merge galaxy-level luminosity (mass proxy) into per-point table
+    if "L36" in galaxy_table.columns and "galaxy" in compare_df.columns:
+        merged = compare_df.merge(
+            galaxy_table[["Galaxy", "L36"]].rename(columns={"Galaxy": "galaxy"}),
+            on="galaxy", how="left",
+        )
+        log_L36 = np.where(
+            merged["L36"].values > 0,
+            np.log10(merged["L36"].values),
+            0.0,
+        )
+    else:
+        log_L36 = np.zeros(len(compare_df))
+
+    log_gbar = compare_df["log_g_bar"].values
+    log_gobs = compare_df["log_g_obs"].values
+    log_r = np.log10(np.maximum(compare_df["r_kpc"].values, 1e-10))
+
+    # Build design matrix
+    const_col = np.ones(len(compare_df))
+    logM_col = log_L36                                            # galaxy luminosity (mass proxy)
+    log_gbar_col = log_gbar                                       # baryonic acceleration
+    log_j_col = 1.5 * log_r + 0.5 * log_gobs                    # specific angular momentum proxy
+    hinge_col = np.maximum(0.0, np.log10(a0) - log_gbar)        # deep-regime indicator (correct sign)
+
+    X = np.column_stack([const_col, logM_col, log_gbar_col, log_j_col, hinge_col])
+
+    # Remove rows with non-finite values
+    valid = np.isfinite(X).all(axis=1)
+    X = X[valid]
+
+    if len(X) >= len(col_names) + 1:
+        vif_vals = _compute_vif(X)
+        kappa = float(np.linalg.cond(X))
+    else:
+        vif_vals = [float("nan")] * len(col_names)
+        kappa = float("nan")
+
+    # vif_table.csv
+    pd.DataFrame({"variable": col_names, "VIF": vif_vals}).to_csv(
+        audit_dir / "vif_table.csv", index=False
+    )
+
+    # stability_metrics.csv
+    kappa_status = "stable" if (np.isfinite(kappa) and kappa < 30) else "unstable"
+    pd.DataFrame({
+        "metric": ["condition_number_kappa"],
+        "value": [kappa],
+        "status": [kappa_status],
+    }).to_csv(audit_dir / "stability_metrics.csv", index=False)
+
+    # quality_status.txt
+    hinge_vif = vif_vals[col_names.index("hinge")]
+    vif_ok = np.isfinite(hinge_vif) and 2.0 <= hinge_vif <= 5.0
+    kappa_ok = np.isfinite(kappa) and kappa < 30
+    lines = [
+        f"hinge_VIF={hinge_vif:.4f} {'PASS' if vif_ok else 'FAIL'} (expected 2<=VIF<=5)",
+        f"condition_number_kappa={kappa:.4f} {'PASS' if kappa_ok else 'FAIL'} (expected kappa<30)",
+        f"overall_status={'PASS' if (vif_ok and kappa_ok) else 'FAIL'}",
+    ]
+    (audit_dir / "quality_status.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
 
 
 def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
@@ -399,7 +546,8 @@ def _parse_args(argv=None):
         "--data-dir", required=True, help="Directory containing SPARC data"
     )
     parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+        "--out", "--outdir", dest="out", default="results/",
+        help="Output directory (default: results/)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,
