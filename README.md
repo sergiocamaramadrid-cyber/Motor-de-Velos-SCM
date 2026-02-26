@@ -1,5 +1,19 @@
 # Motor-de-Velos-SCM
 
+## Stable Release — v0.6.0
+
+This version establishes the complete statistical audit framework of the SCM model, including:
+
+- Galaxy-level out-of-sample validation (GroupKFold)
+- Structural permutation test
+- Variance Inflation Factor diagnostics
+- Numerical stability verification (condition number)
+- Fully reproducible audit pipeline
+
+This release represents the frozen methodological baseline of the SCM Framework.
+
+---
+
 ## Historical Context / Contexto histórico
 
 Author: Sergio Cámara Madrid  
