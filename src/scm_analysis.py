@@ -16,6 +16,9 @@ import os
 import sys
 from pathlib import Path
 
+import matplotlib
+matplotlib.use("Agg")  # non-interactive backend — safe for CI and headless servers
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy.optimize import minimize_scalar
@@ -266,6 +269,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
     _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
 
+    # --- Write residual vs hinge diagnostic plot ---
+    _write_residual_vs_hinge(compare_df, out_dir / "audit", a0=a0)
+
     # --- Write sensitivity analysis CSV (a0 grid scan) ---
     # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
     from .sensitivity import run_sensitivity  # noqa: PLC0415
@@ -338,6 +344,83 @@ def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
             "log_g0_pred": float(2.0 * intercept),
         }
     pd.DataFrame([result]).to_csv(path, index=False)
+
+
+def _write_residual_vs_hinge(compare_df, audit_dir, a0=_A0_DEFAULT, n_bins=10):
+    """Generate and save the residual-vs-hinge diagnostic plot.
+
+    For each radial point the *residual* is defined as the excess acceleration
+    in log-space:
+
+        residual = log10(g_obs) − log10(g_bar)
+
+    The *hinge* term captures how deep into the sub-Newtonian regime a point is:
+
+        hinge = max(0, log10(a0) − log10(g_bar))
+
+    In the deep-MOND limit hinge > 0 and the expected slope of residual vs
+    hinge is 0.5 (since log g_obs ≈ 0.5 log g_bar + 0.5 log a0 implies
+    residual ≈ 0.5 hinge).  Departures from this slope signal whether the
+    velos term is cleaning up residuals precisely where it should.
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table with columns ``log_g_bar`` and ``log_g_obs``.
+    audit_dir : Path
+        Directory for audit outputs (created if necessary).
+    a0 : float
+        Characteristic acceleration (m/s²).
+    n_bins : int
+        Number of quantile bins for the binned-median trend line.
+    """
+    audit_dir = Path(audit_dir)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    if compare_df.empty or not {"log_g_bar", "log_g_obs"}.issubset(compare_df.columns):
+        return
+
+    log_gbar = compare_df["log_g_bar"].values
+    log_gobs = compare_df["log_g_obs"].values
+
+    log_a0 = np.log10(a0)
+    hinge = np.maximum(0.0, log_a0 - log_gbar)
+    residual = log_gobs - log_gbar
+
+    # --- Save point-level CSV for traceability ---
+    pts_df = pd.DataFrame({"hinge": hinge, "residual": residual})
+    pts_df.to_csv(audit_dir / "residual_vs_hinge.csv", index=False)
+
+    # --- Build binned-median trend (quantile bins on hinge) ---
+    bins = np.quantile(hinge, np.linspace(0, 1, n_bins + 1))
+    bin_centres, bin_medians = [], []
+    for lo, hi in zip(bins[:-1], bins[1:]):
+        mask = (hinge >= lo) & (hinge <= hi)
+        if mask.sum() >= 2:
+            bin_centres.append(float(np.median(hinge[mask])))
+            bin_medians.append(float(np.median(residual[mask])))
+
+    # --- Expected MOND slope line (slope=0.5, intercept=0) ---
+    h_line = np.linspace(0.0, hinge.max(), 100)
+    y_mond = 0.5 * h_line
+
+    # --- Plot ---
+    fig, ax = plt.subplots(figsize=(6, 5))
+    ax.scatter(hinge, residual, s=4, alpha=0.25, color="steelblue",
+               label="radial points", rasterized=True)
+    if bin_centres:
+        ax.plot(bin_centres, bin_medians, "o-", color="tomato", lw=1.8,
+                ms=5, label="binned median")
+    ax.plot(h_line, y_mond, "--", color="gray", lw=1.2,
+            label="expected MOND (slope=0.5)")
+    ax.axhline(0, color="black", lw=0.8, ls=":")
+    ax.set_xlabel(r"hinge $= \max(0,\,\log_{10}a_0 - \log_{10}g_{\rm bar})$")
+    ax.set_ylabel(r"residual $= \log_{10}g_{\rm obs} - \log_{10}g_{\rm bar}$")
+    ax.set_title("Diagnostic: residual vs hinge (Motor de Velos SCM)")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    fig.savefig(audit_dir / "residual_vs_hinge.png", dpi=150)
+    plt.close(fig)
 
 
 def _write_executive_summary(df, path):

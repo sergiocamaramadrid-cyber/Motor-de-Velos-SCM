@@ -104,6 +104,12 @@ def test_run_pipeline_outputs(sparc175_dir, tmp_path):
     assert deep_slope.exists(), "deep_slope_test.csv not written"
     assert sensitivity.exists(), "sensitivity_a0.csv not written"
 
+    # (v) audit diagnostic plot and its companion CSV must exist
+    audit_png = out / "audit" / "residual_vs_hinge.png"
+    audit_csv = out / "audit" / "residual_vs_hinge.csv"
+    assert audit_png.exists(), "audit/residual_vs_hinge.png not written"
+    assert audit_csv.exists(), "audit/residual_vs_hinge.csv not written"
+
     # (iv) per_galaxy_summary contract and data sanity
     df2 = pd.read_csv(per_gal)
     assert df2.columns.tolist() == EXPECTED_COLS, (
