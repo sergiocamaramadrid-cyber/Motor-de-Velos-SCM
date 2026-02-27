@@ -1,0 +1,16 @@
+pressure_injection:
+
+  xi_default: 1.37
+  xi_confidence_interval: [1.35, 1.39]
+
+  # Empirically validated operational range per dynamic regime
+  xi_operational_range:
+    low_activity: 1.33
+    normal_activity: 1.37
+    high_activity: 1.42
+
+  # Automatic classification thresholds
+  xi_classification:
+    normal_min: 1.34
+    normal_max: 1.39
+    high_activity_threshold: 1.40
