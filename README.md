@@ -201,7 +201,7 @@ Interpretation remains separate from computational reproducibility.
 
 ## Citation
 
-See `CITATION.md` and Zenodo archive (DOI when available).
+If you use this work, please cite the repository using the metadata in [`CITATION.cff`](CITATION.cff) (GitHub displays a **"Cite this repository"** button automatically).
 
 ---
 
