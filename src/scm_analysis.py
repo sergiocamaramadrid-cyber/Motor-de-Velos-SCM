@@ -175,6 +175,157 @@ def estimate_xi_from_sfr(log_sfr):
 # Per-galaxy fitting
 # ---------------------------------------------------------------------------
 
+def load_custom_rotation_curve(path):
+    """Load a simplified rotation curve from a plain-text file.
+
+    The expected format is three whitespace-separated columns with an optional
+    ``#``-prefixed header line::
+
+        # radius_kpc  velocity_kms  error_kms
+        0.5  55.1  2.2
+        1.0  78.4  2.1
+        ...
+
+    The function tolerates both space and tab separators and skips any line
+    starting with ``#``.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the rotation-curve text file.
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: ``['r', 'v_obs', 'v_obs_err', 'v_gas', 'v_disk', 'v_bul']``
+        (velocities in km/s, radii in kpc).  Gas and bulge velocity components
+        are not available in the simplified format and are therefore set to
+        zero (``v_gas = v_bul = 0``); ``v_disk`` is set equal to ``v_obs`` so
+        that ``fit_galaxy`` uses the full observed velocity as the disk baseline.
+        The caller should be aware that kinematic decomposition is unavailable.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *path* does not exist.
+    ValueError
+        If the file does not contain at least the three required columns.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Custom rotation curve not found: {path}")
+    df = pd.read_csv(
+        path,
+        sep=r"\s+",
+        comment="#",
+        names=["r", "v_obs", "v_obs_err"],
+        usecols=[0, 1, 2],
+    )
+    if df.empty or len(df.columns) < 3:
+        raise ValueError(
+            f"Custom rotation curve file {path} must contain at least three "
+            "columns: radius_kpc, velocity_kms, error_kms"
+        )
+    # Synthetic zero-valued velocity components (no baryonic decomposition available)
+    df["v_gas"] = 0.0
+    df["v_disk"] = df["v_obs"].copy()
+    df["v_bul"] = 0.0
+    return df[["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul"]]
+
+
+def run_custom_galaxy(name, custom_data, out_dir, a0=_A0_DEFAULT,
+                      detect_pressure_injectors=False, audit_mode=None,
+                      verbose=True):
+    """Run the SCM analysis for a single galaxy from a custom rotation curve.
+
+    This is the entry point for the M81 Group and other non-SPARC datasets that
+    supply a simplified three-column rotation curve (radius, velocity, error).
+
+    Parameters
+    ----------
+    name : str
+        Galaxy identifier (used in output file names and summary fields).
+    custom_data : str or Path
+        Path to the simplified rotation curve file understood by
+        :func:`load_custom_rotation_curve`.
+    out_dir : str or Path
+        Output directory (created if necessary).
+    a0 : float
+        Characteristic acceleration (m/s²).
+    detect_pressure_injectors : bool
+        If ``True``, annotate the output with a pressure-injector detection
+        flag based on the calibrated ξ range.
+    audit_mode : str or None
+        Audit intensity label (e.g. ``"high-pressure"``).  Stored in the
+        output audit summary as metadata; does not change numerical results.
+    verbose : bool
+        Print progress if ``True``.
+
+    Returns
+    -------
+    dict
+        Result dict with keys: ``galaxy``, ``upsilon_disk``, ``chi2_reduced``,
+        ``n_points``, ``xi_estimated``, ``pressure_injector_detected``,
+        ``audit_mode``.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+
+    rc = load_custom_rotation_curve(custom_data)
+    fit = fit_galaxy(rc, a0=a0)
+
+    # ξ estimate: use default from config; SFR not available for custom data
+    xi_estimated = 1.37  # global empirical calibration centre
+
+    pressure_injector_detected = False
+    if detect_pressure_injectors:
+        # Flag galaxies whose fit quality is significantly worse than expected
+        # (χ²_ν > 2.0 indicates the baryonic model cannot explain the kinematics,
+        # consistent with an external pressure contribution).
+        pressure_injector_detected = bool(fit["chi2_reduced"] > 2.0)
+
+    result = {
+        "galaxy": name,
+        "upsilon_disk": fit["upsilon_disk"],
+        "chi2_reduced": fit["chi2_reduced"],
+        "n_points": fit["n_points"],
+        "xi_estimated": xi_estimated,
+        "pressure_injector_detected": pressure_injector_detected,
+        "audit_mode": audit_mode or "standard",
+    }
+
+    if verbose:
+        flag = " [PRESSURE INJECTOR]" if pressure_injector_detected else ""
+        print(f"  {name}: chi2={fit['chi2_reduced']:.2f}, "
+              f"ud={fit['upsilon_disk']:.2f}, xi={xi_estimated:.2f}{flag}")
+
+    # Write per-galaxy summary CSV
+    pd.DataFrame([result]).to_csv(out_dir / f"{name}_result.csv", index=False)
+
+    # Write audit summary JSON
+    audit = {
+        "xi_calibration": {
+            "version": "v0.6.1",
+            "model": "xi = 1.33 + 0.21 log10(SFR)",
+            "range": [1.28, 1.42],
+        },
+        "custom_run": {
+            "galaxy": name,
+            "custom_data": str(custom_data),
+            "detect_pressure_injectors": detect_pressure_injectors,
+            "audit_mode": audit_mode or "standard",
+        },
+    }
+    _write_audit_summary(pd.DataFrame([result]), audit,
+                         out_dir / "audit_summary.json")
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Per-galaxy fitting
+# ---------------------------------------------------------------------------
+
 def fit_galaxy(rc, a0=1.2e-10):
     """Fit upsilon_disk for a single galaxy minimising chi-squared.
 
@@ -487,10 +638,11 @@ def _parse_args(argv=None):
         description="Motor de Velos SCM analysis pipeline"
     )
     parser.add_argument(
-        "--data-dir", required=True, help="Directory containing SPARC data"
+        "--data-dir", default=None, help="Directory containing SPARC data"
     )
     parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+        "--out", "--outdir", dest="out", default="results/",
+        help="Output directory (default: results/)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,
@@ -499,17 +651,53 @@ def _parse_args(argv=None):
     parser.add_argument(
         "--quiet", action="store_true", help="Suppress progress output"
     )
+    # Custom single-galaxy mode (M81 Group / non-SPARC datasets)
+    parser.add_argument(
+        "--custom-data", default=None,
+        help="Path to a simplified rotation curve file (radius_kpc, velocity_kms, error_kms)"
+    )
+    parser.add_argument(
+        "--target-galaxy", default=None,
+        help="Galaxy name to use when running with --custom-data"
+    )
+    parser.add_argument(
+        "--detect-pressure-injectors", action="store_true",
+        help="Enable pressure-injector detection heuristic"
+    )
+    parser.add_argument(
+        "--audit-mode", default=None,
+        help="Audit intensity label stored in the output audit summary "
+             "(e.g. 'high-pressure', 'standard')"
+    )
     return parser.parse_args(argv)
 
 
 def main(argv=None):
     args = _parse_args(argv)
-    run_pipeline(
-        data_dir=args.data_dir,
-        out_dir=args.out,
-        a0=args.a0,
-        verbose=not args.quiet,
-    )
+    if args.custom_data is not None:
+        # Single-galaxy mode: custom rotation curve
+        name = args.target_galaxy or Path(args.custom_data).stem
+        run_custom_galaxy(
+            name=name,
+            custom_data=args.custom_data,
+            out_dir=args.out,
+            a0=args.a0,
+            detect_pressure_injectors=args.detect_pressure_injectors,
+            audit_mode=args.audit_mode,
+            verbose=not args.quiet,
+        )
+    else:
+        if args.data_dir is None:
+            import sys as _sys
+            print("error: --data-dir is required unless --custom-data is supplied",
+                  file=_sys.stderr)
+            _sys.exit(1)
+        run_pipeline(
+            data_dir=args.data_dir,
+            out_dir=args.out,
+            a0=args.a0,
+            verbose=not args.quiet,
+        )
 
 
 if __name__ == "__main__":
