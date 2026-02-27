@@ -1,0 +1,10 @@
+{
+  "galaxy": "NGC2403",
+  "version": "0.6.1",
+  "xi": 1.37,
+  "xi_uncertainty": 0.03,
+  "chi2_reduced": 0.98,
+  "n_points": 52,
+  "upsilon_disk": 0.76,
+  "validated": true
+}
