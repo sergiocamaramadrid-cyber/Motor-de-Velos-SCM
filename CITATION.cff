@@ -1,28 +1,25 @@
 cff-version: 1.2.0
+message: "If you use this software, please cite it."
 title: "Framework SCM – Motor de Velos"
-message: "If you use this software, please cite it using the metadata below."
 type: software
+version: "0.6.1"
+date-released: "2026-02-27"
+license: MIT
 
 authors:
   - family-names: "Cámara Madrid"
     given-names: "Sergio"
 
-version: "0.6.1"
-date-released: 2026-02-27
-
 repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
 
 abstract: >
-  Framework SCM (Motor de Velos) is a computational framework for modeling
-  galactic rotation curves using calibrated effective pressure analysis
-  and automated statistical validation.
-
-license: MIT
+  Reproducible pipeline for SCM ("Motor de Velos") analysis with auditable diagnostics
+  (VIF / condition number) and CI-backed testing.
 
 keywords:
   - astrophysics
-  - computational physics
+  - galaxy dynamics
   - rotation curves
-  - scientific computing
-  - simulation
-  - data analysis
+  - reproducibility
+  - statistical diagnostics
+  - Python
