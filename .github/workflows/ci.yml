@@ -52,11 +52,3 @@ jobs:
         with:
           name: coverage-${{ matrix.python-version }}
           path: coverage.xml
-
-      - name: Upload to Codecov (optional)
-        if: ${{ secrets.CODECOV_TOKEN != '' }}
-        uses: codecov/codecov-action@v4
-        with:
-          files: ./coverage.xml
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
