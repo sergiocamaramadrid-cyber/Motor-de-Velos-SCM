@@ -1,0 +1,25 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it."
+title: "Framework SCM – Motor de Velos"
+type: software
+version: "0.6.1"
+date-released: "2026-02-27"
+license: MIT
+
+authors:
+  - family-names: "Cámara Madrid"
+    given-names: "Sergio"
+
+repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
+
+abstract: >
+  Reproducible pipeline for SCM ("Motor de Velos") analysis with auditable diagnostics
+  (VIF / condition number) and CI-backed testing.
+
+keywords:
+  - astrophysics
+  - galaxy dynamics
+  - rotation curves
+  - reproducibility
+  - statistical diagnostics
+  - Python
