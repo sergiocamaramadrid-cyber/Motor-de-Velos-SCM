@@ -1,3 +1,37 @@
+<h1>Framework SCM – Motor de Velos</h1>
+
+<p>
+  <a href="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml">
+    <img src="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg" alt="CI">
+  </a>
+</p>
+
+<p>
+  <b>Modelo de Condensación Fluida</b> · Pipeline reproducible · Auditoría (VIF/κ) · Validación OOS · Detección PMR1 (pressure injectors)
+</p>
+
+---
+
+## Estado del proyecto
+
+- **Release estable**: v0.6.1 (tag)
+- **Repo**: listo para colaboración (CI + CITATION + estructura de auditorías/reportes)
+- **Validación**: auditorías estructurales (VIF/κ) + reportes reproducibles
+
+## Quickstart
+
+```bash
+pip install -r requirements.txt
+pytest -q
+python -m src.scm_analysis --data-dir data/sparc --outdir results/run_001
+```
+
+## Cite
+
+Si usas este framework en un trabajo académico o informe técnico, cita el repositorio (ver [CITATION.cff](CITATION.cff)).
+
+---
+
 # Motor-de-Velos-SCM
 
 ## Historical Context / Contexto histórico
