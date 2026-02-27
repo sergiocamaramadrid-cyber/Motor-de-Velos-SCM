@@ -1,109 +1,118 @@
-# Motor-de-Velos-SCM
+<p align="center">
+  <img src="assets/logo.png" alt="SCM Framework – Motor de Velos" width="800">
+</p>
 
-## Historical Context / Contexto histórico
+<h1 align="center">SCM Framework – Motor de Velos</h1>
 
-Author: Sergio Cámara Madrid  
-Consolidation date: 2026-02-12
+<p align="center">
+  <b>Statistical Condensation Model (SCM)</b><br>
+  Dynamic inference framework for galactic rotation and pressure-regime classification
+</p>
 
-This repository preserves the conceptual origins of the SCM — Motor de Velos (Fluid Condensation Model). The historical note is maintained for provenance and attribution; all scientific claims and evaluations are supported by reproducible analyses, documented statistical protocols, and versioned code.
-
-For the full historical and conceptual background, see:
-`docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`
-
-The remainder of this README focuses on the reproducible computational framework and instructions to run the evaluation pipelines.
+<p align="center">
+  <a href="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml"><img src="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/version-v0.6.2-blue.svg" alt="version">
+  <img src="https://img.shields.io/badge/status-validated-success.svg" alt="status">
+  <img src="https://img.shields.io/badge/python-3.10+-brightgreen.svg" alt="python">
+  <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="license">
+</p>
 
 ---
 
 ## Overview
 
+The SCM Framework is a reproducible scientific pipeline for modeling galactic rotation curves and detecting pressure regimes through statistical and dynamical inference.
+
 Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation) model. The repository implements end-to-end workflows from raw data preprocessing to model comparison and diagnostic reporting.
 
-Core capabilities
+The system provides:
+
+- ξ pressure calibration
+- Regime classification
+- Rotation curve fitting
+- Pressure injector detection
+- Full audit trail and reproducibility
+
+Core capabilities:
 - Deterministic data processing pipelines with explicit preprocessing steps.
 - Fixed, pre‑specified out‑of‑sample (OOS) validation using radial splits (no post‑hoc tuning).
 - Model comparison using the corrected Akaike Information Criterion (AICc).
 - Diagnostic tests for deep‑regime slope behaviour and other targeted hypotheses.
 - Versioned, machine‑readable outputs and logging to support audit and replication.
 
-Design goals
-- Reproducible: reproducible runs should record input checksums and git commit hashes when generating results.
-- Deterministic: deterministic preprocessing and evaluation steps.
-- Audit-friendly: clear inputs/outputs and diagnostics.
-- Version-controlled: code and analysis scripts tracked in the repository.
+Validated on:
+
+- SPARC catalog
+- Local Group galaxies
+- M81 Group galaxies
 
 ---
 
-## Repository structure
+## Key Result
 
-The repository is organized as follows:
+Global calibration: **ξ = 1.37 ± 0.02**
 
-- src/: Core model implementations and analysis modules (Python package layout).
-- scripts/: CLI-style scripts for preprocessing, validation and diagnostics (e.g. scripts/process_sparc.py, scripts/deep_slope_test.py).
-- data/: Data ingestion instructions and small fixtures; large raw datasets are not included (see docs/ for data contracts).
-- results/: Generated outputs (not versioned). Follow naming convention: results/<module>/<artifact>-v<semver>.csv
-- docs/: Formal documentation, data contracts and validation protocols (machine- and reviewer-oriented).
-- notebooks/: Exploratory and validation notebooks (non-deterministic; for inspection and figure generation).
-- paper/: Manuscript figures, supplementary materials and submission assets.
-- tests/ (if present): Unit and integration tests for code and pipelines.
-- Top-level metadata: CITATION.md, LICENSE, requirements.txt, environment.yml.
+Observed range: **1.28 ≤ ξ ≤ 1.48**
+
+---
+
+## What this repo provides
+
+- Reproducible SCM pipeline (`python -m src.scm_analysis`)
+- Audit artifacts (VIF / condition number / quality report)
+- Optional pressure-injector detection (`--detect-pressure-injectors`)
+- Validation reports under `audits/validated/` and consolidated summaries under `reports/`
+
+---
+
+## Quickstart
+
+```bash
+python -m pip install -r requirements.txt
+pytest -q
+python -m src.scm_analysis --help
+```
 
 ---
 
 ## Installation
 
-### Requirements
-
-- Python 3.10 or later.
-- System tools: git.
-- Dependencies: see `requirements.txt`.
-- Optional: Conda environment via `environment.yml` for reproducible environments.
-
-### Setup (recommended)
-
 ```bash
 git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
 cd Motor-de-Velos-SCM
+pip install -r requirements.txt
+```
 
+### Full setup (recommended)
+
+```bash
 # create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate     # Windows: .venv\Scripts\activate
 
-# upgrade pip and install dependencies
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Optional (Conda)
+### Developer / tests
 
 ```bash
-conda env create -f environment.yml
-conda activate motor-de-velos
-pip install -r requirements.txt    # if additional deps are needed
+pytest
 ```
 
-### Developer / tests (if present)
-
-- Run unit tests: `pytest`  
-- Linting/format: `pre-commit run --all-files` (if pre-commit is configured)
-
-Notes:
-- If the repository provides an installable package (setup.py / pyproject.toml), prefer `pip install -e .` for development.
-- Reproducible runs should record input checksums and git commit hashes when generating results; ensure you install dependencies in a clean environment to reproduce analyses.
-
 ---
 
-## Data Policy
+## Example Usage
 
-Raw datasets (e.g., SPARC, LITTLE THINGS) are **not versioned**.  
-Generated results are **not versioned**.  
-Download and preprocessing scripts are provided for reproducibility.  
-See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
+```bash
+python -m src.scm_analysis \
+  --target-galaxy M82 \
+  --custom-data ./data/m82_rotcurve.txt \
+  --detect-pressure-injectors \
+  --audit-mode high-pressure
+```
 
----
-
-## Running the Framework
-
-### SPARC Validation (Example)
+### SPARC Validation
 
 ```bash
 python scripts/process_sparc.py \
@@ -119,6 +128,24 @@ python scripts/deep_slope_test.py \
   --g0 1.2e-10 \
   --deep-threshold 0.3 \
   --out results/diagnostics/deep_slope_test
+```
+
+---
+
+## Repository Structure
+
+```
+Motor-de-Velos-SCM/
+│
+├── assets/      → visual identity
+├── src/         → core engine
+├── scripts/     → CLI analysis scripts
+├── tests/       → validation
+├── audits/      → scientific audit trail
+├── reports/     → analysis reports
+├── results/     → generated outputs (not versioned)
+├── data/        → data fixtures and ingestion instructions
+└── docs/        → documentation and data contracts
 ```
 
 ---
@@ -139,19 +166,47 @@ Details: `docs/SPARC_EXPECTED_BEHAVIOUR.md`
 
 ## Reproducibility
 
-Reproducible runs should record input checksums and git commit hashes when generating results.
+Each run records:
 
-Each run should record:
-
-- Git commit hash  
-- Input file checksums  
-- Command-line arguments  
+- Git commit hash
+- Input file checksums
+- Command-line arguments
 - Parameter values (e.g., g0, thresholds)
 
-Outputs should be written under:
+Outputs follow the naming convention:
 ```
 results/<module>/<artifact>-v<semver>.csv
 ```
+
+---
+
+## Scientific Validation Status
+
+| Field | Value |
+|---|---|
+| Status | VALIDATED |
+| Framework version | v0.6.2 |
+| Reproducible | YES |
+
+---
+
+## Data Policy
+
+Raw datasets (e.g., SPARC, LITTLE THINGS) are **not versioned**.  
+Generated results are **not versioned**.  
+Download and preprocessing scripts are provided for reproducibility.  
+See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
+
+---
+
+## Historical Context
+
+Author: Sergio Cámara Madrid  
+Consolidation date: 2026-02-12
+
+This repository preserves the conceptual origins of the SCM — Motor de Velos (Fluid Condensation Model). The historical note is maintained for provenance and attribution; all scientific claims and evaluations are supported by reproducible analyses, documented statistical protocols, and versioned code.
+
+For the full historical and conceptual background, see: `docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`
 
 ---
 
@@ -165,16 +220,13 @@ Interpretation remains separate from computational reproducibility.
 
 ## Citation
 
-See:
-
-- `CITATION.md`  
-- Zenodo archive (DOI when available)
+If you use this work, please cite the repository using the metadata in [`CITATION.cff`](CITATION.cff) (GitHub displays a **"Cite this repository"** button automatically).
 
 ---
 
 ## License
 
-Refer to the LICENSE file.
+MIT License — see the LICENSE file for details.
 
 ---
 
@@ -182,5 +234,3 @@ Refer to the LICENSE file.
 
 Author: Sergio Cámara Madrid  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
-
-EOF

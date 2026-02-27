@@ -1,0 +1,14 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "motor-de-velos-scm"
+version = "0.6.2"
+description = "Framework SCM — Motor de Velos (Fluid Condensation pipeline)"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
