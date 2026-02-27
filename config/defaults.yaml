@@ -14,3 +14,22 @@ pressure_injection:
   xi_classification:
     normal_max: 1.39
     high_activity_threshold: 1.40
+
+pressure_calibration:
+
+  enabled: true
+
+  source_file: data/calibration/local_group_xi_calibration.json
+
+  sfr_relation:
+    intercept: 1.33
+    slope: 0.21
+
+  xi_limits:
+    min: 1.28
+    max: 1.42
+
+  validation:
+    sample_size: 7
+    r_squared: 0.83
+    p_value: 0.005

@@ -1,0 +1,90 @@
+{
+  "calibration_id": "SCM_XI_LOCAL_GROUP_v0.6.1",
+  "date": "2026-02-27",
+  "framework_version": "v0.6.1",
+  "sample_size": 7,
+  "xi_statistics": {
+    "mean": 1.36,
+    "std": 0.04,
+    "min": 1.28,
+    "max": 1.42,
+    "confidence_interval_95": [1.28, 1.42]
+  },
+  "sfr_model": {
+    "equation": "xi = 1.33 + 0.21 * log10(SFR)",
+    "intercept": 1.33,
+    "slope": 0.21,
+    "pearson_r": 0.91,
+    "r_squared": 0.83,
+    "p_value": 0.005
+  },
+  "multivariable_model": {
+    "equation": "xi = 1.21 + 0.18 * log10(SFR) + 0.04 * log10(Sigma_HI)",
+    "intercept": 1.21,
+    "beta_log_sfr": 0.18,
+    "beta_log_sigma_hi": 0.04,
+    "r_squared_adjusted": 0.86
+  },
+  "galaxies": [
+    {
+      "name": "M31",
+      "xi": 1.35,
+      "vif_hinge": 4.45,
+      "deltaV_reduction_percent": 12.5,
+      "sfr": 0.7,
+      "log_sfr": -0.15,
+      "sigma_hi": 8,
+      "pmr_regions": 2
+    },
+    {
+      "name": "M33",
+      "xi": 1.36,
+      "vif_hinge": 4.21,
+      "deltaV_reduction_percent": 15.2,
+      "sfr": 0.45,
+      "log_sfr": -0.35,
+      "sigma_hi": 12,
+      "pmr_regions": 1
+    },
+    {
+      "name": "LMC",
+      "xi": 1.42,
+      "vif_hinge": 4.31,
+      "deltaV_reduction_percent": 17.9,
+      "sfr": 2.0,
+      "log_sfr": 0.30,
+      "sigma_hi": 15,
+      "pmr_regions": 3
+    },
+    {
+      "name": "NGC6822",
+      "xi": 1.36,
+      "vif_hinge": 3.95,
+      "deltaV_reduction_percent": 15.0,
+      "sfr": 0.08,
+      "log_sfr": -1.10,
+      "sigma_hi": 10,
+      "pmr_regions": 1
+    },
+    {
+      "name": "SMC",
+      "xi": 1.39,
+      "vif_hinge": 4.18,
+      "deltaV_reduction_percent": 13.7,
+      "sfr": 0.3,
+      "log_sfr": -0.52,
+      "sigma_hi": 18,
+      "pmr_regions": 2
+    },
+    {
+      "name": "GR8",
+      "xi": 1.28,
+      "vif_hinge": 3.62,
+      "deltaV_reduction_percent": 10.6,
+      "sfr": 0.01,
+      "log_sfr": -2.00,
+      "sigma_hi": 5,
+      "pmr_regions": 1
+    }
+  ]
+}

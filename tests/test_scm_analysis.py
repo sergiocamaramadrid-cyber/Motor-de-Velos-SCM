@@ -19,6 +19,8 @@ from src.scm_analysis import (
     load_rotation_curve,
     fit_galaxy,
     run_pipeline,
+    load_pressure_calibration,
+    estimate_xi_from_sfr,
     _write_executive_summary,
     _write_top10_latex,
 )
@@ -252,3 +254,79 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# load_pressure_calibration
+# ---------------------------------------------------------------------------
+
+_CALIBRATION_PATH = Path(__file__).parent.parent / "data/calibration/local_group_xi_calibration.json"
+
+
+class TestLoadPressureCalibration:
+    def test_loads_from_default_path(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        assert data["calibration_id"] == "SCM_XI_LOCAL_GROUP_v0.6.1"
+
+    def test_returns_dict(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        assert isinstance(data, dict)
+
+    def test_required_top_level_keys(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        for key in ("calibration_id", "framework_version", "sample_size",
+                    "xi_statistics", "sfr_model", "galaxies"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_galaxies_list_length(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        assert len(data["galaxies"]) == 6
+
+    def test_xi_statistics_values(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        stats = data["xi_statistics"]
+        assert stats["mean"] == pytest.approx(1.36)
+        assert stats["min"] == pytest.approx(1.28)
+        assert stats["max"] == pytest.approx(1.42)
+
+    def test_sfr_model_values(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        sfr = data["sfr_model"]
+        assert sfr["intercept"] == pytest.approx(1.33)
+        assert sfr["slope"] == pytest.approx(0.21)
+
+    def test_missing_file_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            load_pressure_calibration(tmp_path / "nonexistent.json")
+
+
+# ---------------------------------------------------------------------------
+# estimate_xi_from_sfr
+# ---------------------------------------------------------------------------
+
+class TestEstimateXiFromSfr:
+    def test_baseline_sfr_gives_intercept(self):
+        # log10(SFR) = 0 → xi = 1.33
+        assert estimate_xi_from_sfr(0.0) == pytest.approx(1.33)
+
+    def test_positive_log_sfr_increases_xi(self):
+        assert estimate_xi_from_sfr(1.0) > estimate_xi_from_sfr(0.0)
+
+    def test_negative_log_sfr_decreases_xi(self):
+        assert estimate_xi_from_sfr(-1.0) < estimate_xi_from_sfr(0.0)
+
+    def test_clamped_at_maximum(self):
+        # Very high SFR → xi clamped at 1.42
+        assert estimate_xi_from_sfr(100.0) == pytest.approx(1.42)
+
+    def test_clamped_at_minimum(self):
+        # Very low SFR → xi clamped at 1.28
+        assert estimate_xi_from_sfr(-100.0) == pytest.approx(1.28)
+
+    def test_lmc_log_sfr(self):
+        # LMC: log_sfr = 0.30 → xi ≈ 1.33 + 0.21*0.30 = 1.393 → clamped within [1.28, 1.42]
+        xi = estimate_xi_from_sfr(0.30)
+        assert 1.28 <= xi <= 1.42
+
+    def test_returns_float(self):
+        assert isinstance(estimate_xi_from_sfr(0.0), float)

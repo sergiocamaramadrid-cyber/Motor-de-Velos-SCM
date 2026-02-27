@@ -12,6 +12,7 @@ Or import and call :func:`run_pipeline` programmatically.
 
 import argparse
 import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -113,6 +114,61 @@ def load_rotation_curve(data_dir, galaxy_name):
     raise FileNotFoundError(
         f"Rotation curve for {galaxy_name} not found in {data_dir}"
     )
+
+
+def load_pressure_calibration(path="data/calibration/local_group_xi_calibration.json"):
+    """Load the empirical ξ pressure calibration from the Local Group sample.
+
+    Parameters
+    ----------
+    path : str or Path
+        Path to the calibration JSON file.  Defaults to the repository-relative
+        location ``data/calibration/local_group_xi_calibration.json``.
+
+    Returns
+    -------
+    dict
+        Full calibration data as parsed from the JSON file.
+
+    Raises
+    ------
+    FileNotFoundError
+        If the calibration file does not exist at *path*.
+    """
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Calibration file not found: {path}")
+    with open(path) as f:
+        return json.load(f)
+
+
+def estimate_xi_from_sfr(log_sfr):
+    """Estimate the ξ (xi) pressure parameter from the decimal log of the SFR.
+
+    Uses the empirically calibrated SFR relation derived from the Local Group
+    sample (v0.6.1):
+
+        ξ = 1.33 + 0.21 × log₁₀(SFR)
+
+    The result is clamped to the validated range [1.28, 1.42].
+
+    Parameters
+    ----------
+    log_sfr : float
+        log₁₀ of the star-formation rate in M_sun yr⁻¹.
+
+    Returns
+    -------
+    float
+        Estimated ξ value, clamped to [1.28, 1.42].
+    """
+    # Constants from data/calibration/local_group_xi_calibration.json sfr_model
+    intercept = 1.33
+    slope = 0.21
+    xi = intercept + slope * log_sfr
+    # Clamp to the validated range from xi_statistics in the calibration file
+    xi = max(1.28, min(1.42, xi))
+    return xi
 
 
 # ---------------------------------------------------------------------------
