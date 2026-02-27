@@ -1,0 +1,30 @@
+{
+  "galaxy": "NGC 2976",
+  "ngc_id": "NGC 2976",
+  "framework_version": "v0.6.1",
+  "validation_status": "PASS",
+  "xi": 1.33,
+  "xi_error": 0.02,
+  "xi_ci95": [1.31, 1.35],
+  "VIF_hinge": 3.72,
+  "deltaV_reduction_percent": 10.4,
+  "condition_number_kappa": 8.12,
+  "pressure_injectors_detected": 1,
+  "regime": "low_activity",
+  "classification": "low_pressure",
+  "fit_quality": {
+    "r2": 0.92,
+    "chi2_reduced": 1.11
+  },
+  "pass_criteria": {
+    "xi_in_range": true,
+    "VIF_hinge_in_range": true,
+    "kappa_below_30": true,
+    "deltaV_above_8pct": true,
+    "pmr1_at_least_1": true,
+    "overall": "PASS"
+  },
+  "data_source": "Simon et al. 2003; de Blok et al. 2008",
+  "data_file": "data/m81_group/ngc2976_rotcurve.txt",
+  "notes": "Solid-body inner-disk rotation. Low xi consistent with quiescent dwarf in M81 Group periphery."
+}

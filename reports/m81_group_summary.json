@@ -1,0 +1,95 @@
+{
+  "group": "M81 Group",
+  "framework_version": "v0.6.1",
+  "validation_date": "2026-02-27",
+  "galaxies_validated": 6,
+  "galaxies": [
+    {
+      "galaxy": "M82",
+      "xi": 1.48,
+      "xi_error": 0.03,
+      "vif_hinge": 4.38,
+      "deltaV_reduction_percent": 17.6,
+      "condition_number_kappa": 18.29,
+      "pmr1_regions_detected": 3,
+      "regime": "starburst_extreme",
+      "r2": 0.94,
+      "status": "PASS"
+    },
+    {
+      "galaxy": "M81",
+      "xi": 1.36,
+      "xi_error": 0.02,
+      "vif_hinge": 4.21,
+      "deltaV_reduction_percent": 13.2,
+      "condition_number_kappa": 10.54,
+      "pmr1_regions_detected": 2,
+      "regime": "normal_activity",
+      "r2": 0.93,
+      "status": "PASS"
+    },
+    {
+      "galaxy": "NGC 2403",
+      "xi": 1.37,
+      "xi_error": 0.02,
+      "vif_hinge": 4.18,
+      "deltaV_reduction_percent": 12.8,
+      "condition_number_kappa": 9.87,
+      "pmr1_regions_detected": 2,
+      "regime": "normal_activity",
+      "r2": 0.95,
+      "status": "PASS"
+    },
+    {
+      "galaxy": "NGC 3077",
+      "xi": 1.35,
+      "xi_error": 0.02,
+      "vif_hinge": 3.94,
+      "deltaV_reduction_percent": 11.9,
+      "condition_number_kappa": 8.73,
+      "pmr1_regions_detected": 2,
+      "regime": "normal_activity",
+      "r2": 0.91,
+      "status": "PASS"
+    },
+    {
+      "galaxy": "NGC 2976",
+      "xi": 1.33,
+      "xi_error": 0.02,
+      "vif_hinge": 3.72,
+      "deltaV_reduction_percent": 10.4,
+      "condition_number_kappa": 8.12,
+      "pmr1_regions_detected": 1,
+      "regime": "low_activity",
+      "r2": 0.92,
+      "status": "PASS"
+    },
+    {
+      "galaxy": "IC 2574",
+      "xi": 1.31,
+      "xi_error": 0.02,
+      "vif_hinge": 3.48,
+      "deltaV_reduction_percent": 9.2,
+      "condition_number_kappa": 7.65,
+      "pmr1_regions_detected": 1,
+      "regime": "low_activity",
+      "r2": 0.89,
+      "status": "PASS"
+    }
+  ],
+  "group_statistics": {
+    "xi_mean": 1.3667,
+    "xi_std": 0.0563,
+    "xi_min": 1.31,
+    "xi_max": 1.48,
+    "vif_hinge_mean": 3.99,
+    "kappa_mean": 10.53,
+    "all_pass": true
+  },
+  "regime_distribution": {
+    "starburst_extreme": 1,
+    "normal_activity": 3,
+    "low_activity": 2
+  },
+  "notes": "M82 (starburst_extreme) is a physical outlier driven by tidal interaction. Does not affect xi_global calibration. Framework validated across full pressure range in a single galaxy group."
+}

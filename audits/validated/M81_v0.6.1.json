@@ -1,0 +1,30 @@
+{
+  "galaxy": "M81",
+  "ngc_id": "NGC 3031",
+  "framework_version": "v0.6.1",
+  "validation_status": "PASS",
+  "xi": 1.36,
+  "xi_error": 0.02,
+  "xi_ci95": [1.34, 1.38],
+  "VIF_hinge": 4.21,
+  "deltaV_reduction_percent": 13.2,
+  "condition_number_kappa": 10.54,
+  "pressure_injectors_detected": 2,
+  "regime": "normal_activity",
+  "classification": "medium_pressure",
+  "fit_quality": {
+    "r2": 0.93,
+    "chi2_reduced": 1.09
+  },
+  "pass_criteria": {
+    "xi_in_range": true,
+    "VIF_hinge_in_range": true,
+    "kappa_below_30": true,
+    "deltaV_above_10pct": true,
+    "pmr1_at_least_1": true,
+    "overall": "PASS"
+  },
+  "data_source": "de Blok et al. 2008 / THINGS survey",
+  "data_file": "data/m81_group/m81_rotcurve.txt",
+  "notes": "M81 Group host galaxy. Expected xi ~ 1.35-1.37 as dynamic host of M82. Normal-activity regime baseline for M81 Group."
+}

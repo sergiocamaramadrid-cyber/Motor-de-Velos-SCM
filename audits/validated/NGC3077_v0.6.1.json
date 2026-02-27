@@ -1,0 +1,30 @@
+{
+  "galaxy": "NGC 3077",
+  "ngc_id": "NGC 3077",
+  "framework_version": "v0.6.1",
+  "validation_status": "PASS",
+  "xi": 1.35,
+  "xi_error": 0.02,
+  "xi_ci95": [1.33, 1.37],
+  "VIF_hinge": 3.94,
+  "deltaV_reduction_percent": 11.9,
+  "condition_number_kappa": 8.73,
+  "pressure_injectors_detected": 2,
+  "regime": "normal_activity",
+  "classification": "medium_pressure",
+  "fit_quality": {
+    "r2": 0.91,
+    "chi2_reduced": 1.14
+  },
+  "pass_criteria": {
+    "xi_in_range": true,
+    "VIF_hinge_in_range": true,
+    "kappa_below_30": true,
+    "deltaV_above_10pct": true,
+    "pmr1_at_least_1": true,
+    "overall": "PASS"
+  },
+  "data_source": "Walter et al. 2002; Oh et al. 2015",
+  "data_file": "data/m81_group/ngc3077_rotcurve.txt",
+  "notes": "Tidally distorted dwarf in M81 Group. Mildly elevated xi consistent with M81-M82 tidal interaction environment."
+}
