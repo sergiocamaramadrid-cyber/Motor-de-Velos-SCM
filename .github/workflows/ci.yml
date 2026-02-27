@@ -2,16 +2,18 @@ name: CI - SCM Framework
 
 on:
   push:
-    branches: [ main ]
+    branches: [ "main" ]
   pull_request:
-    branches: [ main ]
+    branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  test:
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -41,7 +43,7 @@ jobs:
 
       - name: Run tests with pytest
         run: |
-          pytest -q tests/ --cov=src --cov-report=xml
+          pytest -q tests/ --cov=src --cov-report=term-missing --cov-report=xml
 
       - name: Smoke test CLI
         run: |
