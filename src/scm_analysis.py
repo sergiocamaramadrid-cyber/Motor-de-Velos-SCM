@@ -333,6 +333,15 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write top-10 LaTeX table ---
     _write_top10_latex(results_df, out_dir / "top10_universal.tex")
 
+    # --- Write audit summary (xi calibration traceability) ---
+    audit = {}
+    audit["xi_calibration"] = {
+        "version": "v0.6.1",
+        "model": "xi = 1.33 + 0.21 log10(SFR)",
+        "range": [1.28, 1.42],
+    }
+    _write_audit_summary(results_df, audit, out_dir / "audit_summary.json")
+
     if verbose:
         print(f"\nResults written to {out_dir}")
 
@@ -405,6 +414,32 @@ def _write_executive_summary(df, path):
     if "upsilon_disk" in df.columns and len(df):
         lines.append(f"upsilon_disk median: {df['upsilon_disk'].median():.4f}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_audit_summary(df, audit, path):
+    """Write a JSON audit summary combining pipeline statistics and audit metadata.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Galaxy-level results (output of :func:`run_pipeline`).
+    audit : dict
+        Audit metadata dict, e.g. containing ``xi_calibration`` entry.
+    path : Path
+        Destination JSON file.
+    """
+    summary = dict(audit)
+    summary["pipeline_stats"] = {
+        "n_galaxies": int(len(df)),
+        "chi2_reduced_median": (
+            float(df["chi2_reduced"].median()) if "chi2_reduced" in df.columns and len(df) else None
+        ),
+        "upsilon_disk_median": (
+            float(df["upsilon_disk"].median()) if "upsilon_disk" in df.columns and len(df) else None
+        ),
+    }
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(summary, fh, indent=2)
 
 
 def _write_top10_latex(df, path):

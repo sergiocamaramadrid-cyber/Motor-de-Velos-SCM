@@ -22,6 +22,7 @@ from src.scm_analysis import (
     load_pressure_calibration,
     estimate_xi_from_sfr,
     _write_executive_summary,
+    _write_audit_summary,
     _write_top10_latex,
 )
 
@@ -190,6 +191,17 @@ class TestRunPipeline:
         df = run_pipeline(sparc_dir, out_dir, a0=0.5e-10, verbose=False)
         assert len(df) == 3
 
+    def test_creates_audit_summary(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        audit_path = out_dir / "audit_summary.json"
+        assert audit_path.exists()
+        import json
+        data = json.loads(audit_path.read_text(encoding="utf-8"))
+        assert "xi_calibration" in data
+        assert data["xi_calibration"]["version"] == "v0.6.1"
+        assert "pipeline_stats" in data
+
 
 # ---------------------------------------------------------------------------
 # _write_executive_summary
@@ -330,3 +342,58 @@ class TestEstimateXiFromSfr:
 
     def test_returns_float(self):
         assert isinstance(estimate_xi_from_sfr(0.0), float)
+
+
+# ---------------------------------------------------------------------------
+# _write_audit_summary
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+
+class TestWriteAuditSummary:
+    def _make_df(self):
+        return pd.DataFrame({
+            "galaxy": ["G1", "G2"],
+            "chi2_reduced": [0.8, 1.2],
+            "upsilon_disk": [1.0, 1.5],
+        })
+
+    def test_creates_json_file(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(self._make_df(), {}, path)
+        assert path.exists()
+
+    def test_xi_calibration_key_preserved(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        audit = {
+            "xi_calibration": {
+                "version": "v0.6.1",
+                "model": "xi = 1.33 + 0.21 log10(SFR)",
+                "range": [1.28, 1.42],
+            }
+        }
+        _write_audit_summary(self._make_df(), audit, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["xi_calibration"]["version"] == "v0.6.1"
+        assert data["xi_calibration"]["range"] == [1.28, 1.42]
+
+    def test_pipeline_stats_present(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(self._make_df(), {}, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert "pipeline_stats" in data
+        assert data["pipeline_stats"]["n_galaxies"] == 2
+
+    def test_chi2_median_correct(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(self._make_df(), {}, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["pipeline_stats"]["chi2_reduced_median"] == pytest.approx(1.0)
+
+    def test_empty_dataframe(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(pd.DataFrame(), {}, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["pipeline_stats"]["n_galaxies"] == 0
+        assert data["pipeline_stats"]["chi2_reduced_median"] is None
