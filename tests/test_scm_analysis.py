@@ -19,7 +19,14 @@ from src.scm_analysis import (
     load_rotation_curve,
     fit_galaxy,
     run_pipeline,
+    load_custom_rotation_curve,
+    run_custom_galaxy,
+    _compute_kinematic_metrics,
+    _write_audit_files,
+    load_pressure_calibration,
+    estimate_xi_from_sfr,
     _write_executive_summary,
+    _write_audit_summary,
     _write_top10_latex,
 )
 
@@ -188,6 +195,17 @@ class TestRunPipeline:
         df = run_pipeline(sparc_dir, out_dir, a0=0.5e-10, verbose=False)
         assert len(df) == 3
 
+    def test_creates_audit_summary(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        audit_path = out_dir / "audit_summary.json"
+        assert audit_path.exists()
+        import json
+        data = json.loads(audit_path.read_text(encoding="utf-8"))
+        assert "xi_calibration" in data
+        assert data["xi_calibration"]["version"] == "v0.6.1"
+        assert "pipeline_stats" in data
+
 
 # ---------------------------------------------------------------------------
 # _write_executive_summary
@@ -252,3 +270,501 @@ class TestWriteTop10Latex:
         text = path.read_text(encoding="utf-8")
         assert r"\begin{tabular}" in text
         assert "---" in text  # nan Vflat renders as ---
+
+
+# ---------------------------------------------------------------------------
+# load_pressure_calibration
+# ---------------------------------------------------------------------------
+
+_CALIBRATION_PATH = Path(__file__).parent.parent / "data/calibration/local_group_xi_calibration.json"
+
+
+class TestLoadPressureCalibration:
+    def test_loads_from_default_path(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        assert data["calibration_id"] == "SCM_XI_LOCAL_GROUP_v0.6.1"
+
+    def test_returns_dict(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        assert isinstance(data, dict)
+
+    def test_required_top_level_keys(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        for key in ("calibration_id", "framework_version", "sample_size",
+                    "xi_statistics", "sfr_model", "galaxies"):
+            assert key in data, f"Missing key: {key}"
+
+    def test_galaxies_list_length(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        assert len(data["galaxies"]) == 6
+
+    def test_xi_statistics_values(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        stats = data["xi_statistics"]
+        assert stats["mean"] == pytest.approx(1.36)
+        assert stats["min"] == pytest.approx(1.28)
+        assert stats["max"] == pytest.approx(1.42)
+
+    def test_sfr_model_values(self):
+        data = load_pressure_calibration(_CALIBRATION_PATH)
+        sfr = data["sfr_model"]
+        assert sfr["intercept"] == pytest.approx(1.33)
+        assert sfr["slope"] == pytest.approx(0.21)
+
+    def test_missing_file_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            load_pressure_calibration(tmp_path / "nonexistent.json")
+
+
+# ---------------------------------------------------------------------------
+# estimate_xi_from_sfr
+# ---------------------------------------------------------------------------
+
+class TestEstimateXiFromSfr:
+    def test_baseline_sfr_gives_intercept(self):
+        # log10(SFR) = 0 → xi = 1.33
+        assert estimate_xi_from_sfr(0.0) == pytest.approx(1.33)
+
+    def test_positive_log_sfr_increases_xi(self):
+        assert estimate_xi_from_sfr(1.0) > estimate_xi_from_sfr(0.0)
+
+    def test_negative_log_sfr_decreases_xi(self):
+        assert estimate_xi_from_sfr(-1.0) < estimate_xi_from_sfr(0.0)
+
+    def test_clamped_at_maximum(self):
+        # Very high SFR → xi clamped at 1.42
+        assert estimate_xi_from_sfr(100.0) == pytest.approx(1.42)
+
+    def test_clamped_at_minimum(self):
+        # Very low SFR → xi clamped at 1.28
+        assert estimate_xi_from_sfr(-100.0) == pytest.approx(1.28)
+
+    def test_lmc_log_sfr(self):
+        # LMC: log_sfr = 0.30 → xi ≈ 1.33 + 0.21*0.30 = 1.393 → clamped within [1.28, 1.42]
+        xi = estimate_xi_from_sfr(0.30)
+        assert 1.28 <= xi <= 1.42
+
+    def test_returns_float(self):
+        assert isinstance(estimate_xi_from_sfr(0.0), float)
+
+
+# ---------------------------------------------------------------------------
+# _write_audit_summary
+# ---------------------------------------------------------------------------
+
+import json as _json
+
+
+class TestWriteAuditSummary:
+    def _make_df(self):
+        return pd.DataFrame({
+            "galaxy": ["G1", "G2"],
+            "chi2_reduced": [0.8, 1.2],
+            "upsilon_disk": [1.0, 1.5],
+        })
+
+    def test_creates_json_file(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(self._make_df(), {}, path)
+        assert path.exists()
+
+    def test_xi_calibration_key_preserved(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        audit = {
+            "xi_calibration": {
+                "version": "v0.6.1",
+                "model": "xi = 1.33 + 0.21 log10(SFR)",
+                "range": [1.28, 1.42],
+            }
+        }
+        _write_audit_summary(self._make_df(), audit, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["xi_calibration"]["version"] == "v0.6.1"
+        assert data["xi_calibration"]["range"] == [1.28, 1.42]
+
+    def test_pipeline_stats_present(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(self._make_df(), {}, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert "pipeline_stats" in data
+        assert data["pipeline_stats"]["n_galaxies"] == 2
+
+    def test_chi2_median_correct(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(self._make_df(), {}, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["pipeline_stats"]["chi2_reduced_median"] == pytest.approx(1.0)
+
+    def test_empty_dataframe(self, tmp_path):
+        path = tmp_path / "audit_summary.json"
+        _write_audit_summary(pd.DataFrame(), {}, path)
+        data = _json.loads(path.read_text(encoding="utf-8"))
+        assert data["pipeline_stats"]["n_galaxies"] == 0
+        assert data["pipeline_stats"]["chi2_reduced_median"] is None
+
+
+# ---------------------------------------------------------------------------
+# load_custom_rotation_curve
+# ---------------------------------------------------------------------------
+
+class TestLoadCustomRotationCurve:
+    def _write_rotcurve(self, tmp_path, content):
+        p = tmp_path / "test_rotcurve.txt"
+        p.write_text(content, encoding="utf-8")
+        return p
+
+    def test_loads_three_column_file(self, tmp_path):
+        p = self._write_rotcurve(tmp_path,
+            "# radius_kpc velocity_kms error_kms\n"
+            "0.5  55.1  2.2\n"
+            "1.0  78.4  2.1\n"
+        )
+        df = load_custom_rotation_curve(p)
+        assert len(df) == 2
+        assert list(df.columns) == ["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul"]
+
+    def test_radii_values(self, tmp_path):
+        p = self._write_rotcurve(tmp_path,
+            "0.5  55.1  2.2\n1.0  78.4  2.1\n"
+        )
+        df = load_custom_rotation_curve(p)
+        assert df["r"].tolist() == pytest.approx([0.5, 1.0])
+
+    def test_v_obs_values(self, tmp_path):
+        p = self._write_rotcurve(tmp_path, "2.0  102.3  2.0\n")
+        df = load_custom_rotation_curve(p)
+        assert df["v_obs"].iloc[0] == pytest.approx(102.3)
+
+    def test_v_gas_zero(self, tmp_path):
+        p = self._write_rotcurve(tmp_path, "1.0  78.4  2.1\n")
+        df = load_custom_rotation_curve(p)
+        assert df["v_gas"].iloc[0] == pytest.approx(0.0)
+
+    def test_v_disk_equals_v_obs(self, tmp_path):
+        p = self._write_rotcurve(tmp_path, "1.0  78.4  2.1\n")
+        df = load_custom_rotation_curve(p)
+        assert df["v_disk"].iloc[0] == pytest.approx(df["v_obs"].iloc[0])
+
+    def test_missing_file_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            load_custom_rotation_curve(tmp_path / "nonexistent.txt")
+
+    def test_tab_separated(self, tmp_path):
+        p = self._write_rotcurve(tmp_path, "0.5\t55.1\t2.2\n1.0\t78.4\t2.1\n")
+        df = load_custom_rotation_curve(p)
+        assert len(df) == 2
+
+    def test_m81_data_file(self):
+        """Real m81_rotcurve.txt file in repo."""
+        from pathlib import Path as _Path
+        repo_root = _Path(__file__).parent.parent
+        data_file = repo_root / "data" / "m81_group" / "m81_rotcurve.txt"
+        if data_file.exists():
+            df = load_custom_rotation_curve(data_file)
+            assert len(df) >= 5
+            assert (df["r"] > 0).all()
+            assert (df["v_obs"] > 0).all()
+
+
+# ---------------------------------------------------------------------------
+# run_custom_galaxy
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def simple_rotcurve(tmp_path):
+    """Write a minimal 3-column rotation curve."""
+    p = tmp_path / "g_rotcurve.txt"
+    rows = "\n".join(f"{r:.1f}  {100.0 + r:.1f}  2.5" for r in [0.5, 1.0, 2.0, 3.0, 4.0])
+    p.write_text("# radius_kpc velocity_kms error_kms\n" + rows + "\n", encoding="utf-8")
+    return p
+
+
+class TestRunCustomGalaxy:
+    def test_returns_dict_with_expected_keys(self, simple_rotcurve, tmp_path):
+        result = run_custom_galaxy("TestGal", simple_rotcurve, tmp_path / "out",
+                                   verbose=False)
+        for key in ("galaxy", "upsilon_disk", "chi2_reduced", "n_points",
+                    "xi", "VIF_hinge", "deltaV_reduction_percent",
+                    "condition_number_kappa", "pressure_injectors_detected",
+                    "pressure_injector_detected", "audit_mode"):
+            assert key in result
+
+    def test_galaxy_name_in_result(self, simple_rotcurve, tmp_path):
+        result = run_custom_galaxy("MyGalaxy", simple_rotcurve, tmp_path / "out",
+                                   verbose=False)
+        assert result["galaxy"] == "MyGalaxy"
+
+    def test_xi_in_valid_range(self, simple_rotcurve, tmp_path):
+        result = run_custom_galaxy("G", simple_rotcurve, tmp_path / "out", verbose=False)
+        assert 1.28 <= result["xi"] <= 1.50
+
+    def test_audit_mode_stored(self, simple_rotcurve, tmp_path):
+        result = run_custom_galaxy("G", simple_rotcurve, tmp_path / "out",
+                                   audit_mode="high-pressure", verbose=False)
+        assert result["audit_mode"] == "high-pressure"
+
+    def test_creates_result_csv_in_galaxy_subdir(self, simple_rotcurve, tmp_path):
+        out = tmp_path / "out"
+        run_custom_galaxy("G", simple_rotcurve, out, verbose=False)
+        assert (out / "G" / "G_result.csv").exists()
+
+    def test_creates_audit_summary_json_in_galaxy_subdir(self, simple_rotcurve, tmp_path):
+        import json as _json
+        out = tmp_path / "out"
+        run_custom_galaxy("G", simple_rotcurve, out, verbose=False)
+        p = out / "G" / "audit_summary.json"
+        assert p.exists()
+        data = _json.loads(p.read_text(encoding="utf-8"))
+        assert "xi_calibration" in data
+        assert "custom_run" in data
+
+    def test_detect_pressure_injectors_flag(self, simple_rotcurve, tmp_path):
+        result = run_custom_galaxy("G", simple_rotcurve, tmp_path / "out",
+                                   detect_pressure_injectors=True, verbose=False)
+        assert isinstance(result["pressure_injector_detected"], bool)
+
+    def test_outdir_and_galaxy_subdir_created(self, simple_rotcurve, tmp_path):
+        out = tmp_path / "new_dir" / "subdir"
+        run_custom_galaxy("MyGal", simple_rotcurve, out, verbose=False)
+        assert out.exists()
+        assert (out / "MyGal").exists()
+
+
+
+# ---------------------------------------------------------------------------
+# CLI — _parse_args new flags
+# ---------------------------------------------------------------------------
+
+class TestCLINewFlags:
+    def _parse(self, *args):
+        from src.scm_analysis import _parse_args
+        return _parse_args(list(args))
+
+    def test_custom_data_flag(self, tmp_path):
+        p = tmp_path / "g.txt"
+        p.write_text("1.0 100.0 2.0\n")
+        ns = self._parse("--custom-data", str(p), "--data-dir", "x")
+        assert ns.custom_data == str(p)
+
+    def test_target_galaxy_flag(self):
+        ns = self._parse("--data-dir", "d", "--target-galaxy", "M82")
+        assert ns.target_galaxy == "M82"
+
+    def test_detect_pressure_injectors_flag(self):
+        ns = self._parse("--data-dir", "d", "--detect-pressure-injectors")
+        assert ns.detect_pressure_injectors is True
+
+    def test_detect_pressure_injectors_default_false(self):
+        ns = self._parse("--data-dir", "d")
+        assert ns.detect_pressure_injectors is False
+
+    def test_audit_mode_flag(self):
+        ns = self._parse("--data-dir", "d", "--audit-mode", "high-pressure")
+        assert ns.audit_mode == "high-pressure"
+
+    def test_outdir_alias(self):
+        ns = self._parse("--data-dir", "d", "--outdir", "my/out")
+        assert ns.out == "my/out"
+
+
+# ---------------------------------------------------------------------------
+# _compute_kinematic_metrics
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def m82_rotcurve():
+    """Load the real M82 rotation curve from the repository data files."""
+    from pathlib import Path as _Path
+    return _Path(__file__).parent.parent / "data" / "m81_group" / "m82_rotcurve.txt"
+
+
+class TestComputeKinematicMetrics:
+    def _make_rc(self, r_values, v_values, err=2.0):
+        """Build a minimal rotation-curve DataFrame."""
+        import pandas as _pd
+        return _pd.DataFrame({
+            "r": r_values,
+            "v_obs": v_values,
+            "v_obs_err": [err] * len(r_values),
+            "v_gas": [0.0] * len(r_values),
+            "v_disk": v_values,
+            "v_bul": [0.0] * len(r_values),
+        })
+
+    def test_returns_all_keys(self, m82_rotcurve):
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        for key in ("xi", "VIF_hinge", "deltaV_reduction_percent",
+                    "condition_number_kappa", "pressure_injectors_detected"):
+            assert key in km
+
+    def test_m82_xi_in_starburst_range(self, m82_rotcurve):
+        """M82 xi should fall in the expected starburst range 1.40–1.50 (inclusive)."""
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert 1.40 <= km["xi"] <= 1.50, f"xi={km['xi']:.4f} outside starburst range [1.40, 1.50]"
+
+    def test_xi_clamped_low(self):
+        """Nearly-flat curves produce xi at the lower clamp (1.28).
+
+        S = max(|ΔV/Δr|) × (r_flat − r_inner) / V_flat.  A nearly-flat curve
+        has a tiny max gradient, so S ≪ 1 and xi is clamped to 1.28.
+        """
+        rc = self._make_rc([1.0, 2.0, 3.0, 4.0], [100.0, 101.0, 102.0, 103.0])
+        km = _compute_kinematic_metrics(rc)
+        assert km["xi"] == pytest.approx(1.28)
+
+    def test_xi_clamped_high(self):
+        """Very steep starburst curves clamp xi to xi_max = 1.50.
+
+        A curve that rises from 10 to 120 km/s over 0.3 kpc then stays flat
+        to 4 kpc gives S >> 6.57, so xi saturates at 1.50.
+        """
+        rc = self._make_rc([0.2, 0.5, 1.0, 4.0], [10.0, 80.0, 120.0, 120.0])
+        km = _compute_kinematic_metrics(rc)
+        assert km["xi"] == pytest.approx(1.50)
+
+    def test_vif_hinge_formula(self):
+        """VIF_hinge = S = max(|ΔV/Δr|) × (r_flat − r_inner) / V_flat."""
+        rc = self._make_rc([0.5, 2.0, 5.0, 10.0], [50.0, 100.0, 150.0, 200.0])
+        km = _compute_kinematic_metrics(rc)
+        # max slope = (100-50)/(2-0.5) = 33.33 km/s/kpc
+        # v_flat = mean(100,150,200) = 150; r_span = 10-0.5 = 9.5
+        expected_vif = 33.333 * 9.5 / 150.0
+        assert km["VIF_hinge"] == pytest.approx(expected_vif, rel=0.01)
+
+    def test_deltav_reduction_positive(self, m82_rotcurve):
+        from src.scm_analysis import _DV_LOW
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert km["deltaV_reduction_percent"] >= _DV_LOW
+
+    def test_deltav_reduction_increases_with_xi(self):
+        """Higher xi → higher DeltaV_reduction.
+
+        rc_low:  nearly-flat curve (max gradient ≈ 0 → xi = 1.28, clamped).
+        rc_high: steep starburst (large gradient → xi ≈ 1.50, clamped high).
+        """
+        rc_low = self._make_rc([1.0, 2.0, 3.0, 4.0], [100.0, 101.0, 102.0, 103.0])
+        rc_high = self._make_rc([0.2, 0.5, 1.0, 4.0], [10.0, 80.0, 120.0, 120.0])
+        km_low = _compute_kinematic_metrics(rc_low)
+        km_high = _compute_kinematic_metrics(rc_high)
+        assert km_high["deltaV_reduction_percent"] >= km_low["deltaV_reduction_percent"]
+
+    def test_condition_number_positive(self, m82_rotcurve):
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert km["condition_number_kappa"] > 0
+
+    def test_pressure_injectors_minimum_one(self, m82_rotcurve):
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert km["pressure_injectors_detected"] >= 1
+
+    def test_pressure_injectors_m82_high(self, m82_rotcurve):
+        """M82 (starburst) should have more regions than a normal spiral."""
+        rc_m82 = load_custom_rotation_curve(m82_rotcurve)
+        km_m82 = _compute_kinematic_metrics(rc_m82)
+        # M82 xi≈1.47 → regions=4; a flat galaxy (xi=1.28) → regions=1
+        assert km_m82["pressure_injectors_detected"] >= 3
+
+
+# ---------------------------------------------------------------------------
+# _write_audit_files
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def greco_rotcurve(tmp_path):
+    """Write the Greco+2012 9-point M82 rotation curve to a temp file."""
+    p = tmp_path / "m82_rotcurve.txt"
+    p.write_text(
+        "# R_kpc   Vrot_kms   eVrot_kms\n"
+        "0.2 40 15\n0.5 80 12\n1.0 115 10\n"
+        "1.5 118 8\n2.0 118 8\n2.5 118 8\n"
+        "3.0 118 8\n3.5 118 8\n4.0 118 10\n",
+        encoding="utf-8",
+    )
+    return p
+
+
+class TestWriteAuditFiles:
+    """Tests for the _write_audit_files helper and the audit/ directory it creates."""
+
+    def test_audit_dir_created(self, greco_rotcurve, tmp_path):
+        result = run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                                   detect_pressure_injectors=True,
+                                   audit_mode="high-pressure", verbose=False)
+        assert (tmp_path / "out" / "M82" / "audit").is_dir()
+
+    def test_all_five_files_exist(self, greco_rotcurve, tmp_path):
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        audit_dir = tmp_path / "out" / "M82" / "audit"
+        for fname in ("vif_table.csv", "stability_metrics.csv",
+                      "residual_vs_hinge.csv",
+                      "pressure_injectors_report.json",
+                      "quality_status.txt"):
+            assert (audit_dir / fname).exists(), f"Missing {fname}"
+
+    def test_stability_metrics_has_pass_for_m82(self, greco_rotcurve, tmp_path):
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        import pandas as _pd
+        sm = _pd.read_csv(tmp_path / "out" / "M82" / "audit" / "stability_metrics.csv")
+        assert sm["xi_status"].iloc[0] == "PASS"
+        assert sm["VIF_hinge_status"].iloc[0] == "PASS"
+        assert sm["kappa_status"].iloc[0] == "PASS"
+        assert sm["deltaV_status"].iloc[0] == "PASS"
+        assert sm["PMR_status"].iloc[0] == "PASS"
+
+    def test_quality_status_overall_pass(self, greco_rotcurve, tmp_path):
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        txt = (tmp_path / "out" / "M82" / "audit" / "quality_status.txt").read_text(encoding="utf-8")
+        assert "OVERALL" in txt
+        assert "PASS" in txt
+
+    def test_pressure_injectors_report_is_valid_json(self, greco_rotcurve, tmp_path):
+        import json as _json
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        p = tmp_path / "out" / "M82" / "audit" / "pressure_injectors_report.json"
+        data = _json.loads(p.read_text(encoding="utf-8"))
+        assert data["galaxy"] == "M82"
+        assert "injector_regions" in data
+        assert "overall_status" in data
+
+    def test_vif_table_has_segment_column(self, greco_rotcurve, tmp_path):
+        import pandas as _pd
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          verbose=False)
+        vif_df = _pd.read_csv(tmp_path / "out" / "M82" / "audit" / "vif_table.csv")
+        assert "segment" in vif_df.columns
+        assert set(vif_df["segment"].unique()).issubset({"rising", "flat"})
+
+    def test_residual_vs_hinge_columns(self, greco_rotcurve, tmp_path):
+        import pandas as _pd
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          verbose=False)
+        rv = _pd.read_csv(tmp_path / "out" / "M82" / "audit" / "residual_vs_hinge.csv")
+        for col in ("radius_kpc", "v_obs_kms", "v_pred_kms", "residual_norm", "segment"):
+            assert col in rv.columns
+
+    def test_data_m82_rotcurve_txt_exists(self):
+        """Verify the Greco+2012 data file exists at the data/ root level."""
+        from pathlib import Path as _Path
+        p = _Path(__file__).parent.parent / "data" / "m82_rotcurve.txt"
+        assert p.exists(), "data/m82_rotcurve.txt must exist at the data/ root"
+
+    def test_data_m82_rotcurve_txt_format(self):
+        """Verify data/m82_rotcurve.txt has exactly 9 data rows (Greco+2012)."""
+        from pathlib import Path as _Path
+        p = _Path(__file__).parent.parent / "data" / "m82_rotcurve.txt"
+        rc = load_custom_rotation_curve(p)
+        assert len(rc) == 9, f"Expected 9 rows (Greco+2012), got {len(rc)}"
+        assert float(rc["r"].iloc[0]) == pytest.approx(0.2)
+        assert float(rc["v_obs"].iloc[0]) == pytest.approx(40.0)

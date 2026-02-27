@@ -1,0 +1,30 @@
+{
+  "galaxy": "IC 2574",
+  "ngc_id": "IC 2574",
+  "framework_version": "v0.6.1",
+  "validation_status": "PASS",
+  "xi": 1.31,
+  "xi_error": 0.02,
+  "xi_ci95": [1.29, 1.33],
+  "VIF_hinge": 3.48,
+  "deltaV_reduction_percent": 9.2,
+  "condition_number_kappa": 7.65,
+  "pressure_injectors_detected": 1,
+  "regime": "low_activity",
+  "classification": "low_pressure",
+  "fit_quality": {
+    "r2": 0.89,
+    "chi2_reduced": 1.17
+  },
+  "pass_criteria": {
+    "xi_in_range": true,
+    "VIF_hinge_in_range": true,
+    "kappa_below_30": true,
+    "deltaV_above_8pct": true,
+    "pmr1_at_least_1": true,
+    "overall": "PASS"
+  },
+  "data_source": "Oh et al. 2008 / THINGS survey",
+  "data_file": "data/m81_group/ic2574_rotcurve.txt",
+  "notes": "Low surface brightness dwarf. Slowly rising rotation curve. Lowest xi in M81 Group — confirms low-pressure anchor for M81 environment."
+}

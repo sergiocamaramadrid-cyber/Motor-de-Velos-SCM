@@ -1,0 +1,7 @@
+galaxy,xi,xi_error,vif_hinge,deltaV_reduction_percent,condition_number_kappa,pmr1_regions_detected,regime,r2,chi2_reduced,status,framework_version
+M82,1.48,0.03,4.38,17.6,18.29,3,starburst_extreme,0.94,1.21,PASS,v0.6.1
+M81,1.36,0.02,4.21,13.2,10.54,2,normal_activity,0.93,1.09,PASS,v0.6.1
+NGC 2403,1.37,0.02,4.18,12.8,9.87,2,normal_activity,0.95,1.06,PASS,v0.6.1
+NGC 3077,1.35,0.02,3.94,11.9,8.73,2,normal_activity,0.91,1.14,PASS,v0.6.1
+NGC 2976,1.33,0.02,3.72,10.4,8.12,1,low_activity,0.92,1.11,PASS,v0.6.1
+IC 2574,1.31,0.02,3.48,9.2,7.65,1,low_activity,0.89,1.17,PASS,v0.6.1

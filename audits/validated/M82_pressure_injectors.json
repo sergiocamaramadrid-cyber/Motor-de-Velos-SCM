@@ -1,0 +1,40 @@
+{
+  "galaxy": "M82",
+  "framework_version": "v0.6.1",
+  "audit_mode": "high-pressure",
+  "xi": 1.48,
+  "VIF_hinge": 4.38,
+  "condition_number_kappa": 18.29,
+  "deltaV_reduction_percent": 17.6,
+  "pressure_injectors_detected": 3,
+  "injector_regions": [
+    {
+      "region_id": 1,
+      "label": "nuclear_starburst",
+      "r_start_kpc": 0.2,
+      "r_end_kpc": 0.5,
+      "peak_slope_kms_per_kpc": 133.33,
+      "v_obs_start_kms": 40.0,
+      "v_obs_end_kms": 80.0
+    },
+    {
+      "region_id": 2,
+      "label": "tidal_interaction",
+      "r_start_kpc": 0.5,
+      "r_end_kpc": 1.0,
+      "peak_slope_kms_per_kpc": 70.0,
+      "v_obs_start_kms": 80.0,
+      "v_obs_end_kms": 115.0
+    },
+    {
+      "region_id": 3,
+      "label": "outer_arm",
+      "r_start_kpc": 1.0,
+      "r_end_kpc": 1.5,
+      "peak_slope_kms_per_kpc": 6.0,
+      "v_obs_start_kms": 115.0,
+      "v_obs_end_kms": 118.0
+    }
+  ],
+  "overall_status": "PASS"
+}

@@ -1,0 +1,30 @@
+{
+  "galaxy": "NGC 2403",
+  "ngc_id": "NGC 2403",
+  "framework_version": "v0.6.1",
+  "validation_status": "PASS",
+  "xi": 1.37,
+  "xi_error": 0.02,
+  "xi_ci95": [1.35, 1.39],
+  "VIF_hinge": 4.18,
+  "deltaV_reduction_percent": 12.8,
+  "condition_number_kappa": 9.87,
+  "pressure_injectors_detected": 2,
+  "regime": "normal_activity",
+  "classification": "medium_pressure",
+  "fit_quality": {
+    "r2": 0.95,
+    "chi2_reduced": 1.06
+  },
+  "pass_criteria": {
+    "xi_in_range": true,
+    "VIF_hinge_in_range": true,
+    "kappa_below_30": true,
+    "deltaV_above_10pct": true,
+    "pmr1_at_least_1": true,
+    "overall": "PASS"
+  },
+  "data_source": "de Blok et al. 2008 / THINGS survey",
+  "data_file": "data/m81_group/ngc2403_rotcurve.txt",
+  "notes": "M81 Group member. Flat rotation curve reaching ~135 km/s. Consistent with medium-pressure regime."
+}

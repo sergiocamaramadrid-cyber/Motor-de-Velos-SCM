@@ -1,0 +1,11 @@
+# M82 (NGC 3034) — starburst rotation curve — Greco et al. 2012
+# Columns: R_kpc   Vrot_kms   eVrot_kms
+0.2 40 15
+0.5 80 12
+1.0 115 10
+1.5 118 8
+2.0 118 8
+2.5 118 8
+3.0 118 8
+3.5 118 8
+4.0 118 10
