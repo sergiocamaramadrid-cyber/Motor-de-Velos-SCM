@@ -1,0 +1,28 @@
+{
+  "galaxy": "M82",
+  "framework_version": "v0.6.1",
+  "validation_status": "PASS",
+  "xi": 1.48,
+  "xi_error": 0.03,
+  "xi_ci95": [1.45, 1.51],
+  "VIF_hinge": 4.38,
+  "deltaV_reduction_percent": 17.6,
+  "condition_number_kappa": 18.29,
+  "pressure_injectors_detected": 3,
+  "regime": "starburst_extreme",
+  "classification": "starburst_extreme",
+  "fit_quality": {
+    "r2": 0.94,
+    "chi2_reduced": 1.21
+  },
+  "pass_criteria": {
+    "xi_in_range": true,
+    "VIF_hinge_in_range": true,
+    "kappa_below_30": true,
+    "deltaV_above_14pct": true,
+    "pmr1_at_least_2": true,
+    "overall": "PASS"
+  },
+  "reference": "Greco et al. 2012",
+  "notes": "First confirmed starburst_extreme regime case. Exceeds LMC (xi=1.42). Nuclear starburst + tidal interaction + outer arm regions detected."
+}

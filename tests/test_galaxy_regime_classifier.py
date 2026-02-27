@@ -12,6 +12,10 @@ class TestClassifyPressureRegime:
     def test_high_activity_above_threshold(self):
         assert classify_pressure_regime(1.42) == "high_activity"
 
+    def test_high_activity_just_below_starburst(self):
+        # 1.44 is still high_activity (starburst_extreme starts at 1.45)
+        assert classify_pressure_regime(1.44) == "high_activity"
+
     def test_normal_activity_exact_lower_bound(self):
         assert classify_pressure_regime(1.34) == "normal_activity"
 
@@ -29,7 +33,7 @@ class TestClassifyPressureRegime:
         assert classify_pressure_regime(1.30) == "low_activity"
 
     def test_example_lmc_is_high_activity(self):
-        # LMC: ξ ≈ 1.41 → high_activity (special case, not baseline)
+        # LMC: ξ ≈ 1.41 → high_activity
         assert classify_pressure_regime(1.41) == "high_activity"
 
     def test_example_m31_is_normal_activity(self):
@@ -43,3 +47,21 @@ class TestClassifyPressureRegime:
     def test_return_type_is_str(self):
         for xi in (1.20, 1.35, 1.45):
             assert isinstance(classify_pressure_regime(xi), str)
+
+    # --- starburst_extreme (new in v0.6.1 — M82 confirmation) ---
+
+    def test_starburst_extreme_exact_threshold(self):
+        # xi = 1.45 is exactly the starburst_extreme boundary
+        assert classify_pressure_regime(1.45) == "starburst_extreme"
+
+    def test_starburst_extreme_m82_value(self):
+        # M82: xi = 1.48 (highest observed, confirmed v0.6.1)
+        assert classify_pressure_regime(1.48) == "starburst_extreme"
+
+    def test_starburst_extreme_upper_clamp(self):
+        # xi = 1.50 (formula upper clamp) → starburst_extreme
+        assert classify_pressure_regime(1.50) == "starburst_extreme"
+
+    def test_starburst_extreme_not_reached_at_1_44(self):
+        # 1.44 is still high_activity (starburst_extreme boundary is 1.45)
+        assert classify_pressure_regime(1.44) == "high_activity"

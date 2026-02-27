@@ -15,6 +15,14 @@ pressure_injection:
     normal_max: 1.39
     high_activity_threshold: 1.40
 
+  # Optional per-regime xi overrides (v0.6.1 — M82 starburst_extreme confirmation)
+  # These do NOT change xi_default; they allow regime-specific lookups.
+  xi_regime_overrides:
+    low_pressure: 1.30
+    medium_pressure: 1.37
+    high_pressure: 1.42
+    starburst_extreme: 1.48
+
 pressure_calibration:
 
   enabled: true
