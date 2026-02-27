@@ -1,5 +1,7 @@
 # Motor-de-Velos-SCM
 
+[![CI - SCM Framework](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg)](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml)
+
 ## Historical Context / Contexto histórico
 
 Author: Sergio Cámara Madrid  
