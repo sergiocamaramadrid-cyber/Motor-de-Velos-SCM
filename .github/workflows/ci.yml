@@ -26,9 +26,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
-          cache-dependency-path: |
-            requirements.txt
-            pyproject.toml
+          cache-dependency-path: requirements.txt
 
       - name: Install dependencies
         run: |
@@ -56,7 +54,7 @@ jobs:
           path: coverage.xml
 
       - name: Upload to Codecov (optional)
-        if: ${{ secrets.CODECOV_TOKEN }}
+        if: ${{ secrets.CODECOV_TOKEN != '' }}
         uses: codecov/codecov-action@v4
         with:
           files: ./coverage.xml
