@@ -47,6 +47,10 @@ jobs:
         run: |
           python -m src.scm_analysis --help
 
+      - name: Smoke test audit_integrity CLI
+        run: |
+          python -m src.audit_integrity
+
       - name: Upload coverage.xml artifact
         uses: actions/upload-artifact@v4
         with:

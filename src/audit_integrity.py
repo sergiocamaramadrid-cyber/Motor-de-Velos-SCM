@@ -47,6 +47,7 @@ class AuditRecordKey:
 # -----------------------------
 REQUIRED_TOP_LEVEL_FIELDS = ("galaxia", "framework_version")
 REQUIRED_MODEL_FIELDS = ("xi", "vif_hinge")
+REQUIRED_CSV_COLUMNS = ("galaxia", "xi", "vif_hinge")
 
 
 def validate_audit_json(path: str) -> Tuple[bool, List[str], AuditRecordKey | None, str]:
@@ -188,3 +189,63 @@ def discover_artifacts(repo_root: str = ".") -> Dict[str, List[str]]:
     reports_json = sorted(glob.glob(os.path.join(repo_root, "reports", "*.json")))
     reports_csv = sorted(glob.glob(os.path.join(repo_root, "reports", "*.csv")))
     return {"audits": audits, "reports_json": reports_json, "reports_csv": reports_csv}
+
+
+# -----------------------------
+# CLI entry point
+# -----------------------------
+def _cli(repo_root: str = ".") -> int:
+    """Run all integrity checks and return exit code (0=pass, 1=fail)."""
+    artifacts = discover_artifacts(repo_root)
+    audits = artifacts["audits"]
+    csvs = artifacts["reports_csv"]
+
+    failed = False
+
+    # --- audit JSON validation ---
+    if not audits:
+        print("ERROR: no JSON files found in audits/validated/")
+        failed = True
+    else:
+        for p in audits:
+            ok, errors, _key, _h = validate_audit_json(p)
+            if ok:
+                print(f"  OK  {p}")
+            else:
+                print(f"  FAIL {p}")
+                for e in errors:
+                    print(f"       • {e}")
+                failed = True
+
+        dups = find_duplicates(audits)
+        for kind, reports in dups.items():
+            for r in reports:
+                print(f"  DUPLICATE [{kind}] {r}")
+                failed = True
+
+    # --- reports CSV validation ---
+    if csvs:
+        required = list(REQUIRED_CSV_COLUMNS)
+        for p in csvs:
+            ok, errors = validate_reports_csv(p, required_cols=required)
+            if ok:
+                print(f"  OK  {p}")
+            else:
+                print(f"  FAIL {p}")
+                for e in errors:
+                    print(f"       • {e}")
+                failed = True
+    else:
+        print("  (no CSV files in reports/ — skipping CSV checks)")
+
+    if failed:
+        print("\nIntegrity check FAILED.")
+        return 1
+    print("\nIntegrity check PASSED.")
+    return 0
+
+
+if __name__ == "__main__":
+    import sys
+    root = sys.argv[1] if len(sys.argv) > 1 else "."
+    sys.exit(_cli(root))
