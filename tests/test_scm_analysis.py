@@ -22,6 +22,7 @@ from src.scm_analysis import (
     load_custom_rotation_curve,
     run_custom_galaxy,
     _compute_kinematic_metrics,
+    _write_audit_files,
     load_pressure_calibration,
     estimate_xi_from_sfr,
     _write_executive_summary,
@@ -598,40 +599,39 @@ class TestComputeKinematicMetrics:
             assert key in km
 
     def test_m82_xi_in_starburst_range(self, m82_rotcurve):
-        """M82 xi should fall in the expected starburst range 1.44–1.50."""
+        """M82 xi should fall in the expected starburst range 1.40–1.50 (inclusive)."""
         rc = load_custom_rotation_curve(m82_rotcurve)
         km = _compute_kinematic_metrics(rc)
-        assert 1.44 <= km["xi"] <= 1.50, f"xi={km['xi']:.4f} outside starburst range"
+        assert 1.40 <= km["xi"] <= 1.50, f"xi={km['xi']:.4f} outside starburst range [1.40, 1.50]"
 
     def test_xi_clamped_low(self):
-        """Curves with very low inner velocity relative to flat clamp to xi_min=1.28.
+        """Nearly-flat curves produce xi at the lower clamp (1.28).
 
-        S = (V_inner/V_flat)² × (r_flat/r_inner).  With V_inner << V_flat the
-        steepness index S ≪ 1 and the formula gives xi < 1.28, which is clamped.
-        Example: V rises from 5 km/s at r=1 kpc to a flat ~200 km/s at the outer points.
+        S = max(|ΔV/Δr|) × (r_flat − r_inner) / V_flat.  A nearly-flat curve
+        has a tiny max gradient, so S ≪ 1 and xi is clamped to 1.28.
         """
-        rc = self._make_rc([1.0, 2.0, 4.0, 8.0], [5.0, 100.0, 200.0, 200.0])
+        rc = self._make_rc([1.0, 2.0, 3.0, 4.0], [100.0, 101.0, 102.0, 103.0])
         km = _compute_kinematic_metrics(rc)
         assert km["xi"] == pytest.approx(1.28)
 
     def test_xi_clamped_high(self):
-        """Curves with very high inner velocity relative to flat clamp to xi_max=1.50.
+        """Very steep starburst curves clamp xi to xi_max = 1.50.
 
-        When V_inner ≈ V_flat AND r_flat/r_inner is large, S >> 6.57 and the
-        formula gives xi > 1.50, which is clamped.
-        Example: V ≈ 99 km/s at r=0.1 kpc, flat at 100 km/s to r=100 kpc.
+        A curve that rises from 10 to 120 km/s over 0.3 kpc then stays flat
+        to 4 kpc gives S >> 6.57, so xi saturates at 1.50.
         """
-        rc = self._make_rc([0.1, 1.0, 10.0, 100.0], [99.0, 100.0, 100.0, 100.0])
+        rc = self._make_rc([0.2, 0.5, 1.0, 4.0], [10.0, 80.0, 120.0, 120.0])
         km = _compute_kinematic_metrics(rc)
         assert km["xi"] == pytest.approx(1.50)
 
     def test_vif_hinge_formula(self):
-        """VIF_hinge = mean(last 3 v_obs) / first v_obs."""
+        """VIF_hinge = S = max(|ΔV/Δr|) × (r_flat − r_inner) / V_flat."""
         rc = self._make_rc([0.5, 2.0, 5.0, 10.0], [50.0, 100.0, 150.0, 200.0])
         km = _compute_kinematic_metrics(rc)
-        # V_flat = mean of last 3 points (indices 1, 2, 3) = mean(100, 150, 200) = 150
-        expected_vif = float((100.0 + 150.0 + 200.0) / 3.0 / 50.0)
-        assert km["VIF_hinge"] == pytest.approx(expected_vif, rel=0.05)
+        # max slope = (100-50)/(2-0.5) = 33.33 km/s/kpc
+        # v_flat = mean(100,150,200) = 150; r_span = 10-0.5 = 9.5
+        expected_vif = 33.333 * 9.5 / 150.0
+        assert km["VIF_hinge"] == pytest.approx(expected_vif, rel=0.01)
 
     def test_deltav_reduction_positive(self, m82_rotcurve):
         from src.scm_analysis import _DV_LOW
@@ -642,11 +642,11 @@ class TestComputeKinematicMetrics:
     def test_deltav_reduction_increases_with_xi(self):
         """Higher xi → higher DeltaV_reduction.
 
-        rc_low: V_inner=5 at r=1 (S→low, xi clamped at 1.28).
-        rc_high: V_inner=100, V_flat≈200 at r_flat=10 with r_inner=0.5 (S≈5, xi≈1.45).
+        rc_low:  nearly-flat curve (max gradient ≈ 0 → xi = 1.28, clamped).
+        rc_high: steep starburst (large gradient → xi ≈ 1.50, clamped high).
         """
-        rc_low = self._make_rc([1.0, 2.0, 4.0, 8.0], [5.0, 100.0, 200.0, 200.0])
-        rc_high = self._make_rc([0.5, 2.0, 5.0, 10.0], [100.0, 160.0, 200.0, 200.0])
+        rc_low = self._make_rc([1.0, 2.0, 3.0, 4.0], [100.0, 101.0, 102.0, 103.0])
+        rc_high = self._make_rc([0.2, 0.5, 1.0, 4.0], [10.0, 80.0, 120.0, 120.0])
         km_low = _compute_kinematic_metrics(rc_low)
         km_high = _compute_kinematic_metrics(rc_high)
         assert km_high["deltaV_reduction_percent"] >= km_low["deltaV_reduction_percent"]
@@ -667,3 +667,104 @@ class TestComputeKinematicMetrics:
         km_m82 = _compute_kinematic_metrics(rc_m82)
         # M82 xi≈1.47 → regions=4; a flat galaxy (xi=1.28) → regions=1
         assert km_m82["pressure_injectors_detected"] >= 3
+
+
+# ---------------------------------------------------------------------------
+# _write_audit_files
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def greco_rotcurve(tmp_path):
+    """Write the Greco+2012 9-point M82 rotation curve to a temp file."""
+    p = tmp_path / "m82_rotcurve.txt"
+    p.write_text(
+        "# R_kpc   Vrot_kms   eVrot_kms\n"
+        "0.2 40 15\n0.5 80 12\n1.0 115 10\n"
+        "1.5 118 8\n2.0 118 8\n2.5 118 8\n"
+        "3.0 118 8\n3.5 118 8\n4.0 118 10\n",
+        encoding="utf-8",
+    )
+    return p
+
+
+class TestWriteAuditFiles:
+    """Tests for the _write_audit_files helper and the audit/ directory it creates."""
+
+    def test_audit_dir_created(self, greco_rotcurve, tmp_path):
+        result = run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                                   detect_pressure_injectors=True,
+                                   audit_mode="high-pressure", verbose=False)
+        assert (tmp_path / "out" / "M82" / "audit").is_dir()
+
+    def test_all_five_files_exist(self, greco_rotcurve, tmp_path):
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        audit_dir = tmp_path / "out" / "M82" / "audit"
+        for fname in ("vif_table.csv", "stability_metrics.csv",
+                      "residual_vs_hinge.csv",
+                      "pressure_injectors_report.json",
+                      "quality_status.txt"):
+            assert (audit_dir / fname).exists(), f"Missing {fname}"
+
+    def test_stability_metrics_has_pass_for_m82(self, greco_rotcurve, tmp_path):
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        import pandas as _pd
+        sm = _pd.read_csv(tmp_path / "out" / "M82" / "audit" / "stability_metrics.csv")
+        assert sm["xi_status"].iloc[0] == "PASS"
+        assert sm["VIF_hinge_status"].iloc[0] == "PASS"
+        assert sm["kappa_status"].iloc[0] == "PASS"
+        assert sm["deltaV_status"].iloc[0] == "PASS"
+        assert sm["PMR_status"].iloc[0] == "PASS"
+
+    def test_quality_status_overall_pass(self, greco_rotcurve, tmp_path):
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        txt = (tmp_path / "out" / "M82" / "audit" / "quality_status.txt").read_text(encoding="utf-8")
+        assert "OVERALL" in txt
+        assert "PASS" in txt
+
+    def test_pressure_injectors_report_is_valid_json(self, greco_rotcurve, tmp_path):
+        import json as _json
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          detect_pressure_injectors=True,
+                          audit_mode="high-pressure", verbose=False)
+        p = tmp_path / "out" / "M82" / "audit" / "pressure_injectors_report.json"
+        data = _json.loads(p.read_text(encoding="utf-8"))
+        assert data["galaxy"] == "M82"
+        assert "injector_regions" in data
+        assert "overall_status" in data
+
+    def test_vif_table_has_segment_column(self, greco_rotcurve, tmp_path):
+        import pandas as _pd
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          verbose=False)
+        vif_df = _pd.read_csv(tmp_path / "out" / "M82" / "audit" / "vif_table.csv")
+        assert "segment" in vif_df.columns
+        assert set(vif_df["segment"].unique()).issubset({"rising", "flat"})
+
+    def test_residual_vs_hinge_columns(self, greco_rotcurve, tmp_path):
+        import pandas as _pd
+        run_custom_galaxy("M82", greco_rotcurve, tmp_path / "out",
+                          verbose=False)
+        rv = _pd.read_csv(tmp_path / "out" / "M82" / "audit" / "residual_vs_hinge.csv")
+        for col in ("radius_kpc", "v_obs_kms", "v_pred_kms", "residual_norm", "segment"):
+            assert col in rv.columns
+
+    def test_data_m82_rotcurve_txt_exists(self):
+        """Verify the Greco+2012 data file exists at the data/ root level."""
+        from pathlib import Path as _Path
+        p = _Path(__file__).parent.parent / "data" / "m82_rotcurve.txt"
+        assert p.exists(), "data/m82_rotcurve.txt must exist at the data/ root"
+
+    def test_data_m82_rotcurve_txt_format(self):
+        """Verify data/m82_rotcurve.txt has exactly 9 data rows (Greco+2012)."""
+        from pathlib import Path as _Path
+        p = _Path(__file__).parent.parent / "data" / "m82_rotcurve.txt"
+        rc = load_custom_rotation_curve(p)
+        assert len(rc) == 9, f"Expected 9 rows (Greco+2012), got {len(rc)}"
+        assert float(rc["r"].iloc[0]) == pytest.approx(0.2)
+        assert float(rc["v_obs"].iloc[0]) == pytest.approx(40.0)

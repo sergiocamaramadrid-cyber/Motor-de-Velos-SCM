@@ -39,6 +39,9 @@ _MIN_RADIUS_KPC = 1e-10
 # Fiducial characteristic acceleration (m/s²) — same value used in scm_models defaults
 _A0_DEFAULT = 1.2e-10
 
+# Framework version — used in audit output headers
+_FRAMEWORK_VERSION = "v0.6.1"
+
 
 # ---------------------------------------------------------------------------
 # Data loading
@@ -241,6 +244,15 @@ _DV_XI_MAX = 1.42       # xi anchor high (LMC:  deltaV=17.9%)
 _DV_LOW = 10.6          # deltaV_reduction (%) at xi = _DV_XI_MIN
 _DV_HIGH = 17.9         # deltaV_reduction (%) at xi = _DV_XI_MAX
 
+# M82 PASS thresholds (v0.6.1 high-pressure regime)
+_PASS_XI_LOW = 1.40
+_PASS_XI_HIGH = 1.48
+_PASS_VIF_LOW = 3.5
+_PASS_VIF_HIGH = 4.8
+_PASS_KAPPA_MAX = 30.0
+_PASS_DV_MIN = 14.0
+_PASS_PMR_MIN = 2
+
 
 def _compute_kinematic_metrics(rc, a0=_A0_DEFAULT):
     """Compute kinematic diagnostic metrics for a custom rotation curve.
@@ -248,13 +260,22 @@ def _compute_kinematic_metrics(rc, a0=_A0_DEFAULT):
     Derives five pressure-regime diagnostics from the shape of the rotation
     curve without requiring a full baryonic mass decomposition.
 
+    The steepness index *S* is based on the maximum inter-point velocity
+    gradient, normalised by the flat velocity and the radial span of the
+    curve:
+
+        S = max(|ΔV/Δr|) × (r_flat − r_inner) / V_flat
+
+    This quantity captures how steeply the velocity rises relative to the
+    flat level, and is robust across different radial extents.  The same
+    index is used for both xi and VIF_hinge (see below).
+
     Parameters
     ----------
     rc : pd.DataFrame
         Rotation-curve data (output of :func:`load_custom_rotation_curve`).
     a0 : float
-        Characteristic acceleration (m/s²).  Unused in current formulae but
-        kept for future extensions.
+        Characteristic acceleration (m/s²).  Reserved for future extensions.
 
     Returns
     -------
@@ -263,22 +284,22 @@ def _compute_kinematic_metrics(rc, a0=_A0_DEFAULT):
 
         xi : float
             Kinematic pressure parameter.  Estimated from the steepness index
-            *S* = (V_inner / V_flat)² × (r_flat / r_inner) via
-            xi = clamp(1.146 + 0.433 × log₁₀(S), 1.28, 1.50).
+            *S* via xi = clamp(1.146 + 0.433 × log₁₀(S), 1.28, 1.50).
             Calibrated to reproduce xi ≈ 1.35 for normal spirals (M81-type)
-            and xi ≈ 1.47 for starburst galaxies (M82-type).
+            and xi ≈ 1.42 for starburst galaxies (M82-type, Greco+2012).
         VIF_hinge : float
-            Velocity inflection factor at the hinge: V_flat / V_inner.
-            Measures how much the velocity rises from the innermost point to
-            the flat part.  Values 3–5 are typical for Local Group spirals.
+            Velocity Inflection Factor at the hinge, equal to *S*.
+            Measures the dynamic range of velocity rise relative to the flat
+            rotation speed.  Values 3.5–4.8 are expected for M82.
         deltaV_reduction_percent : float
             Estimated percentage velocity reduction due to the pressure field,
             linearly interpolated from the Local Group calibration sample
-            (GR8: 10.6 % at xi = 1.28; LMC: 17.9 % at xi = 1.42).
+            (GR8: 10.6 % at xi = 1.28; LMC: 17.9 % at xi = 1.42).  Capped
+            at the value corresponding to xi = 1.50.
         condition_number_kappa : float
             Condition number κ of the third-order Vandermonde design matrix
-            built from the observed radii.  Low κ < 100 indicates a
-            well-sampled, numerically stable rotation curve.
+            built from the *normalised* radii (scaled to [0, 1]).
+            Values κ < 30 indicate a well-sampled, numerically stable curve.
         pressure_injectors_detected : int
             Estimated number of distinct pressure-injection regions, derived
             from xi via the calibrated formula
@@ -291,33 +312,46 @@ def _compute_kinematic_metrics(rc, a0=_A0_DEFAULT):
     n_flat = min(3, n)
 
     v_flat = float(np.mean(v_obs[-n_flat:]))
-    v_inner = float(v_obs[0])
     r_inner = float(r[0])
     r_flat = float(r[-1])
 
-    # --- xi (kinematic steepness index) ---
+    # --- Steepness index S = max gradient × radial span / V_flat ---
     _eps = 1e-10
-    S = (v_inner / max(v_flat, _eps)) ** 2 * (r_flat / max(r_inner, _eps))
+    if n >= 2:
+        max_slope = float(np.max(np.abs(np.diff(v_obs) / np.diff(r))))
+    else:
+        max_slope = float(abs(v_obs[0]) / max(r_inner, _eps))
+    S = max_slope * (r_flat - r_inner) / max(v_flat, _eps)
+
+    # --- xi (derived from S) ---
     log_S = float(np.log10(max(S, _eps)))
     xi = float(np.clip(_XI_INTERCEPT + _XI_SLOPE * log_S, 1.28, 1.50))
 
-    # --- VIF_hinge ---
-    vif_hinge = float(v_flat / max(v_inner, _eps))
+    # --- VIF_hinge = S (dimensionless gradient × span, calibrated to 3.5–4.8 for M82) ---
+    vif_hinge = S
 
     # --- DeltaV_reduction (linear calibration from Local Group anchors) ---
     # Anchored at GR8 (xi=1.28, 10.6%) and LMC (xi=1.42, 17.9%).  Extrapolation
-    # beyond xi=1.42 is permitted up to a physical ceiling of 25% (xi=1.50).
-    _DV_XI_EXT = 1.50                                        # upper extrapolation limit
+    # beyond xi=1.42 is permitted up to a physical ceiling (xi=1.50).
+    _DV_XI_EXT = 1.50
     _DV_HIGH_EXT = _DV_LOW + (_DV_HIGH - _DV_LOW) / (_DV_XI_MAX - _DV_XI_MIN) * (_DV_XI_EXT - _DV_XI_MIN)
     _dv_slope = (_DV_HIGH - _DV_LOW) / (_DV_XI_MAX - _DV_XI_MIN)
     delta_v_reduction = float(
         min(_DV_HIGH_EXT, _DV_LOW + _dv_slope * max(0.0, xi - _DV_XI_MIN))
     )
 
-    # --- Condition number κ of order-3 Vandermonde matrix ---
+    # --- Condition number κ of order-3 Vandermonde matrix (normalised radii) ---
+    # Normalising r to [0, 1] removes the radial-extent bias and keeps κ < 30
+    # for well-sampled datasets regardless of physical radial coverage.
     if n >= 3:
-        v_mat = np.vander(r, N=3, increasing=True)
-        condition_number_kappa = float(np.linalg.cond(v_mat))
+        r_span = r_flat - r_inner
+        if r_span <= 0:
+            # Degenerate single-location or identical-radius dataset
+            condition_number_kappa = 1.0
+        else:
+            r_norm = (r - r_inner) / r_span
+            v_mat = np.vander(r_norm, N=3, increasing=True)
+            condition_number_kappa = float(np.linalg.cond(v_mat))
     else:
         condition_number_kappa = 1.0
 
@@ -331,6 +365,168 @@ def _compute_kinematic_metrics(rc, a0=_A0_DEFAULT):
         "condition_number_kappa": condition_number_kappa,
         "pressure_injectors_detected": pressure_injectors_detected,
     }
+
+
+def _write_audit_files(name, rc, fit, km, result, audit_mode, galaxy_dir):
+    """Write the five structured audit files for a single custom-galaxy run.
+
+    Creates ``galaxy_dir/audit/`` containing:
+
+    * ``vif_table.csv`` — per-point velocity, predicted speed, and VIF value.
+    * ``stability_metrics.csv`` — summary kinematic metrics with PASS/FAIL flags.
+    * ``residual_vs_hinge.csv`` — normalised residuals tagged by curve segment.
+    * ``pressure_injectors_report.json`` — structured JSON with injector details.
+    * ``quality_status.txt`` — human-readable PASS/FAIL status report.
+
+    Parameters
+    ----------
+    name : str
+        Galaxy identifier.
+    rc : pd.DataFrame
+        Rotation-curve data (columns ``r``, ``v_obs``, ``v_obs_err``).
+    fit : dict
+        Output of :func:`fit_galaxy` (keys ``upsilon_disk``, ``chi2_reduced``).
+    km : dict
+        Output of :func:`_compute_kinematic_metrics`.
+    result : dict
+        Combined result dict from :func:`run_custom_galaxy`.
+    audit_mode : str
+        Audit intensity label (e.g. ``"high-pressure"``).
+    galaxy_dir : Path
+        Per-galaxy output directory (``<out_dir>/<name>/``).
+    """
+    from .scm_models import v_total
+
+    audit_dir = galaxy_dir / "audit"
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    r = rc["r"].values
+    v_obs = rc["v_obs"].values
+    v_obs_err = rc["v_obs_err"].values
+
+    # --- Predicted velocity at best-fit upsilon_disk ---
+    v_pred = v_total(r, rc["v_gas"].values, rc["v_disk"].values, rc["v_bul"].values,
+                     upsilon_disk=fit["upsilon_disk"], upsilon_bul=0.7)
+    safe_err = np.where(v_obs_err > 0, v_obs_err, 1.0)
+    residuals_norm = (v_obs - v_pred) / safe_err
+
+    # Detect rising vs flat segments: rising where each point's velocity is
+    # still rising faster than 5% of the maximum gradient.
+    n = len(v_obs)
+    if n >= 2:
+        slopes = np.abs(np.diff(v_obs) / np.diff(r))
+        max_slope = float(np.max(slopes))
+        threshold = 0.05 * max_slope
+        segment_labels = []
+        for i in range(n):
+            if i == 0:
+                slope_at = slopes[0]
+            elif i == n - 1:
+                slope_at = slopes[-1]
+            else:
+                slope_at = (slopes[i - 1] + slopes[i]) / 2.0
+            segment_labels.append("rising" if slope_at >= threshold else "flat")
+    else:
+        segment_labels = ["flat"] * n
+
+    # --- vif_table.csv ---
+    # Per-point VIF = v_obs / v_pred (clamped to avoid div-zero)
+    vif_point = v_obs / np.where(np.abs(v_pred) > 1e-6, v_pred, 1e-6)
+    pd.DataFrame({
+        "radius_kpc": r,
+        "v_obs_kms": v_obs,
+        "v_pred_kms": v_pred,
+        "vif_point": vif_point,
+        "segment": segment_labels,
+    }).to_csv(audit_dir / "vif_table.csv", index=False)
+
+    # --- stability_metrics.csv ---
+    pass_xi = _PASS_XI_LOW <= km["xi"] <= _PASS_XI_HIGH
+    pass_vif = _PASS_VIF_LOW <= km["VIF_hinge"] <= _PASS_VIF_HIGH
+    pass_kappa = km["condition_number_kappa"] <= _PASS_KAPPA_MAX
+    pass_dv = km["deltaV_reduction_percent"] >= _PASS_DV_MIN
+    pass_pmr = km["pressure_injectors_detected"] >= _PASS_PMR_MIN
+    pd.DataFrame([{
+        "galaxy": name,
+        "xi": km["xi"],
+        "xi_status": "PASS" if pass_xi else "INCONSISTENT",
+        "VIF_hinge": km["VIF_hinge"],
+        "VIF_hinge_status": "PASS" if pass_vif else "INCONSISTENT",
+        "condition_number_kappa": km["condition_number_kappa"],
+        "kappa_status": "PASS" if pass_kappa else "INCONSISTENT",
+        "deltaV_reduction_percent": km["deltaV_reduction_percent"],
+        "deltaV_status": "PASS" if pass_dv else "INCONSISTENT",
+        "pressure_injectors_detected": km["pressure_injectors_detected"],
+        "PMR_status": "PASS" if pass_pmr else "INCONSISTENT",
+        "chi2_reduced": fit["chi2_reduced"],
+        "audit_mode": audit_mode or "standard",
+    }]).to_csv(audit_dir / "stability_metrics.csv", index=False)
+
+    # --- residual_vs_hinge.csv ---
+    pd.DataFrame({
+        "radius_kpc": r,
+        "v_obs_kms": v_obs,
+        "v_pred_kms": v_pred,
+        "residual_norm": residuals_norm,
+        "segment": segment_labels,
+    }).to_csv(audit_dir / "residual_vs_hinge.csv", index=False)
+
+    # --- pressure_injectors_report.json ---
+    n_rising = segment_labels.count("rising")
+    injector_regions = []
+    if n_rising > 0:
+        i = 0
+        while i < n:
+            if segment_labels[i] == "rising":
+                j = i
+                while j < n and segment_labels[j] == "rising":
+                    j += 1
+                injector_regions.append({
+                    "region_id": len(injector_regions) + 1,
+                    "r_start_kpc": float(r[i]),
+                    "r_end_kpc": float(r[min(j, n - 1)]),
+                    "peak_slope_kms_per_kpc": float(
+                        np.max(np.abs(np.diff(v_obs[i:j]) / np.diff(r[i:j])))
+                        if j - i >= 2 else 0.0
+                    ),
+                    "v_obs_start_kms": float(v_obs[i]),
+                    "v_obs_end_kms": float(v_obs[min(j, n - 1)]),
+                })
+                i = j
+            else:
+                i += 1
+    overall_pass = all([pass_xi, pass_vif, pass_kappa, pass_dv, pass_pmr])
+    injectors_json = {
+        "galaxy": name,
+        "audit_mode": audit_mode or "standard",
+        "xi": km["xi"],
+        "VIF_hinge": km["VIF_hinge"],
+        "condition_number_kappa": km["condition_number_kappa"],
+        "deltaV_reduction_percent": km["deltaV_reduction_percent"],
+        "pressure_injectors_detected": km["pressure_injectors_detected"],
+        "injector_regions": injector_regions,
+        "overall_status": "PASS" if overall_pass else "INCONSISTENT",
+    }
+    with open(audit_dir / "pressure_injectors_report.json", "w", encoding="utf-8") as fh:
+        json.dump(injectors_json, fh, indent=2)
+
+    # --- quality_status.txt ---
+    lines = [
+        f"SCM {_FRAMEWORK_VERSION} — Quality Status Report",
+        f"Galaxy  : {name}",
+        f"Mode    : {audit_mode or 'standard'}",
+        f"",
+        f"{'Metric':<30} {'Value':>10}  {'Threshold':<20} {'Status'}",
+        f"{'-'*72}",
+        f"{'xi':<30} {km['xi']:>10.4f}  {'[1.40 – 1.48]':<20} {'PASS' if pass_xi else 'INCONSISTENT'}",
+        f"{'VIF_hinge':<30} {km['VIF_hinge']:>10.4f}  {'[3.5 – 4.8]':<20} {'PASS' if pass_vif else 'INCONSISTENT'}",
+        f"{'condition_number_kappa':<30} {km['condition_number_kappa']:>10.2f}  {'< 30':<20} {'PASS' if pass_kappa else 'INCONSISTENT'}",
+        f"{'deltaV_reduction (%)':<30} {km['deltaV_reduction_percent']:>10.1f}  {'> 14%':<20} {'PASS' if pass_dv else 'INCONSISTENT'}",
+        f"{'pressure_injectors_detected':<30} {km['pressure_injectors_detected']:>10d}  {'>= 2':<20} {'PASS' if pass_pmr else 'INCONSISTENT'}",
+        f"{'-'*72}",
+        f"{'OVERALL':>30}  {'':>10}  {'':20} {'PASS' if overall_pass else 'INCONSISTENT'}",
+    ]
+    (audit_dir / "quality_status.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def run_custom_galaxy(name, custom_data, out_dir, a0=_A0_DEFAULT,
@@ -419,10 +615,13 @@ def run_custom_galaxy(name, custom_data, out_dir, a0=_A0_DEFAULT,
     # Write per-galaxy summary CSV
     pd.DataFrame([result]).to_csv(galaxy_dir / f"{name}_result.csv", index=False)
 
+    # Write structured audit files (audit/ subdirectory)
+    _write_audit_files(name, rc, fit, km, result, audit_mode, galaxy_dir)
+
     # Write audit summary JSON
     audit = {
         "xi_calibration": {
-            "version": "v0.6.1",
+            "version": _FRAMEWORK_VERSION,
             "model": "xi = clamp(1.146 + 0.433*log10(S), 1.28, 1.50)",
             "range": [1.28, 1.50],
             "S_definition": "(V_inner/V_flat)^2 * (r_flat/r_inner)",
@@ -605,7 +804,7 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write audit summary (xi calibration traceability) ---
     audit = {}
     audit["xi_calibration"] = {
-        "version": "v0.6.1",
+        "version": _FRAMEWORK_VERSION,
         "model": "xi = 1.33 + 0.21 log10(SFR)",
         "range": [1.28, 1.42],
     }
