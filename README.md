@@ -4,6 +4,8 @@
 > Versión actual: **v0.6.1**
 
 [![CI](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg)](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-v0.6.1-blue)](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 ---
 
@@ -122,7 +124,7 @@ Ver archivo: `CITATION.cff`
 
 ## Licencia
 
-MIT License
+MIT License — ver archivo [`LICENSE`](LICENSE)
 
 ---
 
