@@ -56,6 +56,25 @@ Observed range: **1.28 ≤ ξ ≤ 1.48**
 
 ---
 
+## What this repo provides
+
+- Reproducible SCM pipeline (`python -m src.scm_analysis`)
+- Audit artifacts (VIF / condition number / quality report)
+- Optional pressure-injector detection (`--detect-pressure-injectors`)
+- Validation reports under `audits/validated/` and consolidated summaries under `reports/`
+
+---
+
+## Quickstart
+
+```bash
+python -m pip install -r requirements.txt
+pytest -q
+python -m src.scm_analysis --help
+```
+
+---
+
 ## Installation
 
 ```bash

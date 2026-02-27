@@ -1,10 +1,17 @@
 cff-version: 1.2.0
-title: SCM Framework – Motor de Velos
-message: Please cite this framework if used in research.
+message: "If you use this software, please cite it."
+title: "Framework SCM — Motor de Velos"
+type: software
 authors:
-  - family-names: Cámara Madrid
-    given-names: Sergio
+  - family-names: "Cámara Madrid"
+    given-names: "Sergio"
 version: 0.6.2
 date-released: 2026-02-27
-url: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
+repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
+url: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
 license: MIT
+keywords:
+  - astrophysics
+  - galaxy rotation curves
+  - reproducible research
+  - model validation
