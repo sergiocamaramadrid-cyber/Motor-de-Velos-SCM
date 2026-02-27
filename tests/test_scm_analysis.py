@@ -21,6 +21,7 @@ from src.scm_analysis import (
     run_pipeline,
     load_custom_rotation_curve,
     run_custom_galaxy,
+    _compute_kinematic_metrics,
     load_pressure_calibration,
     estimate_xi_from_sfr,
     _write_executive_summary,
@@ -482,7 +483,9 @@ class TestRunCustomGalaxy:
         result = run_custom_galaxy("TestGal", simple_rotcurve, tmp_path / "out",
                                    verbose=False)
         for key in ("galaxy", "upsilon_disk", "chi2_reduced", "n_points",
-                    "xi_estimated", "pressure_injector_detected", "audit_mode"):
+                    "xi", "VIF_hinge", "deltaV_reduction_percent",
+                    "condition_number_kappa", "pressure_injectors_detected",
+                    "pressure_injector_detected", "audit_mode"):
             assert key in result
 
     def test_galaxy_name_in_result(self, simple_rotcurve, tmp_path):
@@ -490,25 +493,25 @@ class TestRunCustomGalaxy:
                                    verbose=False)
         assert result["galaxy"] == "MyGalaxy"
 
-    def test_xi_default(self, simple_rotcurve, tmp_path):
+    def test_xi_in_valid_range(self, simple_rotcurve, tmp_path):
         result = run_custom_galaxy("G", simple_rotcurve, tmp_path / "out", verbose=False)
-        assert result["xi_estimated"] == pytest.approx(1.37)
+        assert 1.28 <= result["xi"] <= 1.50
 
     def test_audit_mode_stored(self, simple_rotcurve, tmp_path):
         result = run_custom_galaxy("G", simple_rotcurve, tmp_path / "out",
                                    audit_mode="high-pressure", verbose=False)
         assert result["audit_mode"] == "high-pressure"
 
-    def test_creates_result_csv(self, simple_rotcurve, tmp_path):
+    def test_creates_result_csv_in_galaxy_subdir(self, simple_rotcurve, tmp_path):
         out = tmp_path / "out"
         run_custom_galaxy("G", simple_rotcurve, out, verbose=False)
-        assert (out / "G_result.csv").exists()
+        assert (out / "G" / "G_result.csv").exists()
 
-    def test_creates_audit_summary_json(self, simple_rotcurve, tmp_path):
+    def test_creates_audit_summary_json_in_galaxy_subdir(self, simple_rotcurve, tmp_path):
         import json as _json
         out = tmp_path / "out"
         run_custom_galaxy("G", simple_rotcurve, out, verbose=False)
-        p = out / "audit_summary.json"
+        p = out / "G" / "audit_summary.json"
         assert p.exists()
         data = _json.loads(p.read_text(encoding="utf-8"))
         assert "xi_calibration" in data
@@ -519,10 +522,12 @@ class TestRunCustomGalaxy:
                                    detect_pressure_injectors=True, verbose=False)
         assert isinstance(result["pressure_injector_detected"], bool)
 
-    def test_outdir_created(self, simple_rotcurve, tmp_path):
+    def test_outdir_and_galaxy_subdir_created(self, simple_rotcurve, tmp_path):
         out = tmp_path / "new_dir" / "subdir"
-        run_custom_galaxy("G", simple_rotcurve, out, verbose=False)
+        run_custom_galaxy("MyGal", simple_rotcurve, out, verbose=False)
         assert out.exists()
+        assert (out / "MyGal").exists()
+
 
 
 # ---------------------------------------------------------------------------
@@ -559,3 +564,106 @@ class TestCLINewFlags:
     def test_outdir_alias(self):
         ns = self._parse("--data-dir", "d", "--outdir", "my/out")
         assert ns.out == "my/out"
+
+
+# ---------------------------------------------------------------------------
+# _compute_kinematic_metrics
+# ---------------------------------------------------------------------------
+
+@pytest.fixture()
+def m82_rotcurve():
+    """Load the real M82 rotation curve from the repository data files."""
+    from pathlib import Path as _Path
+    return _Path(__file__).parent.parent / "data" / "m81_group" / "m82_rotcurve.txt"
+
+
+class TestComputeKinematicMetrics:
+    def _make_rc(self, r_values, v_values, err=2.0):
+        """Build a minimal rotation-curve DataFrame."""
+        import pandas as _pd
+        return _pd.DataFrame({
+            "r": r_values,
+            "v_obs": v_values,
+            "v_obs_err": [err] * len(r_values),
+            "v_gas": [0.0] * len(r_values),
+            "v_disk": v_values,
+            "v_bul": [0.0] * len(r_values),
+        })
+
+    def test_returns_all_keys(self, m82_rotcurve):
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        for key in ("xi", "VIF_hinge", "deltaV_reduction_percent",
+                    "condition_number_kappa", "pressure_injectors_detected"):
+            assert key in km
+
+    def test_m82_xi_in_starburst_range(self, m82_rotcurve):
+        """M82 xi should fall in the expected starburst range 1.44–1.50."""
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert 1.44 <= km["xi"] <= 1.50, f"xi={km['xi']:.4f} outside starburst range"
+
+    def test_xi_clamped_low(self):
+        """Curves with very low inner velocity relative to flat clamp to xi_min=1.28.
+
+        S = (V_inner/V_flat)² × (r_flat/r_inner).  With V_inner << V_flat the
+        steepness index S ≪ 1 and the formula gives xi < 1.28, which is clamped.
+        Example: V rises from 5 km/s at r=1 kpc to a flat ~200 km/s at the outer points.
+        """
+        rc = self._make_rc([1.0, 2.0, 4.0, 8.0], [5.0, 100.0, 200.0, 200.0])
+        km = _compute_kinematic_metrics(rc)
+        assert km["xi"] == pytest.approx(1.28)
+
+    def test_xi_clamped_high(self):
+        """Curves with very high inner velocity relative to flat clamp to xi_max=1.50.
+
+        When V_inner ≈ V_flat AND r_flat/r_inner is large, S >> 6.57 and the
+        formula gives xi > 1.50, which is clamped.
+        Example: V ≈ 99 km/s at r=0.1 kpc, flat at 100 km/s to r=100 kpc.
+        """
+        rc = self._make_rc([0.1, 1.0, 10.0, 100.0], [99.0, 100.0, 100.0, 100.0])
+        km = _compute_kinematic_metrics(rc)
+        assert km["xi"] == pytest.approx(1.50)
+
+    def test_vif_hinge_formula(self):
+        """VIF_hinge = mean(last 3 v_obs) / first v_obs."""
+        rc = self._make_rc([0.5, 2.0, 5.0, 10.0], [50.0, 100.0, 150.0, 200.0])
+        km = _compute_kinematic_metrics(rc)
+        # V_flat = mean of last 3 points (indices 1, 2, 3) = mean(100, 150, 200) = 150
+        expected_vif = float((100.0 + 150.0 + 200.0) / 3.0 / 50.0)
+        assert km["VIF_hinge"] == pytest.approx(expected_vif, rel=0.05)
+
+    def test_deltav_reduction_positive(self, m82_rotcurve):
+        from src.scm_analysis import _DV_LOW
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert km["deltaV_reduction_percent"] >= _DV_LOW
+
+    def test_deltav_reduction_increases_with_xi(self):
+        """Higher xi → higher DeltaV_reduction.
+
+        rc_low: V_inner=5 at r=1 (S→low, xi clamped at 1.28).
+        rc_high: V_inner=100, V_flat≈200 at r_flat=10 with r_inner=0.5 (S≈5, xi≈1.45).
+        """
+        rc_low = self._make_rc([1.0, 2.0, 4.0, 8.0], [5.0, 100.0, 200.0, 200.0])
+        rc_high = self._make_rc([0.5, 2.0, 5.0, 10.0], [100.0, 160.0, 200.0, 200.0])
+        km_low = _compute_kinematic_metrics(rc_low)
+        km_high = _compute_kinematic_metrics(rc_high)
+        assert km_high["deltaV_reduction_percent"] >= km_low["deltaV_reduction_percent"]
+
+    def test_condition_number_positive(self, m82_rotcurve):
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert km["condition_number_kappa"] > 0
+
+    def test_pressure_injectors_minimum_one(self, m82_rotcurve):
+        rc = load_custom_rotation_curve(m82_rotcurve)
+        km = _compute_kinematic_metrics(rc)
+        assert km["pressure_injectors_detected"] >= 1
+
+    def test_pressure_injectors_m82_high(self, m82_rotcurve):
+        """M82 (starburst) should have more regions than a normal spiral."""
+        rc_m82 = load_custom_rotation_curve(m82_rotcurve)
+        km_m82 = _compute_kinematic_metrics(rc_m82)
+        # M82 xi≈1.47 → regions=4; a flat galaxy (xi=1.28) → regions=1
+        assert km_m82["pressure_injectors_detected"] >= 3
