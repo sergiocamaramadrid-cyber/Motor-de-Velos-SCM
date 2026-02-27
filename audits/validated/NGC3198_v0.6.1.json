@@ -1,0 +1,14 @@
+{
+  "galaxia": "NGC3198",
+  "framework_version": "0.6.1",
+  "timestamp": "2026-02-27T00:00:00Z",
+  "resultados_modelo": {
+    "xi": 0.312,
+    "vif_hinge": 1.04
+  },
+  "datos_curva": {
+    "cobertura_radial_kpc": [1.0, 2.5, 5.0, 10.0],
+    "vrot_km_s": [80.5, 120.3, 145.7, 152.1],
+    "e_vrot_km_s": [3.2, 4.1, 3.8, 4.5]
+  }
+}
