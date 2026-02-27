@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <a href="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml"><img src="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <img src="https://img.shields.io/badge/version-v0.6.2-blue.svg" alt="version">
   <img src="https://img.shields.io/badge/status-validated-success.svg" alt="status">
   <img src="https://img.shields.io/badge/python-3.10+-brightgreen.svg" alt="python">
