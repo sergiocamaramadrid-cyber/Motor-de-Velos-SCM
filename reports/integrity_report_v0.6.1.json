@@ -1,0 +1,39 @@
+{
+  "framework_version": "0.6.1",
+  "timestamp": "2026-02-27T13:32:14.712041+00:00",
+  "checks": {
+    "duplicate_files": {
+      "status": "OK",
+      "duplicates": []
+    },
+    "audit_report_coherence": {
+      "status": "OK",
+      "missing_json": [],
+      "missing_csv": []
+    },
+    "xi_consistency": {
+      "status": "OK",
+      "xi_values": {
+        "M81": 1.36,
+        "M82": 1.48,
+        "NGC2403": 1.37,
+        "NGC3077": 1.39,
+        "NGC2976": 1.35,
+        "IC2574": 1.34
+      },
+      "out_of_range": []
+    },
+    "calibration": {
+      "status": "OK",
+      "xi_global": 1.37,
+      "xi_global_occurrences": 1
+    }
+  },
+  "summary": {
+    "integrity_check": "PASSED",
+    "duplicate_files": "NONE",
+    "missing_files": "NONE",
+    "calibration_conflicts": "NONE",
+    "framework_status": "CONSISTENT"
+  }
+}

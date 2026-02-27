@@ -1,0 +1,10 @@
+{
+  "galaxy": "M81",
+  "version": "0.6.1",
+  "xi": 1.36,
+  "xi_uncertainty": 0.03,
+  "chi2_reduced": 1.12,
+  "n_points": 38,
+  "upsilon_disk": 0.82,
+  "validated": true
+}
