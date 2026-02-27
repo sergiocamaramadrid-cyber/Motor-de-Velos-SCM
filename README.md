@@ -10,7 +10,8 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-v0.6.1-blue.svg" alt="version">
+  <img src="https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/actions/workflows/ci.yml/badge.svg" alt="CI">
+  <img src="https://img.shields.io/badge/version-v0.6.2-blue.svg" alt="version">
   <img src="https://img.shields.io/badge/status-validated-success.svg" alt="status">
   <img src="https://img.shields.io/badge/python-3.10+-brightgreen.svg" alt="python">
   <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="license">
@@ -165,7 +166,7 @@ results/<module>/<artifact>-v<semver>.csv
 | Field | Value |
 |---|---|
 | Status | VALIDATED |
-| Framework version | v0.6.1 |
+| Framework version | v0.6.2 |
 | Reproducible | YES |
 
 ---
