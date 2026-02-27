@@ -12,6 +12,7 @@ Or import and call :func:`run_pipeline` programmatically.
 
 import argparse
 import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -388,6 +389,163 @@ def _write_top10_latex(df, path):
 
 
 # ---------------------------------------------------------------------------
+# Integrity self-test
+# ---------------------------------------------------------------------------
+
+#: M81 group galaxies expected in audits/validated/ for v0.6.1
+_M81_GROUP = ["M81", "M82", "NGC2403", "NGC3077", "NGC2976", "IC2574"]
+
+#: Allowed ξ range (inclusive)
+_XI_MIN = 1.34
+_XI_MAX = 1.48
+
+
+def run_self_test(repo_root=None):
+    """Run the SCM Framework integrity self-test.
+
+    Checks:
+      1. All required audit JSON files exist and contain a valid ``xi`` value.
+      2. The batch report CSV exists and lists all expected galaxies.
+      3. ``config/defaults.yaml`` contains exactly one ``xi_global`` key.
+      4. No duplicate galaxy entries are detected.
+
+    Prints a summary to stdout and returns ``True`` if all checks pass.
+
+    Parameters
+    ----------
+    repo_root : str or Path, optional
+        Root of the repository.  Defaults to the directory two levels above
+        this file (i.e., the project root when installed as ``src/``).
+
+    Returns
+    -------
+    bool
+        ``True`` if the integrity check passes, ``False`` otherwise.
+    """
+    import yaml  # noqa: PLC0415 — lazy import; PyYAML is in requirements
+
+    root = Path(repo_root) if repo_root else Path(__file__).resolve().parent.parent
+
+    audits_dir = root / "audits" / "validated"
+    report_csv = root / "reports" / "batch_results_m81_group.csv"
+    config_yaml = root / "config" / "defaults.yaml"
+
+    header = "SCM Framework Self-Test"
+    sep = "-" * len(header)
+    print(header)
+    print(sep)
+
+    passed = True
+
+    # ------------------------------------------------------------------
+    # 1. Audit JSON files
+    # ------------------------------------------------------------------
+    audits_ok = True
+    audit_galaxies = []
+    for galaxy in _M81_GROUP:
+        json_path = audits_dir / f"{galaxy}_v0.6.1.json"
+        if not json_path.exists():
+            print(f"Audits loaded: MISSING {galaxy}_v0.6.1.json")
+            audits_ok = False
+            passed = False
+            continue
+        try:
+            data = json.loads(json_path.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            print(f"Audits loaded: INVALID JSON in {json_path.name} ({exc})")
+            audits_ok = False
+            passed = False
+            continue
+        xi = data.get("xi")
+        if xi is None or not (_XI_MIN <= float(xi) <= _XI_MAX):
+            print(
+                f"Audits loaded: xi out of range [{_XI_MIN},{_XI_MAX}] "
+                f"for {galaxy} (xi={xi})"
+            )
+            audits_ok = False
+            passed = False
+        audit_galaxies.append(galaxy)
+
+    if audits_ok:
+        print("Audits loaded: OK")
+
+    # ------------------------------------------------------------------
+    # 2. Batch report CSV
+    # ------------------------------------------------------------------
+    if not report_csv.exists():
+        print("Reports loaded: MISSING reports/batch_results_m81_group.csv")
+        passed = False
+    else:
+        try:
+            report_df = pd.read_csv(report_csv)
+            report_galaxies = report_df["galaxy"].tolist() if "galaxy" in report_df.columns else []
+            missing_in_report = [g for g in _M81_GROUP if g not in report_galaxies]
+            if missing_in_report:
+                print(f"Reports loaded: missing galaxies in CSV: {missing_in_report}")
+                passed = False
+            else:
+                print("Reports loaded: OK")
+        except Exception as exc:  # noqa: BLE001
+            print(f"Reports loaded: ERROR reading CSV ({exc})")
+            passed = False
+
+    # ------------------------------------------------------------------
+    # 3. Calibration YAML
+    # ------------------------------------------------------------------
+    if not config_yaml.exists():
+        print("Calibration loaded: MISSING config/defaults.yaml")
+        passed = False
+    else:
+        try:
+            text = config_yaml.read_text(encoding="utf-8")
+            cfg = yaml.safe_load(text)
+            raw_count = sum(1 for line in text.splitlines()
+                            if line.strip().startswith("xi_global"))
+            if raw_count != 1:
+                print(
+                    f"Calibration loaded: xi_global appears {raw_count} times "
+                    "(expected exactly 1)"
+                )
+                passed = False
+            elif cfg.get("xi_global") is None:
+                print("Calibration loaded: xi_global key missing from parsed YAML")
+                passed = False
+            else:
+                print("Calibration loaded: OK")
+        except Exception as exc:  # noqa: BLE001
+            print(f"Calibration loaded: ERROR reading YAML ({exc})")
+            passed = False
+
+    # ------------------------------------------------------------------
+    # 4. Duplicate detection
+    # ------------------------------------------------------------------
+    audit_files = sorted(audits_dir.glob("*.json")) if audits_dir.exists() else []
+    seen: dict[str, list[str]] = {}
+    for f in audit_files:
+        try:
+            data = json.loads(f.read_text(encoding="utf-8"))
+            key = data.get("galaxy", f.stem)
+        except (json.JSONDecodeError, OSError):
+            key = f.stem
+        seen.setdefault(key, []).append(f.name)
+
+    duplicates = {k: v for k, v in seen.items() if len(v) > 1}
+    if duplicates:
+        for gal, files in duplicates.items():
+            print(f"Duplicate detected: {gal} → {files}")
+        passed = False
+    else:
+        print("No duplicate galaxies detected")
+
+    # ------------------------------------------------------------------
+    # Final verdict
+    # ------------------------------------------------------------------
+    verdict = "PASSED" if passed else "FAILED"
+    print(f"Integrity check: {verdict}")
+    return passed
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -396,7 +554,11 @@ def _parse_args(argv=None):
         description="Motor de Velos SCM analysis pipeline"
     )
     parser.add_argument(
-        "--data-dir", required=True, help="Directory containing SPARC data"
+        "--self-test", action="store_true",
+        help="Run the SCM Framework integrity self-test and exit",
+    )
+    parser.add_argument(
+        "--data-dir", help="Directory containing SPARC data"
     )
     parser.add_argument(
         "--out", default="results/", help="Output directory (default: results/)"
@@ -413,6 +575,12 @@ def _parse_args(argv=None):
 
 def main(argv=None):
     args = _parse_args(argv)
+    if args.self_test:
+        ok = run_self_test()
+        sys.exit(0 if ok else 1)
+    if not args.data_dir:
+        print("error: --data-dir is required unless --self-test is used", file=sys.stderr)
+        sys.exit(2)
     run_pipeline(
         data_dir=args.data_dir,
         out_dir=args.out,

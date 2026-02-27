@@ -1,0 +1,7 @@
+# Motor de Velos SCM — global calibration defaults (v0.6.1)
+# This file is read by the pipeline and integrity checks.
+
+xi_global: 1.37
+a0: 1.2e-10          # characteristic velos acceleration (m/s²)
+upsilon_bul: 0.7     # fixed bulge mass-to-light ratio
+version: "0.6.1"
