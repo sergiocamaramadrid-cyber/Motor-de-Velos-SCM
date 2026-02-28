@@ -230,7 +230,8 @@ class TestRunBlindTest:
 
     def test_summary_columns(self, out_dir):
         _, summary = run_blind_test(_DATASET, out_dir)
-        for col in ["model", "N", "RMSE_dex", "MAE_dex", "bias_dex"]:
+        for col in ["model", "N", "RMSE_dex", "MAE_dex", "bias_dex",
+                    "improvement_frac", "wilcoxon_p"]:
             assert col in summary.columns, f"Missing column '{col}' in summary"
 
     def test_summary_N_equals_dataset(self, out_dir):
@@ -240,6 +241,32 @@ class TestRunBlindTest:
     def test_summary_rmse_positive(self, out_dir):
         _, summary = run_blind_test(_DATASET, out_dir)
         assert (summary["RMSE_dex"] > 0).all()
+
+    def test_summary_improvement_frac_range(self, out_dir):
+        """improvement_frac must be in [0, 1] for every model."""
+        _, summary = run_blind_test(_DATASET, out_dir)
+        assert summary["improvement_frac"].between(0.0, 1.0).all(), (
+            f"improvement_frac out of [0,1]: {summary['improvement_frac'].tolist()}"
+        )
+
+    def test_summary_improvement_fracs_complementary(self, out_dir):
+        """improvement_frac(btfr) + improvement_frac(interp) <= 1."""
+        _, summary = run_blind_test(_DATASET, out_dir)
+        frac_btfr = summary.loc[summary["model"] == "btfr", "improvement_frac"].values[0]
+        frac_interp = summary.loc[summary["model"] == "interp", "improvement_frac"].values[0]
+        assert frac_btfr + frac_interp <= 1.0 + 1e-9, (
+            f"improvement fracs sum to {frac_btfr + frac_interp:.4f} > 1"
+        )
+
+    def test_summary_wilcoxon_p_range(self, out_dir):
+        """wilcoxon_p must be in [0, 1] or NaN."""
+        _, summary = run_blind_test(_DATASET, out_dir)
+        for _, row in summary.iterrows():
+            p = row["wilcoxon_p"]
+            if not pd.isna(p):
+                assert 0.0 <= p <= 1.0, (
+                    f"wilcoxon_p={p} out of [0,1] for model {row['model']}"
+                )
 
     def test_predictions_csv_readable(self, out_dir):
         run_blind_test(_DATASET, out_dir)

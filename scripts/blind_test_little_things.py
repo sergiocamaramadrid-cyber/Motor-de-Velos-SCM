@@ -19,7 +19,8 @@ data/little_things_global.csv  (or --csv PATH)
 
 Outputs written to --out DIR (default: results/blind_test_lt):
   predictions.csv  — per-galaxy observed and predicted log Vflat
-  summary.csv      — per-model RMSE, MAE, bias, and N
+  summary.csv      — per-model RMSE, MAE, bias, improvement fraction,
+                     and Wilcoxon signed-rank test p-value vs the other model
 
 Usage
 -----
@@ -42,6 +43,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy.stats import wilcoxon as _scipy_wilcoxon
 
 # ---------------------------------------------------------------------------
 # Physics constants
@@ -217,7 +219,8 @@ def run_blind_test(
     predictions : pd.DataFrame
         Per-galaxy predictions and residuals.
     summary : pd.DataFrame
-        Per-model RMSE, MAE, bias, and N statistics.
+        Per-model RMSE, MAE, bias, improvement fraction, Wilcoxon p-value,
+        and N statistics.
     """
     df = load_dataset(csv_path)
 
@@ -241,8 +244,38 @@ def run_blind_test(
     )
 
     n = len(df)
+    abs_btfr = np.abs(res_btfr)
+    abs_interp = np.abs(res_interp)
+
+    # improvement_frac: fraction of galaxies where this model has a smaller
+    # absolute residual than the other model.
+    imp_btfr = float(np.mean(abs_btfr < abs_interp))
+    imp_interp = float(np.mean(abs_interp < abs_btfr))
+
+    # wilcoxon_p: one-sided Wilcoxon signed-rank test.
+    # For each model, test H0: median(|res_this| - |res_other|) >= 0
+    # vs H1: this model's errors are smaller (alternative="less").
+    # Requires at least 5 non-zero differences for a meaningful p-value;
+    # returns np.nan when the condition is not met.
+    def _wilcoxon_p(a: np.ndarray, b: np.ndarray) -> float:
+        diff = a - b
+        nz = diff[diff != 0.0]
+        if len(nz) < 5:
+            return float(np.nan)
+        try:
+            _, p = _scipy_wilcoxon(nz, alternative="less")
+            return float(p)
+        except Exception:
+            return float(np.nan)
+
+    wp_btfr = _wilcoxon_p(abs_btfr, abs_interp)
+    wp_interp = _wilcoxon_p(abs_interp, abs_btfr)
+
     summary_rows = []
-    for model_name, residuals in [("btfr", res_btfr), ("interp", res_interp)]:
+    for model_name, residuals, imp_frac, wp in [
+        ("btfr", res_btfr, imp_btfr, wp_btfr),
+        ("interp", res_interp, imp_interp, wp_interp),
+    ]:
         summary_rows.append(
             {
                 "model": model_name,
@@ -250,6 +283,8 @@ def run_blind_test(
                 "RMSE_dex": float(np.sqrt(np.mean(residuals**2))),
                 "MAE_dex": float(np.mean(np.abs(residuals))),
                 "bias_dex": float(np.mean(residuals)),
+                "improvement_frac": round(imp_frac, 4),
+                "wilcoxon_p": round(wp, 4) if not np.isnan(wp) else np.nan,
             }
         )
     summary = pd.DataFrame(summary_rows)
@@ -301,19 +336,25 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _print_summary(predictions: pd.DataFrame, summary: pd.DataFrame) -> None:
-    sep = "=" * 60
+    sep = "=" * 75
     print(sep)
     print("  Motor de Velos SCM — LITTLE THINGS Blind Test")
     print(sep)
     print(f"  Galaxies: {len(predictions)}")
     print()
-    print(f"  {'Model':<10} {'N':>4} {'RMSE (dex)':>12} {'MAE (dex)':>11} {'Bias (dex)':>12}")
-    print("  " + "-" * 53)
+    print(
+        f"  {'Model':<10} {'N':>4} {'RMSE (dex)':>12} {'MAE (dex)':>11} "
+        f"{'Bias (dex)':>12} {'Impr.frac':>10} {'Wilcoxon p':>11}"
+    )
+    print("  " + "-" * 68)
     for _, row in summary.iterrows():
+        wp = row["wilcoxon_p"]
+        wp_s = f"{wp:.4f}" if not pd.isna(wp) else "  N/A"
         print(
             f"  {row['model']:<10} {int(row['N']):>4} "
             f"{row['RMSE_dex']:>12.4f} {row['MAE_dex']:>11.4f} "
-            f"{row['bias_dex']:>12.4f}"
+            f"{row['bias_dex']:>12.4f} {row['improvement_frac']:>10.4f} "
+            f"{wp_s:>11}"
         )
     print(sep)
 
