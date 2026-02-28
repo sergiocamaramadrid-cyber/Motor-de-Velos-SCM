@@ -89,7 +89,7 @@ class TestPhysicalRanges:
         )
 
     def test_log_gbar_range(self, df):
-        """log10(g_bar/m·s⁻²) expected in [-13.5, -10.0] for dwarf dwarfs."""
+        """log10(g_bar/m·s⁻²) expected in [-13.5, -10.0] for dwarf galaxies."""
         assert df["log_gbar"].between(-13.5, -10.0).all(), (
             f"log_gbar out of [-13.5, -10.0]: {df['log_gbar'].describe()}"
         )
