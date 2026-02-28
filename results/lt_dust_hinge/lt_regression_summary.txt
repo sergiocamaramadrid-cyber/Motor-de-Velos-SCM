@@ -1,35 +1,33 @@
 OLS: T_dust ~ logM + logZ + F3
-N = 4
-R-squared = 1.0000
+N = 26
+R-squared = 0.7210
 
                             OLS Regression Results                            
 ==============================================================================
-Dep. Variable:                 T_dust   R-squared:                       1.000
-Model:                            OLS   Adj. R-squared:                    nan
-Method:                 Least Squares   F-statistic:                       nan
-Date:                Sat, 28 Feb 2026   Prob (F-statistic):                nan
-Time:                        16:36:12   Log-Likelihood:                 114.07
-No. Observations:                   4   AIC:                            -220.1
-Df Residuals:                       0   BIC:                            -222.6
+Dep. Variable:                 T_dust   R-squared:                       0.721
+Model:                            OLS   Adj. R-squared:                  0.683
+Method:                 Least Squares   F-statistic:                     18.95
+Date:                Sat, 28 Feb 2026   Prob (F-statistic):           2.66e-06
+Time:                        23:10:48   Log-Likelihood:                -52.766
+No. Observations:                  26   AIC:                             113.5
+Df Residuals:                      22   BIC:                             118.6
 Df Model:                           3                                         
 Covariance Type:            nonrobust                                         
 ==============================================================================
                  coef    std err          t      P>|t|      [0.025      0.975]
 ------------------------------------------------------------------------------
-const        -21.5102        inf         -0        nan         nan         nan
-logM          10.8655        inf          0        nan         nan         nan
-logZ          -5.1474        inf         -0        nan         nan         nan
-F3             7.5768        inf          0        nan         nan         nan
+const        -81.5623     20.562     -3.967      0.001    -124.205     -38.919
+logM          -0.1736      1.741     -0.100      0.921      -3.784       3.437
+logZ          13.3420      3.637      3.668      0.001       5.799      20.885
+F3            26.1959     35.494      0.738      0.468     -47.414      99.806
 ==============================================================================
-Omnibus:                          nan   Durbin-Watson:                   0.011
-Prob(Omnibus):                    nan   Jarque-Bera (JB):                0.489
-Skew:                           0.314   Prob(JB):                        0.783
-Kurtosis:                       1.407   Cond. No.                     1.67e+03
+Omnibus:                       25.287   Durbin-Watson:                   1.893
+Prob(Omnibus):                  0.000   Jarque-Bera (JB):               46.903
+Skew:                           1.943   Prob(JB):                     6.53e-11
+Kurtosis:                       8.309   Cond. No.                     1.12e+03
 ==============================================================================
 
 Notes:
 [1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
-[2] The condition number is large, 1.67e+03. This might indicate that there are
+[2] The condition number is large, 1.12e+03. This might indicate that there are
 strong multicollinearity or other numerical problems.
-
-WARNING: N<8 -> do not interpret p-values as evidence.

@@ -250,8 +250,13 @@ def main():
     pub_dir = Path("results/lt_dust_hinge")
     pub_dir.mkdir(parents=True, exist_ok=True)
 
-    # smoke test list (replace with N=26 later)
-    galaxies = ["DDO210", "DDO69", "DDO75", "DDO70"]
+    # Full LITTLE THINGS sample (Oh et al. 2015, N=26)
+    galaxies = [
+        "CVnIdwA", "DDO43", "DDO46", "DDO47", "DDO50", "DDO52", "DDO53",
+        "DDO63", "DDO69", "DDO70", "DDO71", "DDO75", "DDO87", "DDO101",
+        "DDO126", "DDO133", "DDO154", "DDO168", "DDO210", "DDO216",
+        "F564-V3", "Haro29", "IC1613", "NGC1569", "NGC2366", "UGC8508",
+    ]
 
     f3: dict[str, float] = {}
     lines = []
