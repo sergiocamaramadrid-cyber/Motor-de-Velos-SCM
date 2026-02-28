@@ -246,6 +246,10 @@ def main():
     out_dir.mkdir(parents=True, exist_ok=True)
     log_path = out_dir / "run_log.txt"
 
+    # publishable results go here (tracked in git)
+    pub_dir = Path("results/lt_dust_hinge")
+    pub_dir.mkdir(parents=True, exist_ok=True)
+
     # smoke test list (replace with N=26 later)
     galaxies = ["DDO210", "DDO69", "DDO75", "DDO70"]
 
@@ -265,13 +269,26 @@ def main():
     df = build_master_table(galaxies, f3)
     df_out = out_dir / "lt_dust_hinge.csv"
     df.to_csv(df_out, index=False)
+    # publishable results table
+    df.to_csv(pub_dir / "lt_hinge_dust_results.csv", index=False)
 
     model = regress_tdust(df)
+    reg_lines = []
     if model is not None:
         lines.append("\n=== OLS: T_dust ~ logM + logZ + F3 ===\n")
         lines.append(model.summary().as_text() + "\n")
         if len(df.dropna()) < 8:
             lines.append("\nWARNING: N<8 -> do not interpret p-values as evidence.\n")
+        # build publishable regression summary
+        reg_lines.append("OLS: T_dust ~ logM + logZ + F3\n")
+        reg_lines.append(f"N = {int(model.nobs)}\n")
+        reg_lines.append(f"R-squared = {model.rsquared:.4f}\n\n")
+        reg_lines.append(model.summary().as_text() + "\n")
+        if model.nobs < 8:
+            reg_lines.append("\nWARNING: N<8 -> do not interpret p-values as evidence.\n")
+    else:
+        reg_lines.append("No regression results (insufficient data).\n")
+    (pub_dir / "lt_regression_summary.txt").write_text("".join(reg_lines), encoding="utf-8")
 
     pairs = matched_pairs(df)
     pairs_out = out_dir / "lt_pairs.csv"
@@ -282,6 +299,24 @@ def main():
     lines.append(f"pairs_total={len(pairs)}\n")
     lines.append(f"pairs_deltaF3_pos={npos}\n")
     lines.append(f"wilcoxon_p={pval}\n")
+
+    # publishable matched-pairs summary
+    mp_lines = []
+    mp_lines.append("Matched-pairs analysis: LITTLE THINGS hinge vs dust temperature\n\n")
+    mp_lines.append(f"n_pairs = {len(pairs)}\n")
+    if not pairs.empty:
+        median_delta_T = float(np.median(pairs["delta_T"]))
+        median_delta_F3 = float(np.median(pairs["delta_F3"]))
+        mp_lines.append(f"median_delta_T = {median_delta_T:.4f}\n")
+        mp_lines.append(f"median_delta_F3 = {median_delta_F3:.6f}\n")
+    mp_lines.append(f"pairs_deltaF3_pos = {npos}\n")
+    mp_lines.append(f"wilcoxon_p = {pval}\n")
+    if npos is not None and npos < 3:
+        mp_lines.append("\nWARNING: N<3 positive pairs -> Wilcoxon p not computed.\n")
+    if not pairs.empty:
+        mp_lines.append("\nPairs table:\n")
+        mp_lines.append(pairs.to_string(index=False) + "\n")
+    (pub_dir / "lt_matched_pairs.txt").write_text("".join(mp_lines), encoding="utf-8")
 
     # Plot
     fig_path = out_dir / "fig_f3_vs_tdust.png"
@@ -302,6 +337,9 @@ def main():
     print(f"[OK] wrote: {pairs_out}")
     print(f"[OK] wrote: {fig_path}")
     print(f"[OK] wrote: {log_path}")
+    print(f"[OK] wrote: {pub_dir / 'lt_hinge_dust_results.csv'}")
+    print(f"[OK] wrote: {pub_dir / 'lt_regression_summary.txt'}")
+    print(f"[OK] wrote: {pub_dir / 'lt_matched_pairs.txt'}")
 
 
 if __name__ == "__main__":

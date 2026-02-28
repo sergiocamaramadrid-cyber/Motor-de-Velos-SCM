@@ -1,0 +1,35 @@
+OLS: T_dust ~ logM + logZ + F3
+N = 4
+R-squared = 1.0000
+
+                            OLS Regression Results                            
+==============================================================================
+Dep. Variable:                 T_dust   R-squared:                       1.000
+Model:                            OLS   Adj. R-squared:                    nan
+Method:                 Least Squares   F-statistic:                       nan
+Date:                Sat, 28 Feb 2026   Prob (F-statistic):                nan
+Time:                        16:36:12   Log-Likelihood:                 114.07
+No. Observations:                   4   AIC:                            -220.1
+Df Residuals:                       0   BIC:                            -222.6
+Df Model:                           3                                         
+Covariance Type:            nonrobust                                         
+==============================================================================
+                 coef    std err          t      P>|t|      [0.025      0.975]
+------------------------------------------------------------------------------
+const        -21.5102        inf         -0        nan         nan         nan
+logM          10.8655        inf          0        nan         nan         nan
+logZ          -5.1474        inf         -0        nan         nan         nan
+F3             7.5768        inf          0        nan         nan         nan
+==============================================================================
+Omnibus:                          nan   Durbin-Watson:                   0.011
+Prob(Omnibus):                    nan   Jarque-Bera (JB):                0.489
+Skew:                           0.314   Prob(JB):                        0.783
+Kurtosis:                       1.407   Cond. No.                     1.67e+03
+==============================================================================
+
+Notes:
+[1] Standard Errors assume that the covariance matrix of the errors is correctly specified.
+[2] The condition number is large, 1.67e+03. This might indicate that there are
+strong multicollinearity or other numerical problems.
+
+WARNING: N<8 -> do not interpret p-values as evidence.
