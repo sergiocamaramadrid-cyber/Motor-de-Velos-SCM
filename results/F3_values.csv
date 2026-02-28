@@ -1,5 +1,5 @@
 galaxy,F3,F3_err,R2,n_all,n_used,rmin_used_kpc,rmax_kpc,status,note,file
-DDO69,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO69_rotmod.dat
-DDO70,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO70_rotmod.dat
-DDO75,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO75_rotmod.dat
-DDO210,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO210_rotmod.dat
+DDO69,0.24519196201424043,0.006852348173471921,0.9976623943795885,15,5,1.01,1.38,ok,ok,data/SPARC/Rotmod/DDO69_rotmod.dat
+DDO70,0.17954817258778527,0.005210690092794337,0.9974796907904647,18,5,2.0,2.82,ok,ok,data/SPARC/Rotmod/DDO70_rotmod.dat
+DDO75,0.18027643230024498,0.004654609043886331,0.9980040848157766,19,5,1.86,2.52,ok,ok,data/SPARC/Rotmod/DDO75_rotmod.dat
+DDO210,0.24378242666278427,0.006442637380834799,0.9979090925065961,15,5,0.46,0.62,ok,ok,data/SPARC/Rotmod/DDO210_rotmod.dat
