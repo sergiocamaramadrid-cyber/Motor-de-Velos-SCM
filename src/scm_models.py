@@ -11,6 +11,7 @@ where V_velos represents the contribution from the universal veil pressure field
 """
 
 import numpy as np
+from scipy.stats import linregress
 
 # 1 kiloparsec in metres (IAU 2012)
 KPC_TO_M = 3.085677581e16
@@ -193,3 +194,85 @@ def baryonic_tully_fisher(v_flat, a0=1.2e-10, G=4.302e-3):
     # G in (km/s)² kpc / M_sun → 4.302e-3 * 1e-3 kpc / M_sun
     G_kpc = G * 1e-3  # (km/s)² kpc / M_sun
     return v_flat ** 4 / (G_kpc * a0_kms2_kpc)
+
+
+def compute_f3_scm(r, v_obs, r_max_frac=0.7):
+    """Compute the F3_SCM observable from observed rotation-curve data.
+
+    The SCM F3 term is defined as the logarithmic slope of the observed
+    rotation velocity in the outer region of a galaxy::
+
+        F_{3,SCM} = d(log V_obs) / d(log r)  |_{r >= r_max_frac * R_max}
+
+    This is a **direct, model-independent observable**: it can be measured
+    straight from rotation-curve data without invoking any mass model or
+    interpolation function.
+
+    Parameters
+    ----------
+    r : array_like
+        Galactocentric radii (kpc).  Must contain at least two positive values.
+    v_obs : array_like
+        Observed rotation velocities (km/s).  Must be positive where used.
+    r_max_frac : float
+        Fraction of the maximum radius above which the slope is evaluated.
+        Default 0.7 means r >= 0.7 * R_max (outermost 30 % of the profile).
+
+    Returns
+    -------
+    dict with keys:
+
+    f3_scm : float
+        The logarithmic slope d(log V_obs)/d(log r) in the outer region.
+        ``nan`` if fewer than 2 valid outer points are available.
+    n_outer : int
+        Number of data points used for the slope fit.
+    r_min_outer : float
+        Smallest radius included in the outer region (kpc), or ``nan``.
+    r_max : float
+        Outermost valid radius R_max (kpc), or ``nan`` if no valid points.
+
+    Notes
+    -----
+    * A flat rotation curve gives F3_SCM ≈ 0.
+    * A rising outer profile gives F3_SCM > 0.
+    * A falling outer profile gives F3_SCM < 0.
+    * The slope is estimated via ordinary least-squares on log(r)–log(V_obs).
+    """
+    r = np.asarray(r, dtype=float)
+    v_obs = np.asarray(v_obs, dtype=float)
+
+    valid = (r > 0) & (v_obs > 0)
+    r_v = r[valid]
+    v_v = v_obs[valid]
+
+    if len(r_v) < 2:
+        return {
+            "f3_scm": float("nan"),
+            "n_outer": 0,
+            "r_min_outer": float("nan"),
+            "r_max": float("nan"),
+        }
+
+    r_max = float(r_v.max())
+    outer_mask = r_v >= r_max_frac * r_max
+    n_outer = int(outer_mask.sum())
+
+    if n_outer < 2:
+        return {
+            "f3_scm": float("nan"),
+            "n_outer": n_outer,
+            "r_min_outer": float("nan"),
+            "r_max": r_max,
+        }
+
+    log_r = np.log(r_v[outer_mask])
+    log_v = np.log(v_v[outer_mask])
+    slope, _, _, _, _ = linregress(log_r, log_v)
+
+    return {
+        "f3_scm": float(slope),
+        "n_outer": n_outer,
+        "r_min_outer": float(r_v[outer_mask].min()),
+        "r_max": r_max,
+    }
