@@ -64,6 +64,36 @@ class TestComputeGbarFromVbar:
         v = np.full(50, 80.0)
         assert np.all(compute_gbar_from_vbar(r, v) >= 0)
 
+    def test_warns_on_large_radius(self):
+        """r_kpc > 5000 should trigger a UserWarning."""
+        r = np.array([6000.0])
+        v = np.array([100.0])
+        with pytest.warns(UserWarning, match="r_kpc"):
+            compute_gbar_from_vbar(r, v)
+
+    def test_warns_on_negative_radius(self):
+        """Negative r_kpc should trigger a UserWarning."""
+        r = np.array([-1.0, 5.0])
+        v = np.array([100.0, 100.0])
+        with pytest.warns(UserWarning, match="r_kpc"):
+            compute_gbar_from_vbar(r, v)
+
+    def test_warns_on_large_velocity(self):
+        """vbar_kms > 2000 should trigger a UserWarning."""
+        r = np.array([5.0])
+        v = np.array([3000.0])
+        with pytest.warns(UserWarning, match="vbar_kms"):
+            compute_gbar_from_vbar(r, v)
+
+    def test_no_warn_for_normal_inputs(self):
+        """Normal galaxy values must NOT trigger any warning."""
+        r = np.linspace(0.5, 30.0, 20)
+        v = np.full(20, 150.0)
+        import warnings
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            compute_gbar_from_vbar(r, v)  # must not raise
+
 
 # ---------------------------------------------------------------------------
 # compute_hinge
@@ -308,3 +338,78 @@ class TestRegressionTest:
         df["morph_bin"] = ["late" if i % 2 == 0 else "early" for i in range(len(df))]
         output = regression_test(df, "F1_med_abs_dH_dr_ext")
         assert isinstance(output, str)
+
+
+# ---------------------------------------------------------------------------
+# main() CLI integration — end-to-end smoke test against sample data
+# ---------------------------------------------------------------------------
+
+class TestMainCLI:
+    def test_sample_data_end_to_end(self, tmp_path):
+        """main() must run without error on the bundled sample data and
+        produce all expected output files."""
+        from pathlib import Path
+
+        sample_profiles = (
+            Path(__file__).parent.parent / "data" / "hinge_sfr" / "profiles.csv"
+        )
+        sample_gal = (
+            Path(__file__).parent.parent / "data" / "hinge_sfr" / "galaxy_table.csv"
+        )
+        if not sample_profiles.exists() or not sample_gal.exists():
+            pytest.skip("data/hinge_sfr/ sample files not present")
+
+        from hinge_sfr_test import main as hinge_main
+
+        out = str(tmp_path / "hinge_out")
+        hinge_main([
+            "--profiles", str(sample_profiles),
+            "--galaxy-table", str(sample_gal),
+            "--out", out,
+        ])
+
+        expected = [
+            "hinge_features.csv",
+            "regression_F1_med_abs_dH_dr_ext.txt",
+            "regression_F2_IQR_H_ext.txt",
+            "regression_F3_mean_H_ext.txt",
+            "permutation_F1_med_abs_dH_dr_ext.txt",
+            "permutation_F2_IQR_H_ext.txt",
+            "permutation_F3_mean_H_ext.txt",
+            "matched_pairs_F1_med_abs_dH_dr_ext.txt",
+            "matched_pairs_F2_IQR_H_ext.txt",
+            "matched_pairs_F3_mean_H_ext.txt",
+        ]
+        for fname in expected:
+            assert (Path(out) / fname).exists(), f"Missing output: {fname}"
+
+    def test_hinge_features_has_expected_columns(self, tmp_path):
+        """hinge_features.csv must contain all proxy columns."""
+        from pathlib import Path
+
+        sample_profiles = (
+            Path(__file__).parent.parent / "data" / "hinge_sfr" / "profiles.csv"
+        )
+        sample_gal = (
+            Path(__file__).parent.parent / "data" / "hinge_sfr" / "galaxy_table.csv"
+        )
+        if not sample_profiles.exists() or not sample_gal.exists():
+            pytest.skip("data/hinge_sfr/ sample files not present")
+
+        from hinge_sfr_test import main as hinge_main
+
+        out = str(tmp_path / "hinge_cols")
+        hinge_main([
+            "--profiles", str(sample_profiles),
+            "--galaxy-table", str(sample_gal),
+            "--out", out,
+        ])
+
+        feats = pd.read_csv(Path(out) / "hinge_features.csv")
+        for col in (
+            "galaxy", "rmax_kpc_used",
+            "F1_med_abs_dH_dr_ext", "F2_IQR_H_ext", "F3_mean_H_ext",
+            "H_ext_npts",
+        ):
+            assert col in feats.columns, f"Missing column in hinge_features: {col}"
+        assert len(feats) == 30, f"Expected 30 galaxy rows, got {len(feats)}"

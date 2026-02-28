@@ -46,7 +46,9 @@ permutation_<feature>.txt
 matched_pairs_<feature>.txt
 """
 
+import argparse
 import os
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
@@ -80,7 +82,61 @@ def compute_gbar_from_vbar(r_kpc: np.ndarray, vbar_kms: np.ndarray) -> np.ndarra
     """Convert (r_kpc, v_bar_kms) to baryonic centripetal acceleration in m/s².
 
     g_bar = v_bar² / r  (centripetal relation)
+
+    Parameters
+    ----------
+    r_kpc : array_like
+        Galactocentric radii in **kiloparsecs** (kpc).  Typical galaxy radii
+        span 0.1–100 kpc; values far outside this range trigger a
+        unit-mismatch warning.
+    vbar_kms : array_like
+        Baryonic rotation velocity in **km/s**.  Typical values span
+        10–500 km/s; values far outside this range trigger a unit-mismatch
+        warning.
+
+    Returns
+    -------
+    ndarray
+        Baryonic centripetal acceleration in m/s² at each radial point.
+
+    Warns
+    -----
+    UserWarning
+        If r_kpc contains values > 5000 kpc (possible pc or m input),
+        negative values, or if vbar_kms contains values > 2000 km/s
+        (possible m/s input).
     """
+    r_kpc = np.asarray(r_kpc, dtype=float)
+    vbar_kms = np.asarray(vbar_kms, dtype=float)
+
+    # --- Unit-sanity checks (non-fatal: warn rather than raise) ---
+    r_finite = r_kpc[np.isfinite(r_kpc)]
+    v_finite = vbar_kms[np.isfinite(vbar_kms)]
+
+    if r_finite.size and r_finite.max() > 5000:
+        warnings.warn(
+            f"r_kpc contains values up to {r_finite.max():.4g} kpc, which is "
+            "unusually large for a galaxy rotation-curve radius.  Check that "
+            "radii are in kpc, not pc or m.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if r_finite.size and (r_finite < 0).any():
+        warnings.warn(
+            "r_kpc contains negative values; galactocentric radii must be "
+            "non-negative.",
+            UserWarning,
+            stacklevel=2,
+        )
+    if v_finite.size and v_finite.max() > 2000:
+        warnings.warn(
+            f"vbar_kms contains values up to {v_finite.max():.4g} km/s, which "
+            "is unusually large for a baryonic rotation velocity.  Check that "
+            "velocities are in km/s, not m/s.",
+            UserWarning,
+            stacklevel=2,
+        )
+
     r_m = r_kpc * _KPC_TO_M
     v_m_s = vbar_kms * 1e3
     return (v_m_s ** 2) / np.maximum(r_m, 1e-30)
@@ -354,25 +410,59 @@ def matched_pairs_wilcoxon(
     }
 
 
-def main() -> None:
+def main(argv=None) -> None:
     """Run the full hinge-friction vs SFR test pipeline.
 
-    Reads ``profiles.csv`` and ``galaxy_table.csv`` from the current
-    working directory.  Writes all outputs to ``results/hinge_sfr/``.
+    By default reads ``profiles.csv`` and ``galaxy_table.csv`` from the
+    current working directory.  Use ``--profiles`` / ``--galaxy-table`` to
+    point to files in any location (e.g. ``data/hinge_sfr/``).
 
-    Customise *HingeParams* below to match your SCM best-fit values.
+    Customise ``--log-g0`` and ``--d`` to match your SCM best-fit values.
     """
-    outdir = "results/hinge_sfr"
+    parser = argparse.ArgumentParser(
+        description="Hinge-friction vs SFR test (F1/F2/F3 proxies)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--profiles",
+        default="profiles.csv",
+        help="Per-radial-point CSV (columns: galaxy, r_kpc, vbar_kms or "
+             "gbar_m_s2, rmax_kpc [optional])",
+    )
+    parser.add_argument(
+        "--galaxy-table",
+        dest="galaxy_table",
+        default="galaxy_table.csv",
+        help="Per-galaxy CSV (columns: galaxy, log_mbar, log_sfr or sfr, "
+             "morph_bin [optional])",
+    )
+    parser.add_argument(
+        "--out",
+        default="results/hinge_sfr",
+        help="Output directory",
+    )
+    parser.add_argument(
+        "--log-g0",
+        dest="log_g0",
+        type=float,
+        default=np.log10(3.27e-11),
+        help="log10(g0) in SI m/s² — use your SCM best-fit value",
+    )
+    parser.add_argument(
+        "--d",
+        type=float,
+        default=1.0,
+        help="Hinge amplitude d — use your SCM best-fit value",
+    )
+    args = parser.parse_args(argv)
+
+    outdir = args.out
     ensure_dir(outdir)
 
-    # ---- Set SCM best-fit hinge parameters here ----
-    hp = HingeParams(
-        log_g0=np.log10(3.27e-11),  # replace with your fitted log10(g0) in SI
-        d=1.0,                       # replace with your fitted hinge amplitude
-    )
+    hp = HingeParams(log_g0=args.log_g0, d=args.d)
 
-    profiles = pd.read_csv("profiles.csv")
-    gal = pd.read_csv("galaxy_table.csv")
+    profiles = pd.read_csv(args.profiles)
+    gal = pd.read_csv(args.galaxy_table)
 
     # Compute friction features per galaxy
     feats = []
