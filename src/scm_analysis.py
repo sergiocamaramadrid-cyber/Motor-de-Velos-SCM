@@ -271,6 +271,9 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     from .sensitivity import run_sensitivity  # noqa: PLC0415
     run_sensitivity(data_dir, out_dir, verbose=verbose)
 
+    # --- Write audit artefacts (VIF, stability, quality status, features) ---
+    _write_audit_artifacts(compare_df, out_dir / "audit", a0=a0)
+
     # --- Write executive summary ---
     _write_executive_summary(results_df, out_dir / "executive_summary.txt")
 
@@ -391,6 +394,132 @@ def _write_top10_latex(df, path):
 # CLI
 # ---------------------------------------------------------------------------
 
+def _write_audit_artifacts(compare_df, audit_dir, a0=_A0_DEFAULT):
+    """Write audit artefacts: VIF table, stability metrics, quality status, features.
+
+    Parameters
+    ----------
+    compare_df : pd.DataFrame
+        Per-radial-point table with at least ``log_g_bar`` and ``galaxy`` columns
+        (output of :func:`run_pipeline`).
+    audit_dir : str or Path
+        Destination directory (created if necessary).
+    a0 : float
+        Characteristic acceleration (m/s²) used as the hinge threshold.
+    """
+    audit_dir = Path(audit_dir)
+    audit_dir.mkdir(parents=True, exist_ok=True)
+
+    log_a0 = np.log10(a0)
+
+    # ------------------------------------------------------------------
+    # audit_features.csv — summary statistics for each modelling feature
+    # ------------------------------------------------------------------
+    feature_rows = []
+    for col, label in [("log_g_bar", "log_g_bar"), ("log_g_obs", "log_g_obs")]:
+        if col in compare_df.columns and len(compare_df):
+            vals = compare_df[col].values
+            feature_rows.append({
+                "feature": label,
+                "n_points": len(vals),
+                "mean": round(float(vals.mean()), 6),
+                "std": round(float(vals.std()), 6),
+                "min": round(float(vals.min()), 6),
+                "max": round(float(vals.max()), 6),
+            })
+    if "log_g_bar" in compare_df.columns and len(compare_df):
+        hv = np.maximum(0.0, log_a0 - compare_df["log_g_bar"].values)
+        feature_rows.append({
+            "feature": "hinge",
+            "n_points": len(hv),
+            "mean": round(float(hv.mean()), 6),
+            "std": round(float(hv.std()), 6),
+            "min": round(float(hv.min()), 6),
+            "max": round(float(hv.max()), 6),
+        })
+    pd.DataFrame(feature_rows).to_csv(audit_dir / "audit_features.csv", index=False)
+
+    # ------------------------------------------------------------------
+    # sparc_global.csv — full per-radial-point comparison table; consumed
+    # by scripts/audit_scm.py --input for the OOS residual diagnostic.
+    # ------------------------------------------------------------------
+    compare_df.to_csv(audit_dir / "sparc_global.csv", index=False)
+
+    # ------------------------------------------------------------------
+    # vif_table.csv — VIF for each predictor in the hinge regression
+    # Design matrix: [intercept, log_g_bar, hinge=max(0, log_a0-log_g_bar)]
+    # ------------------------------------------------------------------
+    vif_rows = []
+    if "log_g_bar" in compare_df.columns and len(compare_df) >= 3:
+        log_gbar = compare_df["log_g_bar"].values
+        hinge = np.maximum(0.0, log_a0 - log_gbar)
+        X = np.column_stack([np.ones(len(log_gbar)), log_gbar, hinge])
+        for j, fname in enumerate(("intercept", "log_g_bar", "hinge")):
+            y_j = X[:, j]
+            rest = np.delete(X, j, axis=1)
+            ss_tot = float(np.sum((y_j - y_j.mean()) ** 2))
+            if ss_tot < 1e-15:
+                vif = float("inf")
+            else:
+                coef = np.linalg.lstsq(rest, y_j, rcond=None)[0]
+                ss_res = float(np.sum((y_j - rest @ coef) ** 2))
+                r2 = min(max(1.0 - ss_res / ss_tot, 0.0), 1.0 - 1e-10)
+                vif = 1.0 / (1.0 - r2)
+            vif_rows.append({"feature": fname, "vif": round(float(vif), 4)})
+    pd.DataFrame(vif_rows).to_csv(audit_dir / "vif_table.csv", index=False)
+
+    # ------------------------------------------------------------------
+    # stability_metrics.csv — condition number and key diagnostics
+    # ------------------------------------------------------------------
+    hinge_vif = next(
+        (r["vif"] for r in vif_rows if r["feature"] == "hinge"), float("nan")
+    )
+    kappa = float("nan")
+    if "log_g_bar" in compare_df.columns and len(compare_df) >= 3:
+        log_gbar = compare_df["log_g_bar"].values
+        hinge = np.maximum(0.0, log_a0 - log_gbar)
+        Xf = np.column_stack([log_gbar, hinge])
+        std = Xf.std(axis=0)
+        std = np.where(std < 1e-15, 1.0, std)
+        Xn = (Xf - Xf.mean(axis=0)) / std
+        sv = np.linalg.svd(Xn, compute_uv=False)
+        kappa = round(float(sv[0] / sv[-1]) if sv[-1] > 0 else float("inf"), 4)
+
+    n_gal = int(compare_df["galaxy"].nunique()) if "galaxy" in compare_df.columns else 0
+    stability_rows = [
+        {"metric": "kappa", "value": kappa},
+        {"metric": "hinge_vif", "value": round(float(hinge_vif), 4)},
+        {"metric": "n_points", "value": len(compare_df)},
+        {"metric": "n_galaxies", "value": n_gal},
+    ]
+    pd.DataFrame(stability_rows).to_csv(audit_dir / "stability_metrics.csv", index=False)
+
+    # ------------------------------------------------------------------
+    # quality_status.txt — PASS / WARNING verdict
+    # ------------------------------------------------------------------
+    hinge_vif_val = float(hinge_vif) if not np.isnan(float(hinge_vif)) else float("nan")
+    kappa_val = float(kappa) if not np.isnan(float(kappa)) else float("nan")
+    if (
+        not np.isnan(hinge_vif_val)
+        and not np.isnan(kappa_val)
+        and hinge_vif_val < 5.0
+        and kappa_val < 30.0
+    ):
+        status = "PASS"
+    else:
+        status = "WARNING"
+    quality_lines = [
+        f"quality_status: {status}",
+        f"hinge_vif: {hinge_vif_val:.4f}",
+        f"kappa: {kappa_val:.4f}",
+        "threshold_hinge_vif: 5.0",
+        "threshold_kappa: 30.0",
+    ]
+    (audit_dir / "quality_status.txt").write_text(
+        "\n".join(quality_lines) + "\n", encoding="utf-8"
+    )
+
+
 def _parse_args(argv=None):
     parser = argparse.ArgumentParser(
         description="Motor de Velos SCM analysis pipeline"
@@ -398,8 +527,13 @@ def _parse_args(argv=None):
     parser.add_argument(
         "--data-dir", required=True, help="Directory containing SPARC data"
     )
-    parser.add_argument(
-        "--out", default="results/", help="Output directory (default: results/)"
+    # Accept both --out (legacy) and --outdir (canonical) for output directory.
+    out_group = parser.add_mutually_exclusive_group()
+    out_group.add_argument(
+        "--out", default=None, help="Output directory (falls back to results/ if neither --out nor --outdir is given)"
+    )
+    out_group.add_argument(
+        "--outdir", default=None, help="Output directory (alias for --out; preferred canonical form)"
     )
     parser.add_argument(
         "--a0", type=float, default=1.2e-10,
@@ -413,9 +547,10 @@ def _parse_args(argv=None):
 
 def main(argv=None):
     args = _parse_args(argv)
+    out_dir = args.outdir if args.outdir is not None else (args.out or "results/")
     run_pipeline(
         data_dir=args.data_dir,
-        out_dir=args.out,
+        out_dir=out_dir,
         a0=args.a0,
         verbose=not args.quiet,
     )

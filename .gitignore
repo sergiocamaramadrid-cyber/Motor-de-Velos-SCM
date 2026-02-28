@@ -33,3 +33,7 @@ results/littlethings_dust/
 
 # mypy
 .mypy_cache/
+
+# Generated audit artifacts — reproducible via pipeline, must not be versioned
+results/audit_v0.6/
+results/final_audit/
