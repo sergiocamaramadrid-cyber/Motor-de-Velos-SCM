@@ -21,6 +21,9 @@ env/
 data/SPARC/raw/
 data/SPARC/processed/
 
+# Generated analysis outputs (created by running analysis scripts)
+results/littlethings_dust/
+
 # Editor / OS
 .DS_Store
 *.swp
