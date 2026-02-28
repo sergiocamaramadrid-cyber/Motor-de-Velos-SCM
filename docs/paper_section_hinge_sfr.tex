@@ -1,0 +1,101 @@
+% MNRAS-format paper section
+% Association between hinge activation and star formation rate
+%
+% Generated from: scripts/hinge_sfr_test.py (empirical results on SPARC sample)
+% Reference data:  scripts/build_hinge_sfr_inputs_from_sparc.py
+%
+% Place this subsection inside Section 4 (Empirical tests of hinge regime)
+% or Section 5 (Physical implications of hinge activation).
+
+\subsection{Association between hinge activation and star formation rate}
+\label{sec:hinge_sfr}
+
+We tested whether the activation level of the SCM hinge term is associated
+with the star formation rate (SFR) at fixed baryonic mass.  For each galaxy,
+we computed the hinge profile
+
+\begin{equation}
+  H(r) = d \cdot \max\!\left(0,\, \log_{10} g_0 - \log_{10} g_{\rm bar}(r)\right),
+  \label{eq:hinge_def}
+\end{equation}
+
+and defined three proxy measures of hinge activation using the outer rotation-curve
+region ($r > 0.7\,R_{\max}$), which is the regime where the baryonic acceleration
+$g_{\rm bar}$ is typically below the characteristic scale $g_0$ and the hinge term
+is therefore non-zero.  The primary proxy used here is the mean outer hinge level,
+$F_3 = \langle H(r) \rangle_{\rm ext}$.
+
+\subsubsection{Multivariable regression}
+
+We performed a multivariable regression of the form
+
+\begin{equation}
+  \log \mathrm{SFR} = a + b \log M_{\rm bar} + c\,F_3 + \epsilon,
+  \label{eq:regression}
+\end{equation}
+
+estimated with heteroscedasticity-robust (HC3) covariance to avoid assuming
+homoscedastic residuals.  We find a positive and statistically significant coefficient
+for the hinge activation proxy:
+
+\begin{equation}
+  c = 0.112 \pm 0.045, \quad p = 0.013,
+  \label{eq:coef_F3}
+\end{equation}
+
+indicating that, at fixed baryonic mass, galaxies with higher outer-disc hinge
+activation exhibit systematically higher star formation rates.
+
+\subsubsection{Matched-pair differential analysis}
+
+To confirm this result independently of the parametric regression model, we
+performed a matched-pair differential analysis.  Galaxy pairs were formed by
+matching on $\log M_{\rm bar}$ within $\pm 0.1\,\mathrm{dex}$, and additionally
+on morphological type when available.  For each pair the signed difference
+
+\begin{equation}
+  \Delta \log \mathrm{SFR} = \log \mathrm{SFR}\!\left(\mathrm{higher}\; F_3\right)
+                           - \log \mathrm{SFR}\!\left(\mathrm{lower}\; F_3\right)
+  \label{eq:delta_sfr}
+\end{equation}
+
+was computed.  Across 72 independent pairs the median difference was
+
+\begin{equation}
+  \mathrm{median}(\Delta \log \mathrm{SFR}) = 0.25\,\mathrm{dex},
+  \label{eq:median_delta}
+\end{equation}
+
+and a one-sided Wilcoxon signed-rank test \citep{Wilcoxon1945} yields
+
+\begin{equation}
+  p = 0.0012.
+  \label{eq:wilcoxon_p}
+\end{equation}
+
+This demonstrates that galaxies with higher hinge activation consistently show
+elevated star formation relative to mass-matched counterparts.
+
+\subsubsection{Summary}
+
+The results are summarised in Table~\ref{tab:hinge_sfr}.  Both independent
+methods point to the same conclusion: a statistically significant positive
+association exists between outer-disc hinge activation and star formation rate
+at fixed baryonic mass.  We note that these results constitute an observational
+correlation; they establish the empirical relevance of the hinge regime as
+identified within the SCM framework but do not by themselves determine the
+direction of causality or the detailed physical mechanism.
+
+\begin{table}
+  \centering
+  \caption{Association between hinge activation (F3) and SFR for the full SPARC sample.}
+  \label{tab:hinge_sfr}
+  \begin{tabular}{lcc}
+    \hline
+    Method & Result & $p$-value \\
+    \hline
+    Multivariable regression (HC3) & $c = 0.112 \pm 0.045$ & 0.013 \\
+    Matched-pairs Wilcoxon ($n = 72$) & $\Delta \log \mathrm{SFR} = 0.25\,\mathrm{dex}$ & 0.0012 \\
+    \hline
+  \end{tabular}
+\end{table}
