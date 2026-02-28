@@ -121,6 +121,29 @@ python scripts/deep_slope_test.py \
   --out results/diagnostics/deep_slope_test
 ```
 
+### F3 Pilot Test (outer rotation-curve slope)
+
+F3 is the outer slope of the observed rotation curve in log-log space:
+
+```
+F3 = d log10(Vobs) / d log10(r)   for r >= 0.7 * Rmax
+```
+
+Run the pilot (requires SPARC `*_rotmod.dat` files in `data/SPARC/Rotmod/`):
+
+```bash
+python scripts/pilot_f3_test.py --sparc-dir data/SPARC/Rotmod
+```
+
+Output is written to `results/F3_values.csv` with columns:
+`galaxy`, `F3`, `F3_err`, `R2`, `n_all`, `n_used`, `rmin_used_kpc`, `rmax_kpc`, `status`, `note`, `file`.
+
+**Note:** `results/F3_values.csv` in the repository shows `fail/file_not_found` for all
+pilot galaxies (DDO69, DDO70, DDO75, DDO210) because SPARC rotmod files are not
+versioned in this repo (see Data Policy below). This is the expected and correct
+placeholder state. Run the script locally once the rotmods are present to obtain real
+F3 values.
+
 ---
 
 ## Statistical Protocol
