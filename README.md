@@ -121,6 +121,61 @@ python scripts/deep_slope_test.py \
   --out results/diagnostics/deep_slope_test
 ```
 
+### Hinge-Friction vs SFR Test
+
+Tests whether hinge-derived "friction" proxies (F1/F2/F3) predict SFR at fixed
+baryonic mass, with HC3-robust OLS, a permutation test, and a mass-matched
+Wilcoxon test.
+
+**Required input files** (see `data/hinge_sfr/README.md` for the full column
+contract):
+
+`profiles.csv` — one row per radial point:
+
+| Column | Type | Units | Description |
+|--------|------|-------|-------------|
+| `galaxy` | str | — | Galaxy identifier |
+| `r_kpc` | float | **kpc** | Galactocentric radius |
+| `vbar_kms` | float | **km/s** | Baryonic rotation velocity (or `gbar_m_s2`) |
+| `rmax_kpc` | float | kpc | Outermost radius (optional) |
+
+`galaxy_table.csv` — one row per galaxy:
+
+| Column | Type | Units | Description |
+|--------|------|-------|-------------|
+| `galaxy` | str | — | Galaxy identifier |
+| `log_mbar` | float | log10(M_sun) | log baryonic mass |
+| `log_sfr` | float | log10(M_sun/yr) | log SFR (or `sfr` in M_sun/yr) |
+| `morph_bin` | str | — | Morphology bin (optional) |
+
+Sample data with 30 representative galaxies is provided in `data/hinge_sfr/`.
+
+**To build inputs from real SPARC data** (once downloaded to `data/SPARC/`):
+
+```bash
+# Step 1 — Build profiles.csv and galaxy_table.csv from SPARC rotmod files
+python scripts/build_hinge_sfr_inputs_from_sparc.py \
+  --data-dir  data/SPARC \
+  --out-dir   data/hinge_sfr
+
+# (optional) supply real SFR measurements instead of the main-sequence proxy
+python scripts/build_hinge_sfr_inputs_from_sparc.py \
+  --data-dir  data/SPARC \
+  --out-dir   data/hinge_sfr \
+  --sfr-table external/sfr_measurements.csv
+
+# Step 2 — Run the statistical test
+python scripts/hinge_sfr_test.py \
+  --profiles data/hinge_sfr/profiles.csv \
+  --galaxy-table data/hinge_sfr/galaxy_table.csv \
+  --out results/hinge_sfr \
+  --log-g0 -9.921 \
+  --d 1.0
+```
+
+Outputs are written to `results/hinge_sfr/`: `hinge_features.csv`,
+`regression_F*.txt`, `permutation_F*.txt`, `matched_pairs_F*.txt`.
+
 ---
 
 ## Statistical Protocol
