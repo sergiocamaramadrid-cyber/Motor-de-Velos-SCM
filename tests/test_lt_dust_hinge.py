@@ -3,7 +3,7 @@ tests/test_lt_dust_hinge.py — Unit tests for src/lt/lt_dust_hinge_analysis.py.
 
 Tests cover:
   - load_lt_rotation_curve: happy path, column aliasing, error cases
-  - compute_F3_from_rc: numeric correctness, fallback to last-K points
+  - compute_F3_SCM_from_rc: numeric correctness, fallback to last-K points
   - build_master_table: safe NaN fallback when galaxy is missing
   - matched_pairs: index-safety after reset_index, used-set tracking
   - wilcoxon_test: edge cases (empty, too few positives)
@@ -19,7 +19,7 @@ from src.lt.lt_dust_hinge_analysis import (
     HingeParams,
     _ensure_columns,
     load_lt_rotation_curve,
-    compute_F3_from_rc,
+    compute_F3_SCM_from_rc,
     build_master_table,
     regress_tdust,
     matched_pairs,
@@ -140,31 +140,31 @@ class TestLoadLtRotationCurve:
 
 
 # ---------------------------------------------------------------------------
-# compute_F3_from_rc
+# compute_F3_SCM_from_rc
 # ---------------------------------------------------------------------------
 
-class TestComputeF3FromRc:
+class TestComputeF3SCMFromRc:
     def test_returns_finite_float(self):
         df = _make_rc_df()
-        result = compute_F3_from_rc(df)
+        result = compute_F3_SCM_from_rc(df)
         assert isinstance(result, float)
         assert np.isfinite(result)
 
     def test_non_negative(self):
         df = _make_rc_df()
-        assert compute_F3_from_rc(df) >= 0.0
+        assert compute_F3_SCM_from_rc(df) >= 0.0
 
     def test_custom_params(self):
         df = _make_rc_df()
         params = HingeParams(d=0.1, logg0=-10.0)
-        result = compute_F3_from_rc(df, params=params)
+        result = compute_F3_SCM_from_rc(df, params=params)
         assert np.isfinite(result)
 
-    def test_higher_velocity_lower_F3(self):
+    def test_higher_velocity_lower_F3_SCM(self):
         """Higher baryonic velocity → higher g_bar → smaller hinge term."""
         df_low = _make_rc_df(v_flat=10.0)
         df_high = _make_rc_df(v_flat=200.0)
-        assert compute_F3_from_rc(df_low) >= compute_F3_from_rc(df_high)
+        assert compute_F3_SCM_from_rc(df_low) >= compute_F3_SCM_from_rc(df_high)
 
     def test_fallback_last_k_respects_param(self):
         """Fallback uses exactly ext_last_k points when ext region is empty."""
@@ -173,8 +173,8 @@ class TestComputeF3FromRc:
         p1 = HingeParams(ext_frac=2.0, ext_last_k=1)
         p3 = HingeParams(ext_frac=2.0, ext_last_k=3)
         # Both should return a finite float (no crash)
-        assert np.isfinite(compute_F3_from_rc(df, params=p1))
-        assert np.isfinite(compute_F3_from_rc(df, params=p3))
+        assert np.isfinite(compute_F3_SCM_from_rc(df, params=p1))
+        assert np.isfinite(compute_F3_SCM_from_rc(df, params=p3))
 
 
 # ---------------------------------------------------------------------------
@@ -192,7 +192,7 @@ class TestBuildMasterTable:
             mass_file=lt_data_dir / "lt_masses.csv",
             metal_file=lt_data_dir / "lt_metals.csv",
         )
-        assert list(df.columns) == ["galaxy", "F3", "T_dust", "logM", "logZ"]
+        assert list(df.columns) == ["galaxy", "F3_SCM", "T_dust", "logM", "logZ"]
         assert len(df) == 2
 
     def test_missing_galaxy_gives_nan(self, lt_data_dir):
@@ -227,7 +227,7 @@ class TestBuildMasterTable:
 
 class TestRegressTdust:
     def test_returns_none_for_empty_df(self):
-        df = pd.DataFrame(columns=["T_dust", "logM", "logZ", "F3"])
+        df = pd.DataFrame(columns=["T_dust", "logM", "logZ", "F3_SCM"])
         assert regress_tdust(df) is None
 
     def test_returns_model_for_sufficient_data(self):
@@ -238,7 +238,7 @@ class TestRegressTdust:
             "T_dust": 20.0 + rng.normal(0, 2, n),
             "logM": 7.0 + rng.normal(0, 0.5, n),
             "logZ": 7.5 + rng.normal(0, 0.3, n),
-            "F3": 0.01 + rng.uniform(0, 0.05, n),
+            "F3_SCM": 0.01 + rng.uniform(0, 0.05, n),
         })
         model = regress_tdust(df)
         assert model is not None
@@ -256,7 +256,7 @@ class TestMatchedPairs:
             "T_dust": [18.0, 21.0, 19.0, 22.0],
             "logM": [7.2, 7.3, 7.2, 7.3],
             "logZ": [7.5, 7.6, 7.5, 7.6],
-            "F3": [0.05, 0.02, 0.03, 0.06],
+            "F3_SCM": [0.05, 0.02, 0.03, 0.06],
         })
 
     def test_returns_dataframe(self):
@@ -274,7 +274,7 @@ class TestMatchedPairs:
         df = self._make_df()
         pairs = matched_pairs(df)
         if not pairs.empty:
-            assert set(pairs.columns) >= {"gal1", "gal2", "delta_T", "delta_F3"}
+            assert set(pairs.columns) >= {"gal1", "gal2", "delta_T", "delta_F3_SCM"}
 
     def test_empty_when_no_matches(self):
         df = pd.DataFrame({
@@ -282,7 +282,7 @@ class TestMatchedPairs:
             "T_dust": [18.0, 21.0],
             "logM": [7.0, 9.0],   # far apart → no match
             "logZ": [7.5, 9.5],   # far apart → no match
-            "F3": [0.05, 0.02],
+            "F3_SCM": [0.05, 0.02],
         })
         pairs = matched_pairs(df)
         assert pairs.empty
@@ -306,7 +306,7 @@ class TestWilcoxonTest:
         assert n is None
 
     def test_too_few_positives_returns_none(self):
-        df = pd.DataFrame({"delta_F3": [0.01, 0.02], "delta_T": [1.0, -1.0]})
+        df = pd.DataFrame({"delta_F3_SCM": [0.01, 0.02], "delta_T": [1.0, -1.0]})
         p, n = wilcoxon_test(df)
         assert p is None
         assert n == 2
@@ -314,7 +314,7 @@ class TestWilcoxonTest:
     def test_sufficient_positives_returns_pvalue(self):
         rng = np.random.default_rng(42)
         df = pd.DataFrame({
-            "delta_F3": [0.01] * 6,
+            "delta_F3_SCM": [0.01] * 6,
             "delta_T": rng.normal(1.0, 0.5, 6).tolist(),
         })
         p, n = wilcoxon_test(df)

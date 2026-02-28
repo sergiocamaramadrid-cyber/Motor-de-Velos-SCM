@@ -2,7 +2,7 @@
 lt_dust_hinge_analysis.py
 
 Bridge module for SCM-Motor de Velos:
-- Compute a hinge proxy F3 from LITTLE THINGS-like rotation-curve CSVs
+- Compute a hinge proxy F3_SCM from LITTLE THINGS-like rotation-curve CSVs
 - Merge with dust temperature (T_dust) + control variables (logM, logZ)
 - Run regression + matched-pairs test
 
@@ -17,7 +17,7 @@ Inputs expected (CSV):
 Outputs:
 - results/littlethings_dust/lt_dust_hinge.csv
 - results/littlethings_dust/lt_pairs.csv
-- results/littlethings_dust/fig_f3_vs_tdust.png
+- results/littlethings_dust/fig_f3_scm_vs_tdust.png
 - results/littlethings_dust/run_log.txt
 """
 
@@ -90,14 +90,14 @@ def load_lt_rotation_curve(
 
 
 # -----------------------------
-# Compute F3 hinge proxy
+# Compute F3_SCM hinge proxy
 # -----------------------------
-def compute_F3_from_rc(
+def compute_F3_SCM_from_rc(
     df_rc: pd.DataFrame,
     params: HingeParams = HingeParams(),
 ) -> float:
     """
-    F3 = mean hinge term in external region (r > ext_frac * Rmax).
+    F3_SCM = mean hinge term in external region (r > ext_frac * Rmax).
     hinge = d * max(0, logg0 - log10(g_bar)), g_bar = Vbary^2 / r (SI)
 
     Notes:
@@ -163,7 +163,7 @@ def build_master_table(
 
     rows = []
     for g in galaxies:
-        row: dict = {"galaxy": g, "F3": f3_by_galaxy.get(g, np.nan)}
+        row: dict = {"galaxy": g, "F3_SCM": f3_by_galaxy.get(g, np.nan)}
         row["T_dust"] = dust.loc[g, "T_dust"] if g in dust.index else np.nan
         row["logM"] = mass.loc[g, "logM"] if g in mass.index else np.nan
         row["logZ"] = metal.loc[g, "logZ"] if g in metal.index else np.nan
@@ -178,11 +178,11 @@ def build_master_table(
 def regress_tdust(
     df: pd.DataFrame,
 ) -> Optional[sm.regression.linear_model.RegressionResultsWrapper]:
-    df2 = df.dropna(subset=["T_dust", "logM", "logZ", "F3"]).copy()
+    df2 = df.dropna(subset=["T_dust", "logM", "logZ", "F3_SCM"]).copy()
     if df2.empty:
         return None
 
-    X = sm.add_constant(df2[["logM", "logZ", "F3"]])
+    X = sm.add_constant(df2[["logM", "logZ", "F3_SCM"]])
     y = df2["T_dust"]
     return sm.OLS(y, X).fit()
 
@@ -192,7 +192,7 @@ def matched_pairs(
     tol_mass: float = 0.2,
     tol_metal: float = 0.1,
 ) -> pd.DataFrame:
-    df2 = df.dropna(subset=["T_dust", "logM", "logZ", "F3"]).copy().reset_index(drop=True)
+    df2 = df.dropna(subset=["T_dust", "logM", "logZ", "F3_SCM"]).copy().reset_index(drop=True)
     pairs = []
     used: set[int] = set()
 
@@ -211,15 +211,15 @@ def matched_pairs(
         if len(candidates) == 0:
             continue
 
-        # choose candidate with maximal |delta_F3| to maximize contrast
-        j = int((candidates["F3"] - row["F3"]).abs().idxmax())
+        # choose candidate with maximal |delta_F3_SCM| to maximize contrast
+        j = int((candidates["F3_SCM"] - row["F3_SCM"]).abs().idxmax())
         row2 = df2.loc[j]
 
         pairs.append({
             "gal1": row["galaxy"],
             "gal2": row2["galaxy"],
             "delta_T": float(row["T_dust"] - row2["T_dust"]),
-            "delta_F3": float(row["F3"] - row2["F3"]),
+            "delta_F3_SCM": float(row["F3_SCM"] - row2["F3_SCM"]),
         })
 
         used.add(i)
@@ -231,7 +231,7 @@ def matched_pairs(
 def wilcoxon_test(pairs_df: pd.DataFrame) -> Tuple[Optional[float], Optional[int]]:
     if pairs_df.empty:
         return None, None
-    positive = pairs_df[pairs_df["delta_F3"] > 0.0]
+    positive = pairs_df[pairs_df["delta_F3_SCM"] > 0.0]
     if len(positive) < 3:
         return None, int(len(positive))
     stat, p = wilcoxon(positive["delta_T"], alternative="greater")
@@ -260,8 +260,8 @@ def main():
     for g in galaxies:
         try:
             rc = load_lt_rotation_curve(g)
-            f3[g] = compute_F3_from_rc(rc)
-            lines.append(f"{g}: F3={f3[g]:.6f}\n")
+            f3[g] = compute_F3_SCM_from_rc(rc)
+            lines.append(f"{g}: F3_SCM={f3[g]:.6f}\n")
         except Exception as e:
             f3[g] = np.nan
             lines.append(f"{g}: ERROR {repr(e)}\n")
@@ -275,12 +275,12 @@ def main():
     model = regress_tdust(df)
     reg_lines = []
     if model is not None:
-        lines.append("\n=== OLS: T_dust ~ logM + logZ + F3 ===\n")
+        lines.append("\n=== OLS: T_dust ~ logM + logZ + F3_SCM ===\n")
         lines.append(model.summary().as_text() + "\n")
         if len(df.dropna()) < 8:
             lines.append("\nWARNING: N<8 -> do not interpret p-values as evidence.\n")
         # build publishable regression summary
-        reg_lines.append("OLS: T_dust ~ logM + logZ + F3\n")
+        reg_lines.append("OLS: T_dust ~ logM + logZ + F3_SCM\n")
         reg_lines.append(f"N = {int(model.nobs)}\n")
         reg_lines.append(f"R-squared = {model.rsquared:.4f}\n\n")
         reg_lines.append(model.summary().as_text() + "\n")
@@ -297,7 +297,7 @@ def main():
     pval, npos = wilcoxon_test(pairs)
     lines.append("\n=== Matched pairs ===\n")
     lines.append(f"pairs_total={len(pairs)}\n")
-    lines.append(f"pairs_deltaF3_pos={npos}\n")
+    lines.append(f"pairs_deltaF3_SCM_pos={npos}\n")
     lines.append(f"wilcoxon_p={pval}\n")
 
     # publishable matched-pairs summary
@@ -306,10 +306,10 @@ def main():
     mp_lines.append(f"n_pairs = {len(pairs)}\n")
     if not pairs.empty:
         median_delta_T = float(np.median(pairs["delta_T"]))
-        median_delta_F3 = float(np.median(pairs["delta_F3"]))
+        median_delta_F3_SCM = float(np.median(pairs["delta_F3_SCM"]))
         mp_lines.append(f"median_delta_T = {median_delta_T:.4f}\n")
-        mp_lines.append(f"median_delta_F3 = {median_delta_F3:.6f}\n")
-    mp_lines.append(f"pairs_deltaF3_pos = {npos}\n")
+        mp_lines.append(f"median_delta_F3_SCM = {median_delta_F3_SCM:.6f}\n")
+    mp_lines.append(f"pairs_deltaF3_SCM_pos = {npos}\n")
     mp_lines.append(f"wilcoxon_p = {pval}\n")
     if npos is not None and npos < 3:
         mp_lines.append("\nWARNING: N<3 positive pairs -> Wilcoxon p not computed.\n")
@@ -319,15 +319,15 @@ def main():
     (pub_dir / "lt_matched_pairs.txt").write_text("".join(mp_lines), encoding="utf-8")
 
     # Plot
-    fig_path = out_dir / "fig_f3_vs_tdust.png"
+    fig_path = out_dir / "fig_f3_scm_vs_tdust.png"
     plt.figure()
-    plt.scatter(df["F3"], df["T_dust"])
-    plt.xlabel("F3 (hinge proxy)")
+    plt.scatter(df["F3_SCM"], df["T_dust"])
+    plt.xlabel("F3_SCM (hinge proxy)")
     plt.ylabel("T_dust (K)")
-    plt.title("LITTLE THINGS: F3 vs T_dust")
+    plt.title("LITTLE THINGS: F3_SCM vs T_dust")
     for _, r in df.iterrows():
-        if pd.notna(r["F3"]) and pd.notna(r["T_dust"]):
-            plt.annotate(r["galaxy"], (r["F3"], r["T_dust"]), fontsize=8)
+        if pd.notna(r["F3_SCM"]) and pd.notna(r["T_dust"]):
+            plt.annotate(r["galaxy"], (r["F3_SCM"], r["T_dust"]), fontsize=8)
     plt.tight_layout()
     plt.savefig(fig_path, dpi=150)
     plt.close()
