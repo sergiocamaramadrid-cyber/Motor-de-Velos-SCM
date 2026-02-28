@@ -1,5 +1,5 @@
 galaxy,F3,F3_err,R2,n_all,n_used,rmin_used_kpc,rmax_kpc,status,note,file
-DDO69,,,,0,0,,,fail,file_not_found,data/raw/DDO69_rotmod.dat
-DDO70,,,,0,0,,,fail,file_not_found,data/raw/DDO70_rotmod.dat
-DDO75,,,,0,0,,,fail,file_not_found,data/raw/DDO75_rotmod.dat
-DDO210,,,,0,0,,,fail,file_not_found,data/raw/DDO210_rotmod.dat
+DDO69,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO69_rotmod.dat
+DDO70,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO70_rotmod.dat
+DDO75,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO75_rotmod.dat
+DDO210,,,,0,0,,,fail,file_not_found,data/SPARC/Rotmod/DDO210_rotmod.dat
