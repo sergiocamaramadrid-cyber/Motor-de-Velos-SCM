@@ -21,6 +21,9 @@ env/
 data/SPARC/raw/
 data/SPARC/processed/
 
+# Generated results (not versioned per data policy)
+results/
+
 # Editor / OS
 .DS_Store
 *.swp

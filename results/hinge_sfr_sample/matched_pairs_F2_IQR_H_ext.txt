@@ -1,3 +1,0 @@
-n_pairs = 12
-median_delta_logSFR = -0.04465
-wilcoxon_p (greater) = 0.284668
