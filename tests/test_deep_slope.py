@@ -58,10 +58,10 @@ def _make_mond_csv(tmp_path: Path, n_deep: int = 50, n_shallow: int = 50,
     df = pd.DataFrame({
         "galaxy": [f"G{i:03d}" for i in range(len(g_bar_all))],
         "r_kpc": rng.uniform(1.0, 20.0, len(g_bar_all)),
-        "g_bar": g_bar_all,
-        "g_obs": 10.0 ** log_g_obs,
-        "log_g_bar": log_g_bar,
-        "log_g_obs": log_g_obs,
+        "g_bar_SCM": g_bar_all,
+        "g_obs_SCM": 10.0 ** log_g_obs,
+        "log_g_bar_SCM": log_g_bar,
+        "log_g_obs_SCM": log_g_obs,
     })
     p = tmp_path / "universal_term_comparison_full.csv"
     df.to_csv(p, index=False)
@@ -268,13 +268,13 @@ class TestPipelineIntegration:
 
     def test_has_log_columns(self, pipeline_csv):
         df = pd.read_csv(pipeline_csv)
-        assert "log_g_bar" in df.columns
-        assert "log_g_obs" in df.columns
+        assert "log_g_bar_SCM" in df.columns
+        assert "log_g_obs_SCM" in df.columns
 
     def test_columns_are_finite(self, pipeline_csv):
         df = pd.read_csv(pipeline_csv)
-        assert df["log_g_bar"].apply(np.isfinite).all()
-        assert df["log_g_obs"].apply(np.isfinite).all()
+        assert df["log_g_bar_SCM"].apply(np.isfinite).all()
+        assert df["log_g_obs_SCM"].apply(np.isfinite).all()
 
     def test_deep_slope_consumes_csv(self, pipeline_csv):
         result = main(["--csv", str(pipeline_csv)])
@@ -301,8 +301,8 @@ class TestPipelineIntegration:
         csv = root / "universal_term_comparison_full.csv"
         pd.DataFrame({
             "galaxy": "X", "r_kpc": 5.0,
-            "g_bar": g_bar, "g_obs": 10**log_gobs,
-            "log_g_bar": log_gbar, "log_g_obs": log_gobs,
+            "g_bar_SCM": g_bar, "g_obs_SCM": 10**log_gobs,
+            "log_g_bar_SCM": log_gbar, "log_g_obs_SCM": log_gobs,
         }).to_csv(csv, index=False)
         result = main(["--csv", str(csv)])
         assert result["slope"] == pytest.approx(0.5, abs=0.05)

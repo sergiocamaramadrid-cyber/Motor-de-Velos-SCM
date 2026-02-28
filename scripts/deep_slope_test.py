@@ -239,7 +239,7 @@ def main(argv: list[str] | None = None) -> dict:
         )
 
     df = pd.read_csv(csv_path)
-    required = {"log_g_bar", "log_g_obs"}
+    required = {"log_g_bar_SCM", "log_g_obs_SCM"}
     missing = required - set(df.columns)
     if missing:
         raise ValueError(
@@ -248,8 +248,8 @@ def main(argv: list[str] | None = None) -> dict:
         )
 
     result = deep_slope(
-        df["log_g_bar"].to_numpy(),
-        df["log_g_obs"].to_numpy(),
+        df["log_g_bar_SCM"].to_numpy(),
+        df["log_g_obs_SCM"].to_numpy(),
         g0=args.g0,
         deep_threshold=args.deep_threshold,
     )
