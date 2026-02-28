@@ -1,0 +1,5 @@
+Matched-pairs analysis: LITTLE THINGS hinge vs dust temperature
+
+n_pairs = 0
+pairs_deltaF3_pos = None
+wilcoxon_p = None
