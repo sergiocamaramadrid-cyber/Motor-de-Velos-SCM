@@ -1,239 +1,261 @@
+#!/usr/bin/env python3
 """
-scripts/pilot_f3_test.py — Phase-1 pilot test: F3 for 4 dwarf galaxies.
+scripts/pilot_f3_test.py — Pilot F3 test for LITTLE THINGS / SPARC-style rotmod files.
 
-Theory
-------
-F3 is defined as the residual of the observed flat rotation velocity from
-the deep-MOND interpolation-model prediction:
+Computes:
+    F3 = d log10(Vobs) / d log10(r)
+using only outer radii r >= 0.7 * Rmax.
 
-    F3 = log10(V_obs) − log10(V_model)
+Outputs:
+    results/F3_values.csv (by default)
 
-where V_model is derived from the self-consistent deep-MOND BTFR:
-
-    V_flat^6 = g_bar · a0 · j²
-
-i.e.  log10(V_model) = (log10(g_bar) + 2·log10(j) + C) / 6
-
-with C = log10(a0) + 2·log10(kpc_to_m · km_to_m) − 18.
-
-Interpretation:
-  F3 ≈ 0   → rotation curve is flat (observed matches the deep-MOND prediction)
-  F3 > 0   → still rising (V_obs > V_model: galaxy above the RAR in velocity space)
-  F3 < 0   → declining (V_obs < V_model: galaxy below the deep-MOND prediction)
-
-Scientific context
-------------------
-Typical F3 values for gas-dominated dwarf galaxies: −0.05 to +0.15.
-With only N=4 galaxies the goal is *not* a definitive p-value but:
-  - checking the sign of the effect (positive → physically coherent)
-  - estimating the order of magnitude
-  - identifying obvious outliers before expanding the sample
-
-Usage
------
-::
-
-    python scripts/pilot_f3_test.py
-
-    python scripts/pilot_f3_test.py \\
-        --csv  data/little_things_global.csv \\
-        --out  results \\
-        --a0   1.2e-10
+Expected SPARC rotmod format (whitespace-delimited):
+    r_kpc  Vobs  errV  Vgas  Vdisk  Vbul  Vbar
 """
 
 from __future__ import annotations
 
 import argparse
+import math
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
-
-from scripts.blind_test_little_things import (
-    A0_DEFAULT,
-    load_dataset,
-    predict_logv_interp,
-)
-
-# ---------------------------------------------------------------------------
-# Pilot galaxy list (Phase 1 — mandatory first execution)
-# ---------------------------------------------------------------------------
-
-PILOT_GALAXIES: list[str] = ["DDO69", "DDO70", "DDO75", "DDO210"]
-
-# Output CSV column order
-F3_COLS: list[str] = ["galaxy_id", "log_gbar", "log_j", "logVobs", "logV_model", "F3"]
-
-_SEP = "=" * 65
 
 
-# ---------------------------------------------------------------------------
-# Core computation
-# ---------------------------------------------------------------------------
+ROT_MOD_COLS = ["r_kpc", "Vobs", "errV", "Vgas", "Vdisk", "Vbul", "Vbar"]
 
-def compute_f3(df: pd.DataFrame, a0: float = A0_DEFAULT) -> pd.DataFrame:
-    """Compute F3 for each row of the dataset.
+PILOT_GALAXIES: List[str] = ["DDO69", "DDO70", "DDO75", "DDO210"]
 
-    F3 = log10(V_obs) − log10(V_model)
 
-    where V_model is the deep-MOND interpolation-model prediction:
+@dataclass(frozen=True)
+class F3Result:
+    galaxy: str
+    file: str
+    F3: float
+    F3_err: float
+    R2: float
+    n_all: int
+    n_used: int
+    rmin_used_kpc: float
+    rmax_kpc: float
+    status: str  # "ok" | "warn" | "fail"
+    note: str
 
-        log10(V_model) = (log_gbar + 2·log_j + C) / 6
 
-    Parameters
-    ----------
-    df : pd.DataFrame
-        Dataset with columns ``galaxy_id``, ``log_gbar``, ``log_j``,
-        ``logVobs``.
-    a0 : float
-        Characteristic acceleration in m/s².
-
-    Returns
-    -------
-    pd.DataFrame
-        Columns: ``galaxy_id``, ``log_gbar``, ``log_j``, ``logVobs``,
-        ``logV_model``, ``F3``.
-    """
-    logV_model = predict_logv_interp(
-        df["log_gbar"].values, df["log_j"].values, a0=a0
+def _read_rotmod(path: Path) -> pd.DataFrame:
+    df = pd.read_csv(
+        path,
+        sep=r"\s+",
+        comment="#",
+        header=None,
+        names=ROT_MOD_COLS,
+        engine="python",
     )
-    f3 = df["logVobs"].values - logV_model
-
-    return pd.DataFrame(
-        {
-            "galaxy_id": df["galaxy_id"].values,
-            "log_gbar": df["log_gbar"].values,
-            "log_j": df["log_j"].values,
-            "logVobs": df["logVobs"].values,
-            "logV_model": np.round(logV_model, 6),
-            "F3": np.round(f3, 6),
-        }
-    )
+    # Coerce numeric; drop non-numeric rows defensively
+    for c in ROT_MOD_COLS:
+        df[c] = pd.to_numeric(df[c], errors="coerce")
+    df = df.dropna(subset=["r_kpc", "Vobs"])
+    return df
 
 
-def run_pilot_f3(
-    csv_path: Path,
-    out_dir: Path,
-    a0: float = A0_DEFAULT,
-    galaxies: list[str] | None = None,
-) -> tuple[pd.DataFrame, object]:
-    """Run the F3 pilot test for the specified galaxies.
-
-    Parameters
-    ----------
-    csv_path : Path
-        Input dataset CSV (must contain LITTLE THINGS required columns).
-    out_dir : Path
-        Directory where ``F3_values.csv`` is written.
-    a0 : float
-        Characteristic acceleration in m/s².
-    galaxies : list[str] or None
-        Galaxy IDs to include.  Defaults to :data:`PILOT_GALAXIES`.
-
-    Returns
-    -------
-    f3_df : pd.DataFrame
-        Per-galaxy F3 values and model predictions.
-    ols_result : statsmodels RegressionResults
-        OLS fit of F3 ~ log_gbar (with a constant).
-
-    Raises
-    ------
-    ValueError
-        If none of the requested galaxies are found in the dataset.
+def _linregress(x: np.ndarray, y: np.ndarray) -> Tuple[float, float, float]:
     """
-    if galaxies is None:
-        galaxies = PILOT_GALAXIES
+    Returns (slope, slope_err, r2) for y = a + b x.
+    """
+    if x.size < 2:
+        return float("nan"), float("nan"), float("nan")
 
-    full_df = load_dataset(csv_path)
-    mask = full_df["galaxy_id"].isin(galaxies)
-    df = full_df[mask].reset_index(drop=True)
+    X = np.vstack([np.ones_like(x), x]).T
+    beta, residuals, rank, s = np.linalg.lstsq(X, y, rcond=None)
+    intercept, slope = float(beta[0]), float(beta[1])
 
-    if df.empty:
-        raise ValueError(
-            f"None of {galaxies} found in {csv_path}. "
-            "Check galaxy_id spelling (e.g. 'DDO69', not 'DDO 69')."
+    yhat = intercept + slope * x
+    ss_res = float(np.sum((y - yhat) ** 2))
+    ss_tot = float(np.sum((y - np.mean(y)) ** 2))
+    r2 = float("nan") if ss_tot == 0 else (1.0 - ss_res / ss_tot)
+
+    # slope standard error
+    n = x.size
+    if n <= 2:
+        slope_err = float("nan")
+    else:
+        mse = ss_res / (n - 2)
+        sxx = float(np.sum((x - np.mean(x)) ** 2))
+        slope_err = float("nan") if sxx == 0 else math.sqrt(mse / sxx)
+
+    return slope, float(slope_err), r2
+
+
+def compute_f3_from_file(path: Path, outer_frac: float = 0.7) -> F3Result:
+    galaxy = path.stem.replace("_rotmod", "")
+    note_parts: List[str] = []
+
+    if not path.exists():
+        return F3Result(
+            galaxy=galaxy,
+            file=str(path),
+            F3=float("nan"),
+            F3_err=float("nan"),
+            R2=float("nan"),
+            n_all=0,
+            n_used=0,
+            rmin_used_kpc=float("nan"),
+            rmax_kpc=float("nan"),
+            status="fail",
+            note="file_not_found",
         )
 
-    f3_df = compute_f3(df, a0=a0)
+    df = _read_rotmod(path)
 
-    # OLS regression: F3 ~ 1 + log_gbar
-    # Tests whether F3 correlates systematically with baryonic-acceleration depth.
-    X = sm.add_constant(f3_df["log_gbar"].values)
-    y = f3_df["F3"].values
-    ols_model = sm.OLS(y, X)
-    ols_result = ols_model.fit()
+    # Basic cleaning
+    df = df[(df["r_kpc"] > 0) & (df["Vobs"] > 0)]
+    n_all = int(df.shape[0])
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    f3_df[F3_COLS].to_csv(out_dir / "F3_values.csv", index=False)
+    if n_all < 3:
+        return F3Result(
+            galaxy=galaxy,
+            file=str(path),
+            F3=float("nan"),
+            F3_err=float("nan"),
+            R2=float("nan"),
+            n_all=n_all,
+            n_used=0,
+            rmin_used_kpc=float("nan"),
+            rmax_kpc=float("nan"),
+            status="fail",
+            note="too_few_points_after_clean",
+        )
 
-    return f3_df, ols_result
+    r = df["r_kpc"].to_numpy(dtype=float)
+    v = df["Vobs"].to_numpy(dtype=float)
+
+    rmax = float(np.max(r))
+    rcut = outer_frac * rmax
+    mask = r >= rcut
+
+    r_ext = r[mask]
+    v_ext = v[mask]
+    n_used = int(r_ext.size)
+
+    if n_used < 3:
+        # not enough outer points; fall back to last 3 points (still outer-ish)
+        idx = np.argsort(r)[-3:]
+        r_ext = r[idx]
+        v_ext = v[idx]
+        n_used = 3
+        note_parts.append("fallback_last3")
+
+    log_r = np.log10(r_ext)
+    log_v = np.log10(v_ext)
+
+    slope, slope_err, r2 = _linregress(log_r, log_v)
+
+    status = "ok"
+    if not np.isfinite(slope) or n_used < 3:
+        status = "fail"
+    elif (np.isfinite(r2) and r2 < 0.2) or (np.isfinite(slope_err) and slope_err > 0.2):
+        status = "warn"
+        note_parts.append("low_r2_or_high_err")
+
+    return F3Result(
+        galaxy=galaxy,
+        file=str(path),
+        F3=float(slope),
+        F3_err=float(slope_err) if np.isfinite(slope_err) else float("nan"),
+        R2=float(r2) if np.isfinite(r2) else float("nan"),
+        n_all=n_all,
+        n_used=n_used,
+        rmin_used_kpc=float(np.min(r_ext)),
+        rmax_kpc=rmax,
+        status=status,
+        note=";".join(note_parts) if note_parts else "ok",
+    )
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
+def compute_f3_for_galaxies(
+    sparc_dir: Path,
+    galaxies: Iterable[str],
+    outer_frac: float = 0.7,
+) -> pd.DataFrame:
+    rows = []
+    for g in galaxies:
+        path = sparc_dir / f"{g}_rotmod.dat"
+        res = compute_f3_from_file(path, outer_frac=outer_frac)
+        rows.append(res.__dict__)
+    return pd.DataFrame(rows)
 
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+
+def main(argv: Optional[List[str]] = None) -> int:
     parser = argparse.ArgumentParser(
-        description=(
-            "Phase-1 pilot test: compute F3 residuals for 4 dwarf galaxies "
-            "and run an OLS regression."
-        )
+        description="Pilot F3 test (outer slope) from SPARC rotmod files."
     )
     parser.add_argument(
-        "--csv",
-        default=str(
-            Path(__file__).parent.parent / "data" / "little_things_global.csv"
-        ),
-        metavar="FILE",
-        help="Input dataset CSV (default: data/little_things_global.csv).",
+        "--sparc-dir",
+        type=str,
+        default="data/SPARC/Rotmod",
+        help="Directory containing *_rotmod.dat files.",
     )
     parser.add_argument(
         "--out",
-        default=str(Path(__file__).parent.parent / "results"),
-        metavar="DIR",
-        help="Output directory for F3_values.csv (default: results/).",
+        type=str,
+        default="results/F3_values.csv",
+        help="Output CSV path.",
     )
     parser.add_argument(
-        "--a0",
+        "--outer-frac",
         type=float,
-        default=A0_DEFAULT,
-        help=f"Characteristic acceleration in m/s² (default: {A0_DEFAULT:.2e}).",
+        default=0.7,
+        help="Use radii r >= outer_frac * Rmax for the fit.",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--galaxies",
+        nargs="*",
+        default=PILOT_GALAXIES,
+        help="Galaxy names matching rotmod filenames (without _rotmod.dat).",
+    )
 
+    args = parser.parse_args(argv)
 
-def _print_f3_table(f3_df: pd.DataFrame) -> None:
-    """Print a compact F3 table to stdout."""
-    print(_SEP)
-    print("  Motor de Velos SCM — F3 Pilot Test (N=4)")
-    print(_SEP)
-    print(f"  {'galaxy_id':<10} {'log_gbar':>10} {'logVobs':>9} "
-          f"{'logV_model':>11} {'F3':>8}")
-    print("  " + "-" * 51)
-    for _, row in f3_df.iterrows():
-        print(
-            f"  {row['galaxy_id']:<10} {row['log_gbar']:>10.4f} "
-            f"{row['logVobs']:>9.4f} {row['logV_model']:>11.4f} "
-            f"{row['F3']:>8.4f}"
-        )
-    print(_SEP)
+    sparc_dir = Path(args.sparc_dir)
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
 
+    df = compute_f3_for_galaxies(
+        sparc_dir=sparc_dir,
+        galaxies=args.galaxies,
+        outer_frac=float(args.outer_frac),
+    )
 
-def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
-    csv_path = Path(args.csv)
-    out_dir = Path(args.out)
+    # Stable column order
+    cols = [
+        "galaxy",
+        "F3",
+        "F3_err",
+        "R2",
+        "n_all",
+        "n_used",
+        "rmin_used_kpc",
+        "rmax_kpc",
+        "status",
+        "note",
+        "file",
+    ]
+    df = df[cols]
 
-    f3_df, ols_result = run_pilot_f3(csv_path, out_dir, a0=args.a0)
+    df.to_csv(out_path, index=False)
 
-    _print_f3_table(f3_df)
-    print("\n  OLS: F3 ~ 1 + log_gbar")
-    print(ols_result.summary())
-    print(f"\n  F3_values.csv written to: {out_dir / 'F3_values.csv'}")
+    # Minimal terminal summary
+    print(f"[pilot_f3_test] wrote: {out_path}")
+    print(df[["galaxy", "F3", "F3_err", "R2", "n_used", "status", "note"]].to_string(index=False))
+
+    # Non-zero exit if any fail
+    if (df["status"] == "fail").any():
+        return 2
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

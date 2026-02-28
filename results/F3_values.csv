@@ -1,5 +1,5 @@
-galaxy_id,log_gbar,log_j,logVobs,logV_model,F3
-DDO69,-10.778,1.463,1.5185,1.534314,-0.015814
-DDO70,-10.505,1.6812,1.6812,1.652547,0.028653
-DDO75,-10.5316,1.6628,1.6628,1.64198,0.02082
-DDO210,-10.629,1.4713,1.5682,1.561914,0.006286
+galaxy,F3,F3_err,R2,n_all,n_used,rmin_used_kpc,rmax_kpc,status,note,file
+DDO69,,,,0,0,,,fail,file_not_found,data/raw/DDO69_rotmod.dat
+DDO70,,,,0,0,,,fail,file_not_found,data/raw/DDO70_rotmod.dat
+DDO75,,,,0,0,,,fail,file_not_found,data/raw/DDO75_rotmod.dat
+DDO210,,,,0,0,,,fail,file_not_found,data/raw/DDO210_rotmod.dat
