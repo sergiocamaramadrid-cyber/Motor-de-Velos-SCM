@@ -150,7 +150,21 @@ contract):
 
 Sample data with 30 representative galaxies is provided in `data/hinge_sfr/`.
 
+**To build inputs from real SPARC data** (once downloaded to `data/SPARC/`):
+
 ```bash
+# Step 1 — Build profiles.csv and galaxy_table.csv from SPARC rotmod files
+python scripts/build_hinge_sfr_inputs_from_sparc.py \
+  --data-dir  data/SPARC \
+  --out-dir   data/hinge_sfr
+
+# (optional) supply real SFR measurements instead of the main-sequence proxy
+python scripts/build_hinge_sfr_inputs_from_sparc.py \
+  --data-dir  data/SPARC \
+  --out-dir   data/hinge_sfr \
+  --sfr-table external/sfr_measurements.csv
+
+# Step 2 — Run the statistical test
 python scripts/hinge_sfr_test.py \
   --profiles data/hinge_sfr/profiles.csv \
   --galaxy-table data/hinge_sfr/galaxy_table.csv \
