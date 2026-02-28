@@ -221,10 +221,10 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
                 compare_rows.append({
                     "galaxy": name,
                     "r_kpc": float(r_arr[k]),
-                    "g_bar": float(g_bar_arr[k]),
-                    "g_obs": float(g_obs_arr[k]),
-                    "log_g_bar": float(np.log10(g_bar_arr[k])),
-                    "log_g_obs": float(np.log10(g_obs_arr[k])),
+                    "g_bar_SCM": float(g_bar_arr[k]),
+                    "g_obs_SCM": float(g_obs_arr[k]),
+                    "log_g_bar_SCM": float(np.log10(g_bar_arr[k])),
+                    "log_g_obs_SCM": float(np.log10(g_obs_arr[k])),
                 })
 
         v_flat = float(row.get("Vflat", np.nan))
@@ -298,15 +298,15 @@ def _write_deep_slope_csv(compare_df, path, a0=_A0_DEFAULT, deep_threshold=0.3):
         Fraction of *a0* that defines the deep regime: a radial point is
         "deep" if g_bar < deep_threshold × a0 (e.g. 0.3 means 30% of a0).
     """
-    if compare_df.empty or not {"log_g_bar", "log_g_obs"}.issubset(compare_df.columns):
+    if compare_df.empty or not {"log_g_bar_SCM", "log_g_obs_SCM"}.issubset(compare_df.columns):
         pd.DataFrame(columns=[
             "n_total", "n_deep", "deep_frac", "slope", "intercept",
             "stderr", "r_value", "p_value", "delta_from_mond", "log_g0_pred",
         ]).to_csv(path, index=False)
         return
 
-    log_gbar = compare_df["log_g_bar"].values
-    log_gobs = compare_df["log_g_obs"].values
+    log_gbar = compare_df["log_g_bar_SCM"].values
+    log_gobs = compare_df["log_g_obs_SCM"].values
     g_bar = 10.0 ** log_gbar
     deep_mask = g_bar < deep_threshold * a0
     n_total = len(log_gbar)
