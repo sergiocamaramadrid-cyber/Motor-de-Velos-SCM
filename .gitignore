@@ -23,6 +23,10 @@ data/SPARC/processed/
 
 # Generated results (not versioned per data policy)
 results/
+# Track the paper_figures output directory itself (but not its contents)
+!results/
+!results/paper_figures/
+!results/paper_figures/.gitkeep
 
 # Editor / OS
 .DS_Store
