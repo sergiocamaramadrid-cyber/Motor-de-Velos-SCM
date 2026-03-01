@@ -289,6 +289,23 @@ class TestFormatAnalysisReport:
         combined = "\n".join(lines)
         assert "Estado B" in combined
 
+    def test_report_contains_summary_block_header(self):
+        """Report must include the canonical '=== F3 CATALOG ANALYSIS SUMMARY ===' header."""
+        stats = analyze_f3_catalog(_make_catalog(n=20, beta=1.0))
+        lines = format_analysis_report(stats, "test.csv")
+        combined = "\n".join(lines)
+        assert "=== F3 CATALOG ANALYSIS SUMMARY ===" in combined
+
+    def test_summary_block_contains_required_fields(self):
+        """Summary block must contain Galaxias, Mean β, Std β, and p-value fields."""
+        stats = analyze_f3_catalog(_make_catalog(n=20, beta=1.0))
+        lines = format_analysis_report(stats, "test.csv")
+        combined = "\n".join(lines)
+        assert "Galaxias:" in combined
+        assert "Mean β:" in combined
+        assert "Std β:" in combined
+        assert "p-value:" in combined
+
 
 # ---------------------------------------------------------------------------
 # 3. main() CLI

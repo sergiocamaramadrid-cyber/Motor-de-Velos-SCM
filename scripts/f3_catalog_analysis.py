@@ -150,6 +150,19 @@ def format_analysis_report(stats: dict, catalog_path: str) -> list[str]:
     else:
         lines.append("  ⚠️  No galaxies with reliable β — insufficient deep-regime data.")
     lines.append(_SEP)
+
+    # Machine-readable summary block (canonical format for physical verdict)
+    lines += [
+        "",
+        "=== F3 CATALOG ANALYSIS SUMMARY ===",
+        f"Galaxias: {stats['n_reliable']}",
+        f"Mean β: {stats['beta_mean']:.4f}" if not np.isnan(stats["beta_mean"])
+        else "Mean β: nan",
+        f"Std β: {stats['beta_std']:.4f}" if not np.isnan(stats.get("beta_std", float("nan")))
+        else "Std β: nan",
+        f"p-value: {stats['p_value_ttest']:.4e}" if not np.isnan(stats.get("p_value_ttest", float("nan")))
+        else "p-value: nan",
+    ]
     return lines
 
 
