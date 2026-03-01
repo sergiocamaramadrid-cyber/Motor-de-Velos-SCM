@@ -1,0 +1,2 @@
+n_galaxies,n_fitted,mean_slope,std_slope,median_slope,t_stat,p_value,n_consistent,n_inconsistent,velo_inerte_frac,ref_slope
+30,30,0.5006726666666667,0.031069947493749774,0.5038775,0.11858233976393165,0.9064238548332098,26,4,0.8666666666666667,0.5

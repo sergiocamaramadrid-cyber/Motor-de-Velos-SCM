@@ -121,6 +121,35 @@ python scripts/deep_slope_test.py \
   --out results/diagnostics/deep_slope_test
 ```
 
+### F3 Catalog — Per-Galaxy Deep-Regime Friction Slope (β)
+
+Generate the per-galaxy friction-slope catalog:
+
+```bash
+python scripts/generate_f3_catalog.py \
+  --csv  results/universal_term_comparison_full.csv \
+  --g0   1.2e-10 \
+  --deep-threshold 0.3 \
+  --out  results/f3_catalog.csv
+```
+
+Compute ensemble statistics and t-test against the MOND/deep-velos prediction β = 0.5:
+
+```bash
+python scripts/f3_catalog_analysis.py \
+  --catalog results/f3_catalog.csv \
+  --ref-slope 0.5 \
+  --out results/f3_catalog_stats.csv
+```
+
+The catalog includes a `velo_inerte_flag` column with the following semantics:
+
+| `velo_inerte_flag` | Meaning |
+|--------------------|---------|
+| `1` (True)         | Fitted β is **consistent** with β = 0.5 within 2σ (|β − 0.5| ≤ 2·σ_β) |
+| `0` (False)        | Fitted β **deviates** from β = 0.5 by ≥ 2σ |
+| `NaN`              | Insufficient deep-regime points to fit β (fewer than 2 points) |
+
 ---
 
 ## Statistical Protocol
