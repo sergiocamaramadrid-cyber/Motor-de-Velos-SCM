@@ -174,17 +174,39 @@ class TestMain:
 
 
 # ---------------------------------------------------------------------------
-# Integration: real catalog
+# Integration: CI fixture catalog
 # ---------------------------------------------------------------------------
 
-class TestRealCatalog:
-    """Smoke-test against results/f3_catalog_real.csv if it exists."""
+class TestCIFixtureCatalog:
+    """Smoke-test against results/f3_catalog_synthetic_flat.csv.
 
-    def test_real_catalog_loads(self):
-        catalog = Path("results/f3_catalog_real.csv")
+    This file is a deterministic CI fixture derived from synthetic flat-rotation-
+    curve data (g_obs and g_bar both scale as V²/r, so the expected slope is
+    β≈1, not β≈0.5).  It is committed solely to verify the analysis tooling;
+    it is *not* the physical SPARC-LSB deep-regime result.
+
+    The physically targeted measurement should be produced via:
+        python scripts/generate_f3_catalog.py \\
+            --data-dir data/SPARC --out results/f3_catalog_real.csv
+    and then analyzed with:
+        python scripts/f3_catalog_analysis.py \\
+            --catalog results/f3_catalog_real.csv
+    """
+
+    def test_ci_fixture_loads(self):
+        catalog = Path("results/f3_catalog_synthetic_flat.csv")
         if not catalog.exists():
-            pytest.skip("results/f3_catalog_real.csv not present")
+            pytest.skip("results/f3_catalog_synthetic_flat.csv not present")
         result = analyze_catalog(catalog)
         assert result["total_rows"] > 0
         assert result["n_valid"] + result["n_nan"] == result["total_rows"]
         assert result["n_consistent"] + result["n_inconsistent"] == result["n_valid"]
+
+    def test_ci_fixture_slope_near_one(self):
+        """CI fixture is synthetic flat-curve data: mean β should be near 1, not 0.5."""
+        catalog = Path("results/f3_catalog_synthetic_flat.csv")
+        if not catalog.exists():
+            pytest.skip("results/f3_catalog_synthetic_flat.csv not present")
+        result = analyze_catalog(catalog)
+        # Synthetic flat-rotation-curve data yields β≈1 (not the MOND value of 0.5)
+        assert result["mean_slope"] == pytest.approx(1.0, abs=0.05)

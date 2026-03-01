@@ -12,9 +12,27 @@ Reads a per-galaxy catalog CSV that contains at minimum the columns
 
 Usage
 -----
-::
+Against the deterministic CI fixture (synthetic flat-rotation-curve data,
+β≈1 expected — for tooling verification only, not a physical result)::
+
+    python scripts/f3_catalog_analysis.py --catalog results/f3_catalog_synthetic_flat.csv
+
+For the physically targeted SPARC-LSB deep-regime measurement, first generate
+the real catalog::
+
+    python scripts/generate_f3_catalog.py --data-dir data/SPARC --out results/f3_catalog_real.csv
+
+then analyze it::
 
     python scripts/f3_catalog_analysis.py --catalog results/f3_catalog_real.csv
+
+Note
+----
+``results/f3_catalog_synthetic_flat.csv`` is a committed CI fixture derived
+from ``results/universal_term_comparison_full.csv`` (synthetic flat-rotation-
+curve data). In that dataset g_obs and g_bar both scale as V²/r with constant
+V, so the expected per-galaxy slope is β≈1, not the deep-MOND/deep-velos value
+of β=0.5. It should not be interpreted as a physical result.
 """
 
 from __future__ import annotations
