@@ -14,6 +14,15 @@ In log-space this is a straight line with expected slope β = 0.5:
 This script groups the per-radial-point CSV (produced by scm_analysis) by galaxy,
 fits the deep-regime slope β for each galaxy, and writes a per-galaxy catalog.
 
+Input modes
+-----------
+1. ``--csv``      Pre-processed per-radial-point CSV
+                  (default: results/universal_term_comparison_full.csv).
+2. ``--data-dir`` Directory containing raw SPARC ``*_rotmod.dat`` files.
+                  g_bar is computed from the baryonic velocity components using
+                  upsilon_disk=1.0 (upsilon_bul=0.7).  g_obs from v_obs.
+                  ``--data-dir`` takes precedence over ``--csv`` when both are given.
+
 Output columns
 --------------
 galaxy              — galaxy identifier
@@ -32,6 +41,7 @@ Usage
 -----
 ::
 
+    # From pre-processed CSV (default):
     python scripts/generate_f3_catalog.py
 
     python scripts/generate_f3_catalog.py \\
@@ -39,6 +49,11 @@ Usage
         --g0   1.2e-10 \\
         --deep-threshold 0.3 \\
         --out  results/f3_catalog.csv
+
+    # Directly from raw SPARC rotmod files:
+    python scripts/generate_f3_catalog.py \\
+        --data-dir data/SPARC \\
+        --out results/f3_catalog_real.csv
 """
 
 from __future__ import annotations
@@ -59,6 +74,17 @@ DEEP_THRESHOLD_DEFAULT: float = 0.3  # fraction of g0
 EXPECTED_SLOPE: float = 0.5          # MOND / deep-velos prediction
 CSV_DEFAULT: str = "results/universal_term_comparison_full.csv"
 OUT_DEFAULT: str = "results/f3_catalog.csv"
+
+# Physical constants for rotmod → acceleration conversion
+# 1 kpc = 3.085677581e19 m;  velocities in km/s → m/s (×1000)
+# g = v² / r → (km/s)² / kpc = (1e3 m/s)² / (3.085677581e19 m) = 1e6 / KPC_M m/s²
+_KPC_TO_M: float = 3.085677581e19
+_CONV: float = 1e6 / _KPC_TO_M        # (km/s)² per kpc  →  m/s²
+_MIN_RADIUS_KPC: float = 1e-10         # guard against division by zero
+
+# Default mass-to-light ratios used when reading rotmod files directly
+_UPSILON_DISK_DEFAULT: float = 1.0
+_UPSILON_BUL_DEFAULT: float = 0.7
 
 # ---------------------------------------------------------------------------
 # Core per-galaxy fitter
@@ -194,6 +220,107 @@ def build_f3_catalog(
 
 
 # ---------------------------------------------------------------------------
+# SPARC rotmod reader
+# ---------------------------------------------------------------------------
+
+
+def load_sparc_data_dir(
+    data_dir: str | Path,
+    upsilon_disk: float = _UPSILON_DISK_DEFAULT,
+    upsilon_bul: float = _UPSILON_BUL_DEFAULT,
+) -> pd.DataFrame:
+    """Read all ``*_rotmod.dat`` files in *data_dir* and compute per-radial-point
+    baryonic and observed accelerations.
+
+    Parameters
+    ----------
+    data_dir : str or Path
+        Directory (or its ``raw/`` sub-directory) containing SPARC
+        ``<galaxy>_rotmod.dat`` files.
+    upsilon_disk : float
+        Stellar mass-to-light ratio for the disk component (default: 1.0).
+    upsilon_bul : float
+        Stellar mass-to-light ratio for the bulge component (default: 0.7).
+
+    Returns
+    -------
+    pd.DataFrame
+        Columns: galaxy, r_kpc, g_bar, g_obs, log_g_bar, log_g_obs.
+
+    Raises
+    ------
+    FileNotFoundError
+        If *data_dir* does not exist or contains no ``*_rotmod.dat`` files.
+    """
+    data_dir = Path(data_dir)
+    # Also search the common data_dir/raw/ sub-directory
+    search_dirs = [data_dir, data_dir / "raw"]
+
+    dat_files: list[Path] = []
+    for d in search_dirs:
+        if d.is_dir():
+            dat_files.extend(sorted(d.glob("*_rotmod.dat")))
+
+    if not dat_files:
+        raise FileNotFoundError(
+            f"No '*_rotmod.dat' files found in {data_dir} (or {data_dir / 'raw'}).\n"
+            "Download the SPARC rotation curves from http://astroweb.cwru.edu/SPARC/ "
+            "and place them there, or use --csv with a pre-processed CSV instead."
+        )
+
+    rows: list[dict] = []
+    for fpath in dat_files:
+        galaxy = fpath.name.replace("_rotmod.dat", "")
+        try:
+            rc = pd.read_csv(
+                fpath,
+                sep=r"\s+",
+                comment="#",
+                names=["r", "v_obs", "v_obs_err", "v_gas", "v_disk", "v_bul",
+                       "SBdisk", "SBbul"],
+            )
+        except Exception as exc:
+            import warnings
+            warnings.warn(f"Skipping {fpath.name}: {exc}", stacklevel=2)
+            continue
+
+        r = rc["r"].to_numpy(dtype=float)
+        v_obs = rc["v_obs"].to_numpy(dtype=float)
+        v_gas = rc["v_gas"].to_numpy(dtype=float)
+        v_disk = rc["v_disk"].to_numpy(dtype=float)
+        v_bul = rc["v_bul"].to_numpy(dtype=float)
+
+        # Baryonic velocity (quadrature sum with mass-to-light scaling)
+        v_bar_sq = (
+            np.sign(v_gas) * v_gas ** 2
+            + upsilon_disk * np.sign(v_disk) * v_disk ** 2
+            + upsilon_bul * np.sign(v_bul) * v_bul ** 2
+        )
+        r_safe = np.maximum(r, _MIN_RADIUS_KPC)
+        g_bar = np.abs(v_bar_sq) * _CONV / r_safe   # m/s²
+        g_obs = v_obs ** 2 * _CONV / r_safe          # m/s²
+
+        valid = (g_bar > 0) & (g_obs > 0) & np.isfinite(g_bar) & np.isfinite(g_obs)
+        for k in range(len(r)):
+            if valid[k]:
+                rows.append({
+                    "galaxy": galaxy,
+                    "r_kpc": float(r[k]),
+                    "g_bar": float(g_bar[k]),
+                    "g_obs": float(g_obs[k]),
+                    "log_g_bar": float(np.log10(g_bar[k])),
+                    "log_g_obs": float(np.log10(g_obs[k])),
+                })
+
+    if not rows:
+        raise ValueError(
+            f"No valid radial points found after reading rotmod files in {data_dir}."
+        )
+
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -202,12 +329,40 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
             "Generate per-galaxy deep-regime friction slope (β) catalog "
-            "from a SPARC per-radial-point CSV."
-        )
+            "from SPARC data.\n\n"
+            "Input modes (mutually exclusive; --data-dir takes precedence):\n"
+            "  --data-dir  Directory with raw *_rotmod.dat SPARC files.\n"
+            "  --csv       Pre-processed per-radial-point CSV."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--data-dir", default=None, dest="data_dir",
+        metavar="DIR",
+        help=(
+            "Directory containing raw SPARC '*_rotmod.dat' files "
+            "(takes precedence over --csv when provided)."
+        ),
     )
     parser.add_argument(
         "--csv", default=CSV_DEFAULT,
         help=f"Per-radial-point input CSV (default: {CSV_DEFAULT}).",
+    )
+    parser.add_argument(
+        "--upsilon-disk", type=float, default=_UPSILON_DISK_DEFAULT,
+        dest="upsilon_disk",
+        help=(
+            f"Disk mass-to-light ratio used when reading rotmod files "
+            f"(default: {_UPSILON_DISK_DEFAULT})."
+        ),
+    )
+    parser.add_argument(
+        "--upsilon-bul", type=float, default=_UPSILON_BUL_DEFAULT,
+        dest="upsilon_bul",
+        help=(
+            f"Bulge mass-to-light ratio used when reading rotmod files "
+            f"(default: {_UPSILON_BUL_DEFAULT})."
+        ),
     )
     parser.add_argument(
         "--g0", type=float, default=G0_DEFAULT,
@@ -231,22 +386,33 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> pd.DataFrame:
     """Run the catalog generator and return the catalog DataFrame."""
     args = _parse_args(argv)
-    csv_path = Path(args.csv)
 
-    if not csv_path.exists():
-        raise FileNotFoundError(
-            f"Input CSV not found: {csv_path}\n"
-            "Run 'python -m src.scm_analysis --data-dir data/SPARC --out results/' first."
+    if args.data_dir is not None:
+        # --data-dir mode: read SPARC rotmod files directly
+        print(f"Reading rotmod files from {args.data_dir} ...")
+        df = load_sparc_data_dir(
+            args.data_dir,
+            upsilon_disk=args.upsilon_disk,
+            upsilon_bul=args.upsilon_bul,
         )
-
-    df = pd.read_csv(csv_path)
-    required = {"galaxy", "log_g_bar", "log_g_obs"}
-    missing = required - set(df.columns)
-    if missing:
-        raise ValueError(
-            f"CSV missing required columns: {missing}.\n"
-            "Regenerate with an updated run_pipeline() that emits per-radial-point rows."
-        )
+        print(f"  Loaded {len(df)} valid radial points from {df['galaxy'].nunique()} galaxies.")
+    else:
+        # --csv mode (default)
+        csv_path = Path(args.csv)
+        if not csv_path.exists():
+            raise FileNotFoundError(
+                f"Input CSV not found: {csv_path}\n"
+                "Either run 'python -m src.scm_analysis --data-dir data/SPARC --out results/' "
+                "to generate it, or pass --data-dir to read rotmod files directly."
+            )
+        df = pd.read_csv(csv_path)
+        required = {"galaxy", "log_g_bar", "log_g_obs"}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(
+                f"CSV missing required columns: {missing}.\n"
+                "Regenerate with an updated run_pipeline() that emits per-radial-point rows."
+            )
 
     catalog = build_f3_catalog(df, g0=args.g0, deep_threshold=args.deep_threshold)
 

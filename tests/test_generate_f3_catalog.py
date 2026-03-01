@@ -16,10 +16,13 @@ import pytest
 from scripts.generate_f3_catalog import (
     fit_galaxy_slope,
     build_f3_catalog,
+    load_sparc_data_dir,
     main,
     EXPECTED_SLOPE,
     G0_DEFAULT,
     DEEP_THRESHOLD_DEFAULT,
+    _KPC_TO_M,
+    _CONV,
 )
 
 
@@ -227,3 +230,68 @@ class TestMainCLI:
         }
         assert required.issubset(set(df.columns))
         assert len(df) > 0
+
+
+# ---------------------------------------------------------------------------
+# Helper: create synthetic rotmod files
+# ---------------------------------------------------------------------------
+
+
+def _make_rotmod_dir(
+    tmp_path: Path,
+    n_galaxies: int = 3,
+    n_points: int = 20,
+    rng_seed: int = 0,
+) -> Path:
+    """Write synthetic *_rotmod.dat files to *tmp_path*."""
+    rng = np.random.default_rng(rng_seed)
+    for i in range(n_galaxies):
+        name = f"FakeGal{i:02d}"
+        r = np.linspace(0.5, 15.0, n_points)
+        v_disk = 60.0 + rng.normal(0, 2, n_points)
+        v_gas = 20.0 + rng.normal(0, 1, n_points)
+        v_bul = np.zeros(n_points)
+        v_obs = 80.0 + rng.normal(0, 3, n_points)
+        v_err = 3.0 * np.ones(n_points)
+        data = np.column_stack([r, v_obs, v_err, v_gas, v_disk, v_bul,
+                                np.ones(n_points), np.zeros(n_points)])
+        np.savetxt(tmp_path / f"{name}_rotmod.dat", data, fmt="%.6f")
+    return tmp_path
+
+
+# ---------------------------------------------------------------------------
+# Unit tests for load_sparc_data_dir()
+# ---------------------------------------------------------------------------
+
+
+class TestLoadSparcDataDir:
+    def test_loads_rotmod_files(self, tmp_path):
+        d = _make_rotmod_dir(tmp_path, n_galaxies=3, n_points=20)
+        df = load_sparc_data_dir(d)
+        assert set(df.columns) >= {"galaxy", "log_g_bar", "log_g_obs", "g_bar", "g_obs"}
+        assert df["galaxy"].nunique() == 3
+
+    def test_all_accelerations_positive(self, tmp_path):
+        d = _make_rotmod_dir(tmp_path, n_galaxies=2, n_points=15)
+        df = load_sparc_data_dir(d)
+        assert (df["g_bar"] > 0).all()
+        assert (df["g_obs"] > 0).all()
+
+    def test_raises_when_no_dat_files(self, tmp_path):
+        with pytest.raises(FileNotFoundError, match="_rotmod.dat"):
+            load_sparc_data_dir(tmp_path)
+
+    def test_reads_from_raw_subdir(self, tmp_path):
+        raw = tmp_path / "raw"
+        raw.mkdir()
+        _make_rotmod_dir(raw, n_galaxies=2, n_points=10)
+        df = load_sparc_data_dir(tmp_path)
+        assert df["galaxy"].nunique() == 2
+
+    def test_cli_data_dir_mode(self, tmp_path):
+        d = _make_rotmod_dir(tmp_path, n_galaxies=3, n_points=20)
+        out = tmp_path / "catalog_rotmod.csv"
+        catalog = main(["--data-dir", str(d), "--out", str(out)])
+        assert out.exists()
+        assert len(catalog) == 3
+        assert set(catalog.columns) >= {"galaxy", "friction_slope", "velo_inerte_flag"}
