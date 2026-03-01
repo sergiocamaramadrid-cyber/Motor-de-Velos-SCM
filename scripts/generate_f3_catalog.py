@@ -23,7 +23,10 @@ friction_slope      — fitted β (NaN when n_deep < 2)
 friction_slope_err  — standard error of β
 r_value             — Pearson r of the deep-regime fit
 p_value             — two-tailed p-value of the slope
-velo_inerte_flag    — 1 if β is within 2σ of 0.5, else 0 (NaN when unfit)
+velo_inerte_flag    — Consistency flag with the MOND/deep-velos prediction:
+                      1 (True)  → fitted β is consistent with β = 0.5 within 2σ
+                      0 (False) → fitted β deviates from β = 0.5 by ≥ 2σ
+                      NaN       → insufficient deep-regime points to fit β
 
 Usage
 -----
@@ -86,6 +89,13 @@ def fit_galaxy_slope(
     dict with keys:
         n_total, n_deep, friction_slope, friction_slope_err,
         r_value, p_value, velo_inerte_flag
+
+        velo_inerte_flag semantics:
+            1 (True)  — fitted β is consistent with β = 0.5 within 2σ
+                        (|friction_slope − 0.5| ≤ 2 × friction_slope_err)
+            0 (False) — fitted β deviates from β = 0.5 by ≥ 2σ
+            NaN       — insufficient deep-regime points to compute stderr
+                        (n_deep < 2 or stderr = 0)
     """
     log_gbar = np.asarray(log_gbar, dtype=float)
     log_gobs = np.asarray(log_gobs, dtype=float)
@@ -112,7 +122,10 @@ def fit_galaxy_slope(
         log_gbar[deep_mask], log_gobs[deep_mask]
     )
 
-    # velo_inerte_flag: 1 if β is within 2σ of the MOND prediction
+    # velo_inerte_flag: consistency with the MOND prediction β = 0.5 within 2σ
+    # 1 (True)  → |slope − 0.5| ≤ 2·stderr  (consistent)
+    # 0 (False) → |slope − 0.5| > 2·stderr  (deviant)
+    # NaN       → stderr ≤ 0 or non-finite   (undetermined)
     flag: float
     if np.isfinite(stderr) and stderr > 0:
         flag = 1.0 if abs(slope - EXPECTED_SLOPE) <= 2.0 * stderr else 0.0

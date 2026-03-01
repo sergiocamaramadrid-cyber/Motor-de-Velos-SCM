@@ -7,6 +7,8 @@ Reads the per-galaxy catalog produced by generate_f3_catalog.py and computes:
   • Median friction_slope
   • One-sample t-test against the MOND prediction β = 0.5
   • Fraction of galaxies with velo_inerte_flag = 1
+    (velo_inerte_flag = 1 → fitted β consistent with β = 0.5 within 2σ;
+     velo_inerte_flag = 0 → fitted β deviates from β = 0.5 by ≥ 2σ)
 
 Usage
 -----
@@ -66,7 +68,8 @@ def analyze_catalog(
         median_slope        — ensemble median of friction_slope
         t_stat              — t-statistic from one-sample t-test vs ref_slope
         p_value             — two-tailed p-value of the t-test
-        velo_inerte_frac    — fraction of fitted galaxies with velo_inerte_flag=1
+        velo_inerte_frac    — fraction of fitted galaxies whose velo_inerte_flag = 1
+                              (i.e. fitted β is consistent with β = 0.5 within 2σ)
         ref_slope           — reference slope used for t-test
     """
     required = {"friction_slope"}
@@ -103,7 +106,8 @@ def analyze_catalog(
         t_stat = float("nan")
         p_value = float("nan")
 
-    # Fraction of galaxies flagged as velo_inerte (flag = 1)
+    # velo_inerte_frac: fraction of fitted galaxies with velo_inerte_flag = 1
+    # (flag = 1 → β consistent with 0.5 within 2σ; flag = 0 → deviant by ≥ 2σ)
     if "velo_inerte_flag" in catalog.columns:
         flags = catalog.loc[catalog["friction_slope"].notna(), "velo_inerte_flag"]
         n_flagged = int((flags == 1.0).sum())
