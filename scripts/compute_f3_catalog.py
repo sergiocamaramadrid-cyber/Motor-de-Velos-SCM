@@ -5,7 +5,7 @@ Computes the observable:
 
     F_{3,SCM} = d log10(V_obs) / d log10(r) |_{r >= f * R_max}
 
-for every rotation-curve file found under the data directory.
+for every rotation-curve file found under the data directory (or directories).
 
 Supports multiple outer-fraction thresholds (--outer-fracs) to assess the
 stability of F3_SCM with respect to the definition of the outer region.
@@ -28,12 +28,20 @@ results/f3_catalog.csv (or --out PATH) with columns:
 
 Usage
 -----
-::
+Using a single root directory (auto-discovers both SPARC and LITTLE THINGS)::
 
     python scripts/compute_f3_catalog.py
 
     python scripts/compute_f3_catalog.py \\
         --data-dir data/raw \\
+        --out results/f3_catalog.csv \\
+        --outer-fracs 0.6 0.7 0.8
+
+Using separate per-source directories::
+
+    python scripts/compute_f3_catalog.py \\
+        --sparc-dir data/SPARC/Rotmod \\
+        --lt-dir data/LITTLE_THINGS/Rotmod \\
         --out results/f3_catalog.csv \\
         --outer-fracs 0.6 0.7 0.8
 """
@@ -92,6 +100,44 @@ def _discover_files(data_dir: Path) -> list[tuple[str, str, Path]]:
         found.append(("LT_OH2015", galaxy, path))
 
     return found
+
+
+def _discover_sparc_files(sparc_dir: Path) -> list[tuple[str, str, Path]]:
+    """Discover SPARC ``*_rotmod.dat`` files in *sparc_dir*.
+
+    Parameters
+    ----------
+    sparc_dir : Path
+        Directory to search recursively for ``*_rotmod.dat`` files.
+
+    Returns
+    -------
+    list of (source_label, galaxy_name, file_path) tuples
+        All entries have ``source_label == "SPARC"``.
+    """
+    return [
+        ("SPARC", p.name.replace("_rotmod.dat", ""), p)
+        for p in sorted(sparc_dir.rglob("*_rotmod.dat"))
+    ]
+
+
+def _discover_lt_files(lt_dir: Path) -> list[tuple[str, str, Path]]:
+    """Discover LITTLE THINGS ``*_rot.csv`` files in *lt_dir*.
+
+    Parameters
+    ----------
+    lt_dir : Path
+        Directory to search recursively for ``*_rot.csv`` files.
+
+    Returns
+    -------
+    list of (source_label, galaxy_name, file_path) tuples
+        All entries have ``source_label == "LT_OH2015"``.
+    """
+    return [
+        ("LT_OH2015", p.name.replace("_rot.csv", ""), p)
+        for p in sorted(lt_dir.rglob("*_rot.csv"))
+    ]
 
 
 # ---------------------------------------------------------------------------
@@ -242,17 +288,18 @@ def compute_f3(
 # Catalog builder
 # ---------------------------------------------------------------------------
 
-def build_catalog(
-    data_dir: Path,
+def _build_catalog_from_files(
+    file_list: list[tuple[str, str, Path]],
     outer_fracs: list[float] = OUTER_FRACS_DEFAULT,
     min_points: int = MIN_POINTS_DEFAULT,
 ) -> pd.DataFrame:
-    """Build the full F3_SCM catalog.
+    """Build the F3_SCM catalog from a pre-assembled list of files.
 
     Parameters
     ----------
-    data_dir : Path
-        Root directory to search for rotation-curve files.
+    file_list : list of (source_label, galaxy_name, file_path) tuples
+        As returned by :func:`_discover_files`, :func:`_discover_sparc_files`,
+        or :func:`_discover_lt_files`.
     outer_fracs : list[float]
         Outer-fraction thresholds to evaluate.
     min_points : int
@@ -263,10 +310,9 @@ def build_catalog(
     pd.DataFrame
         Catalog with columns defined by :data:`CATALOG_COLS`.
     """
-    files = _discover_files(data_dir)
     rows: list[dict] = []
 
-    for source, galaxy, path in files:
+    for source, galaxy, path in file_list:
         try:
             r, v_obs = _load_rotation_curve(source, path)
         except Exception as exc:  # noqa: BLE001
@@ -300,6 +346,31 @@ def build_catalog(
     return df
 
 
+def build_catalog(
+    data_dir: Path,
+    outer_fracs: list[float] = OUTER_FRACS_DEFAULT,
+    min_points: int = MIN_POINTS_DEFAULT,
+) -> pd.DataFrame:
+    """Build the full F3_SCM catalog by auto-discovering files in *data_dir*.
+
+    Parameters
+    ----------
+    data_dir : Path
+        Root directory to search for rotation-curve files.
+    outer_fracs : list[float]
+        Outer-fraction thresholds to evaluate.
+    min_points : int
+        Minimum outer-region points required for a fit.
+
+    Returns
+    -------
+    pd.DataFrame
+        Catalog with columns defined by :data:`CATALOG_COLS`.
+    """
+    files = _discover_files(data_dir)
+    return _build_catalog_from_files(files, outer_fracs, min_points)
+
+
 # ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
@@ -312,13 +383,38 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             "in the outer region of each rotation curve."
         )
     )
-    parser.add_argument(
+
+    # Source directories — either a single root or explicit per-source dirs
+    src_group = parser.add_argument_group(
+        "source directories",
+        "Specify a single root (--data-dir) or explicit per-source directories "
+        "(--sparc-dir / --lt-dir).  Explicit per-source arguments take priority "
+        "over --data-dir when at least one of them is provided.",
+    )
+    src_group.add_argument(
         "--data-dir",
         default=str(repo_root / "data" / "raw"),
         metavar="DIR",
-        help="Root directory to search for rotation-curve files "
-             "(default: data/raw).",
+        help="Root directory to auto-discover SPARC and LITTLE THINGS files "
+             "(default: data/raw).  Ignored when --sparc-dir or --lt-dir is given.",
     )
+    src_group.add_argument(
+        "--sparc-dir",
+        default=None,
+        metavar="DIR",
+        dest="sparc_dir",
+        help="Directory containing SPARC ``*_rotmod.dat`` files.  "
+             "When provided, only this directory is searched for SPARC data.",
+    )
+    src_group.add_argument(
+        "--lt-dir",
+        default=None,
+        metavar="DIR",
+        dest="lt_dir",
+        help="Directory containing LITTLE THINGS ``*_rot.csv`` files.  "
+             "When provided, only this directory is searched for LT data.",
+    )
+
     parser.add_argument(
         "--out",
         default=str(repo_root / "results" / "f3_catalog.csv"),
@@ -353,17 +449,51 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
-    data_dir = Path(args.data_dir)
     out_path = Path(args.out)
 
-    if not data_dir.exists():
-        raise FileNotFoundError(f"Data directory not found: {data_dir}")
+    use_explicit_dirs = args.sparc_dir is not None or args.lt_dir is not None
 
-    catalog = build_catalog(
-        data_dir,
-        outer_fracs=args.outer_fracs,
-        min_points=args.min_points,
-    )
+    if use_explicit_dirs:
+        # Build file list from explicitly specified per-source directories
+        file_list: list[tuple[str, str, Path]] = []
+
+        if args.sparc_dir is not None:
+            sparc_dir = Path(args.sparc_dir)
+            if not sparc_dir.exists():
+                raise FileNotFoundError(
+                    f"SPARC directory not found: {sparc_dir}"
+                )
+            file_list.extend(_discover_sparc_files(sparc_dir))
+
+        if args.lt_dir is not None:
+            lt_dir = Path(args.lt_dir)
+            if not lt_dir.exists():
+                raise FileNotFoundError(
+                    f"LITTLE THINGS directory not found: {lt_dir}"
+                )
+            file_list.extend(_discover_lt_files(lt_dir))
+
+        catalog = _build_catalog_from_files(
+            file_list,
+            outer_fracs=args.outer_fracs,
+            min_points=args.min_points,
+        )
+        source_desc = ", ".join(
+            filter(None, [
+                f"--sparc-dir {args.sparc_dir}" if args.sparc_dir else None,
+                f"--lt-dir {args.lt_dir}" if args.lt_dir else None,
+            ])
+        )
+    else:
+        data_dir = Path(args.data_dir)
+        if not data_dir.exists():
+            raise FileNotFoundError(f"Data directory not found: {data_dir}")
+        catalog = build_catalog(
+            data_dir,
+            outer_fracs=args.outer_fracs,
+            min_points=args.min_points,
+        )
+        source_desc = f"--data-dir {data_dir}"
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     catalog.to_csv(out_path, index=False)
@@ -374,7 +504,7 @@ def main(argv: list[str] | None = None) -> None:
     print(sep)
     print("  Motor de Velos SCM — F3_SCM Catalog")
     print(sep)
-    print(f"  Data dir      : {data_dir}")
+    print(f"  Source        : {source_desc}")
     print(f"  Outer fracs   : {args.outer_fracs}")
     print(f"  Min points    : {args.min_points}")
     print(f"  Total rows    : {n_total}")

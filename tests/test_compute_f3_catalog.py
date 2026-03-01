@@ -22,6 +22,9 @@ from scripts.compute_f3_catalog import (
     compute_f3,
     main,
     _discover_files,
+    _discover_sparc_files,
+    _discover_lt_files,
+    _build_catalog_from_files,
     _load_sparc,
     _load_lt,
 )
@@ -274,6 +277,86 @@ class TestBuildCatalog:
 
 
 # ---------------------------------------------------------------------------
+# _discover_sparc_files / _discover_lt_files
+# ---------------------------------------------------------------------------
+
+class TestDiscoverSparcFiles:
+    def test_finds_only_sparc_files(self, sparc_dir):
+        files = _discover_sparc_files(sparc_dir)
+        assert len(files) == 2
+        assert all(s == "SPARC" for s, _, _ in files)
+
+    def test_galaxy_names_extracted(self, sparc_dir):
+        files = _discover_sparc_files(sparc_dir)
+        galaxies = {g for _, g, _ in files}
+        assert galaxies == {"AAA0001", "BBB0002"}
+
+    def test_empty_dir_returns_empty(self, tmp_path):
+        assert _discover_sparc_files(tmp_path) == []
+
+    def test_nonexistent_dir_returns_empty(self, tmp_path):
+        """rglob on a non-existent path yields an empty list (validation is
+        done at the CLI level in main())."""
+        result = _discover_sparc_files(tmp_path / "no_such_dir")
+        assert result == []
+
+    def test_does_not_pick_up_lt_files(self, lt_dir):
+        """A LITTLE THINGS directory must yield no SPARC entries."""
+        assert _discover_sparc_files(lt_dir) == []
+
+
+class TestDiscoverLTFiles:
+    def test_finds_only_lt_files(self, lt_dir):
+        files = _discover_lt_files(lt_dir)
+        assert len(files) == 2
+        assert all(s == "LT_OH2015" for s, _, _ in files)
+
+    def test_galaxy_names_extracted(self, lt_dir):
+        files = _discover_lt_files(lt_dir)
+        galaxies = {g for _, g, _ in files}
+        assert galaxies == {"DDO001", "DDO002"}
+
+    def test_empty_dir_returns_empty(self, tmp_path):
+        assert _discover_lt_files(tmp_path) == []
+
+    def test_nonexistent_dir_returns_empty(self, tmp_path):
+        """rglob on a non-existent path yields an empty list (validation is
+        done at the CLI level in main())."""
+        result = _discover_lt_files(tmp_path / "no_such_dir")
+        assert result == []
+
+    def test_does_not_pick_up_sparc_files(self, sparc_dir):
+        """A SPARC directory must yield no LT entries."""
+        assert _discover_lt_files(sparc_dir) == []
+
+
+# ---------------------------------------------------------------------------
+# _build_catalog_from_files
+# ---------------------------------------------------------------------------
+
+class TestBuildCatalogFromFiles:
+    def test_empty_file_list_returns_empty_df(self):
+        df = _build_catalog_from_files([])
+        assert len(df) == 0
+        assert list(df.columns) == CATALOG_COLS
+
+    def test_correct_columns(self, sparc_dir):
+        files = _discover_sparc_files(sparc_dir)
+        df = _build_catalog_from_files(files)
+        assert list(df.columns) == CATALOG_COLS
+
+    def test_row_count(self, sparc_dir):
+        files = _discover_sparc_files(sparc_dir)
+        df = _build_catalog_from_files(files, outer_fracs=[0.6, 0.7, 0.8])
+        assert len(df) == 6  # 2 galaxies × 3 fracs
+
+    def test_mixed_sources(self, sparc_dir, lt_dir):
+        files = _discover_sparc_files(sparc_dir) + _discover_lt_files(lt_dir)
+        df = _build_catalog_from_files(files, outer_fracs=[0.7])
+        assert set(df["source"].unique()) == {"SPARC", "LT_OH2015"}
+
+
+# ---------------------------------------------------------------------------
 # CLI main
 # ---------------------------------------------------------------------------
 
@@ -319,3 +402,87 @@ class TestCLIMain:
             "--out", str(out),
         ])
         assert out.exists()
+
+    # --- new --sparc-dir / --lt-dir path ---------------------------------
+
+    def test_sparc_dir_creates_output(self, sparc_dir, tmp_path):
+        out = tmp_path / "sparc_catalog.csv"
+        main([
+            "--sparc-dir", str(sparc_dir),
+            "--out", str(out),
+        ])
+        assert out.exists()
+
+    def test_sparc_dir_source_label(self, sparc_dir, tmp_path):
+        out = tmp_path / "sparc_catalog.csv"
+        main([
+            "--sparc-dir", str(sparc_dir),
+            "--out", str(out),
+        ])
+        df = pd.read_csv(out)
+        assert (df["source"] == "SPARC").all()
+
+    def test_lt_dir_creates_output(self, lt_dir, tmp_path):
+        out = tmp_path / "lt_catalog.csv"
+        main([
+            "--lt-dir", str(lt_dir),
+            "--out", str(out),
+        ])
+        assert out.exists()
+
+    def test_lt_dir_source_label(self, lt_dir, tmp_path):
+        out = tmp_path / "lt_catalog.csv"
+        main([
+            "--lt-dir", str(lt_dir),
+            "--out", str(out),
+        ])
+        df = pd.read_csv(out)
+        assert (df["source"] == "LT_OH2015").all()
+
+    def test_sparc_and_lt_dir_combined(self, sparc_dir, lt_dir, tmp_path):
+        out = tmp_path / "combined.csv"
+        main([
+            "--sparc-dir", str(sparc_dir),
+            "--lt-dir", str(lt_dir),
+            "--out", str(out),
+            "--outer-fracs", "0.6", "0.7",
+        ])
+        df = pd.read_csv(out)
+        assert set(df["source"].unique()) == {"SPARC", "LT_OH2015"}
+        # 2 SPARC + 2 LT galaxies × 2 fracs = 8 rows
+        assert len(df) == 8
+
+    def test_sparc_dir_multi_fracs(self, sparc_dir, tmp_path):
+        out = tmp_path / "sparc_multi.csv"
+        main([
+            "--sparc-dir", str(sparc_dir),
+            "--out", str(out),
+            "--outer-fracs", "0.6", "0.7", "0.8",
+        ])
+        df = pd.read_csv(out)
+        assert set(df["outer_frac"].unique()) == {0.6, 0.7, 0.8}
+
+    def test_missing_sparc_dir_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            main([
+                "--sparc-dir", str(tmp_path / "no_such_sparc"),
+                "--out", str(tmp_path / "out.csv"),
+            ])
+
+    def test_missing_lt_dir_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            main([
+                "--lt-dir", str(tmp_path / "no_such_lt"),
+                "--out", str(tmp_path / "out.csv"),
+            ])
+
+    def test_sparc_dir_overrides_data_dir(self, sparc_dir, lt_dir, tmp_path):
+        """When --sparc-dir is given, --data-dir is ignored."""
+        out = tmp_path / "override.csv"
+        main([
+            "--sparc-dir", str(sparc_dir),
+            "--data-dir", str(lt_dir),   # should be ignored
+            "--out", str(out),
+        ])
+        df = pd.read_csv(out)
+        assert (df["source"] == "SPARC").all()
