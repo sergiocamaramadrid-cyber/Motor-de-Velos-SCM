@@ -233,3 +233,38 @@ class TestMainCLI:
         assert stats["n_fitted"] > 0
         assert np.isfinite(stats["mean_slope"])
         assert np.isfinite(stats["t_stat"])
+
+    def test_real_catalog_analysis_output(self):
+        """Lock in the scientific result from results/f3_catalog_real.csv.
+
+        These numbers are the reproducible output of running
+        generate_f3_catalog.py on the committed processed dataset
+        (results/universal_term_comparison_full.csv, 175 galaxies).
+
+        Expected result (run 2026-03-01):
+          N galaxies in catalog : 175
+          N galaxies fitted     : 20   (L000-L019, LITTLE THINGS sample)
+          Mean β                : 0.9973  ± 0.0616
+          Reference β (MOND)    : 0.5000
+          t-statistic           : 36.09
+          p-value               : 5.74e-19  (H0: mean β = 0.5 rejected)
+          n_consistent  (flag=1): 0
+          n_inconsistent(flag=0): 20
+
+        Interpretation: all 20 fitted galaxies have β ≈ 1.0, deviating from
+        the MOND deep-regime reference (β = 0.5) by ~36 standard errors.
+        The hypothesis H0: ⟨β⟩ = 0.5 is rejected at p ≪ 0.05.
+        flag=1 would signal consistency with β=0.5; flag=0 signals deviation.
+        """
+        p = Path("results/f3_catalog_real.csv")
+        assert p.exists(), "results/f3_catalog_real.csv not found — run generate_f3_catalog.py first"
+        catalog = pd.read_csv(p)
+        stats = analyze_catalog(catalog)
+
+        assert stats["n_galaxies"] == 175
+        assert stats["n_fitted"] == 20
+        assert stats["mean_slope"] == pytest.approx(0.9973, abs=1e-3)
+        assert stats["std_slope"] == pytest.approx(0.0616, abs=1e-3)
+        assert stats["p_value"] < 1e-10          # far below any reasonable threshold
+        assert stats["n_consistent"] == 0        # no galaxy within 2σ of β=0.5
+        assert stats["n_inconsistent"] == 20     # all 20 deviate significantly
