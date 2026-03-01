@@ -123,7 +123,7 @@ class TestSyntheticFixture:
         )
 
     def test_fixture_beta_near_one(self):
-        """Reliable β values must be ≈ 1.0 (flat rotation curve signature).
+        """Reliable β values must be ≈ 1.0 ± 0.10 (flat rotation curve signature).
 
         With flat rotation curves, g_obs and g_bar both scale as V²/r with
         constant V, so the deep-regime slope β = 1 by construction.
