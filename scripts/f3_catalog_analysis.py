@@ -7,8 +7,15 @@ Reads the per-galaxy catalog produced by generate_f3_catalog.py and computes:
   • Median friction_slope
   • One-sample t-test against the MOND prediction β = 0.5
   • Fraction of galaxies with velo_inerte_flag = 1
-    (velo_inerte_flag = 1 → fitted β consistent with β = 0.5 within 2σ;
-     velo_inerte_flag = 0 → fitted β deviates from β = 0.5 by ≥ 2σ)
+
+velo_inerte_flag semantics:
+  1   → |β − ref| ≤ 2σ  (consistent with reference prediction β = 0.5)
+  0   → |β − ref| > 2σ  (significant deviation from reference)
+  NaN → insufficient deep-regime data to fit β
+
+  Note: flag = 1 confirms *consistency with the reference prediction*, not a
+  new-theory confirmation.  flag = 0 identifies galaxies that deviate
+  significantly from the reference slope.
 
 Usage
 -----
@@ -17,9 +24,16 @@ Usage
     python scripts/f3_catalog_analysis.py
 
     python scripts/f3_catalog_analysis.py \\
+        --catalog results/f3_catalog_real.csv
+
+    # explicit output path
+    python scripts/f3_catalog_analysis.py \\
         --catalog results/f3_catalog.csv \\
         --ref-slope 0.5 \\
         --out results/f3_catalog_stats.csv
+
+When --out is omitted the stats CSV is written next to the catalog with the
+suffix ``_stats.csv`` (e.g. ``f3_catalog_real.csv`` → ``f3_catalog_real_stats.csv``).
 """
 
 from __future__ import annotations
@@ -176,6 +190,10 @@ def format_report(stats: dict) -> list[str]:
     if not np.isnan(stats["velo_inerte_frac"]):
         lines += [
             "",
+            "  velo_inerte_flag semantics (ref slope = {:.1f}):".format(stats["ref_slope"]),
+            "    1 → |β − ref| ≤ 2σ  (consistent with reference prediction)",
+            "    0 → |β − ref| > 2σ  (significant deviation from reference)",
+            "    NaN → insufficient deep-regime data",
             f"  Velo-inerte fraction   : {stats['velo_inerte_frac']:.3f}",
             f"  n_consistent  (flag=1) : {stats['n_consistent']}",
             f"  n_inconsistent(flag=0) : {stats['n_inconsistent']}",
@@ -202,8 +220,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Reference slope for the t-test (default: {REF_SLOPE}).",
     )
     parser.add_argument(
-        "--out", default=OUT_DEFAULT,
-        help=f"Output stats CSV path (default: {OUT_DEFAULT}).",
+        "--out", default=None,
+        help=(
+            "Output stats CSV path. "
+            "Defaults to <catalog_stem>_stats.csv in the same directory as the catalog."
+        ),
     )
     return parser.parse_args(argv)
 
@@ -219,6 +240,13 @@ def main(argv: list[str] | None = None) -> dict:
             "Run 'python scripts/generate_f3_catalog.py' first."
         )
 
+    # Derive output path from catalog name when --out is not explicitly provided.
+    # e.g. results/f3_catalog_real.csv → results/f3_catalog_real_stats.csv
+    if args.out is None:
+        out_path = catalog_path.with_name(catalog_path.stem + "_stats.csv")
+    else:
+        out_path = Path(args.out)
+
     catalog = pd.read_csv(catalog_path)
     stats = analyze_catalog(catalog, ref_slope=args.ref_slope)
 
@@ -226,7 +254,6 @@ def main(argv: list[str] | None = None) -> dict:
     for line in report_lines:
         print(line)
 
-    out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame([stats]).to_csv(out_path, index=False)
     print(f"\n  Stats written to {out_path}")

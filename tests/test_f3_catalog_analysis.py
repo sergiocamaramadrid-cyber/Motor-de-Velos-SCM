@@ -159,6 +159,17 @@ class TestFormatReport:
         assert "n_consistent" in combined
         assert "n_inconsistent" in combined
 
+    def test_report_contains_flag_semantics_legend(self, tmp_path):
+        """Report must include the velo_inerte_flag semantics legend."""
+        p = _make_catalog(tmp_path, n=10)
+        catalog = pd.read_csv(p)
+        stats = analyze_catalog(catalog)
+        lines = format_report(stats)
+        combined = "\n".join(lines)
+        assert "velo_inerte_flag semantics (ref slope" in combined
+        assert "consistent with reference prediction" in combined
+        assert "significant deviation from reference" in combined
+
     def test_report_handles_zero_fitted(self):
         stats = {
             "n_galaxies": 5, "n_fitted": 0,
@@ -204,6 +215,14 @@ class TestMainCLI:
         stats = main(["--catalog", str(cat), "--out", str(out),
                       "--ref-slope", "0.42"])
         assert stats["ref_slope"] == pytest.approx(0.42)
+
+    def test_auto_derives_out_path_from_catalog(self, tmp_path):
+        """When --out is omitted, stats go to <catalog_stem>_stats.csv."""
+        cat = _make_catalog(tmp_path, n=10)
+        # _make_catalog writes tmp_path/f3_catalog.csv → auto out: tmp_path/f3_catalog_stats.csv
+        expected_out = tmp_path / "f3_catalog_stats.csv"
+        main(["--catalog", str(cat)])
+        assert expected_out.exists()
 
     def test_reference_catalog_passes_analysis(self):
         """The committed results/f3_catalog.csv must pass the analysis cleanly."""
