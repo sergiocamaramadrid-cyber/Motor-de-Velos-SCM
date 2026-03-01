@@ -154,6 +154,57 @@ def _make_f3_catalog_csv(
 
 
 # ---------------------------------------------------------------------------
+# Unit tests: hierarchy_level
+# ---------------------------------------------------------------------------
+
+class TestHierarchyLevel:
+    def test_base_value_gives_zero(self):
+        """hierarchy_level(x0, x0) must be exactly 0."""
+        assert hierarchy_level(1.0, 1.0) == pytest.approx(0.0)
+
+    def test_one_level_up_gives_one(self):
+        """hierarchy_level(60 * x0, x0) must be exactly 1."""
+        assert hierarchy_level(60.0, 1.0) == pytest.approx(1.0)
+
+    def test_two_levels_up_gives_two(self):
+        """hierarchy_level(3600 * x0, x0) must be exactly 2."""
+        assert hierarchy_level(3600.0, 1.0) == pytest.approx(2.0)
+
+    def test_fractional_level(self):
+        """hierarchy_level(sqrt(60), 1) == 0.5."""
+        assert hierarchy_level(60.0 ** 0.5, 1.0) == pytest.approx(0.5)
+
+    def test_negative_level_below_reference(self):
+        """hierarchy_level(1/60, 1) == -1."""
+        assert hierarchy_level(1.0 / 60.0, 1.0) == pytest.approx(-1.0)
+
+    def test_array_input(self):
+        """hierarchy_level accepts arrays and returns the right shape."""
+        x = np.array([1.0, 60.0, 3600.0])
+        result = hierarchy_level(x, 1.0)
+        assert result.shape == (3,)
+        np.testing.assert_allclose(result, [0.0, 1.0, 2.0], atol=1e-12)
+
+    def test_non_positive_input_gives_nan(self):
+        """Non-positive x should produce NaN (log of non-positive is undefined)."""
+        assert math.isnan(hierarchy_level(0.0, 1.0))
+        assert math.isnan(hierarchy_level(-1.0, 1.0))
+
+    def test_base_60_constant_used(self):
+        """Result must equal log(x/x0) / log(60)."""
+        x, x0 = 120.0, 2.0
+        expected = np.log(x / x0) / np.log(BASE_60)
+        assert hierarchy_level(x, x0) == pytest.approx(expected)
+
+    def test_custom_reference(self):
+        """Scaling x0 should shift S by a constant."""
+        s1 = hierarchy_level(10.0, 1.0)
+        s2 = hierarchy_level(10.0, 2.0)
+        expected_shift = hierarchy_level(2.0, 1.0)
+        assert s1 - s2 == pytest.approx(expected_shift)
+
+
+# ---------------------------------------------------------------------------
 # Unit tests: compute_galaxy_beta
 # ---------------------------------------------------------------------------
 
@@ -293,6 +344,48 @@ class TestBuildCatalog:
         assert len(catalog) == 1
         assert math.isnan(catalog.iloc[0]["velo_inerte_flag"])
 
+    def test_hierarchy_scm_column_present(self, tmp_path):
+        """build_catalog must always return a hierarchy_scm column."""
+        csv = _make_mond_per_point_csv(tmp_path, n_galaxies=3)
+        df = pd.read_csv(csv)
+        catalog = build_catalog(df)
+        assert "hierarchy_scm" in catalog.columns
+
+    def test_hierarchy_scm_finite_when_r_kpc_present(self, tmp_path):
+        """hierarchy_scm must be finite for deep-regime galaxies that have r_kpc."""
+        csv = _make_mond_per_point_csv(tmp_path, n_galaxies=3, n_deep=30)
+        df = pd.read_csv(csv)
+        catalog = build_catalog(df)
+        valid = catalog.dropna(subset=["friction_slope"])
+        assert valid["hierarchy_scm"].apply(np.isfinite).all()
+
+    def test_hierarchy_scm_nan_without_r_kpc(self, tmp_path):
+        """hierarchy_scm must be NaN when the input has no r_kpc column."""
+        csv = _make_mond_per_point_csv(tmp_path, n_galaxies=2, n_deep=20)
+        df = pd.read_csv(csv).drop(columns=["r_kpc"])
+        catalog = build_catalog(df)
+        assert catalog["hierarchy_scm"].isna().all()
+
+    def test_hierarchy_scm_value_matches_formula(self, tmp_path):
+        """S_SCM must equal log_60(r_median_deep / r0_kpc) for a known dataset."""
+        a0 = A0_DEFAULT
+        r0 = 2.0  # custom reference
+        # Deep-regime points spanning a range of g_bar at r=60*r0 → S_SCM should be 1
+        rng = np.random.default_rng(42)
+        g_bar_deep = rng.uniform(0.001 * a0, 0.29 * a0, 20)
+        log_gbar = np.log10(g_bar_deep)
+        log_gobs = 0.5 * log_gbar + 0.5 * np.log10(a0)
+        df = pd.DataFrame({
+            "galaxy": ["TST"] * 20,
+            "r_kpc": np.full(20, 60.0 * r0),
+            "g_bar": g_bar_deep,
+            "g_obs": 10.0 ** log_gobs,
+            "log_g_bar": log_gbar,
+            "log_g_obs": log_gobs,
+        })
+        catalog = build_catalog(df, r0_kpc=r0)
+        assert catalog.iloc[0]["hierarchy_scm"] == pytest.approx(1.0)
+
 
 # ---------------------------------------------------------------------------
 # Unit tests: analyze_catalog
@@ -373,6 +466,42 @@ class TestAnalyzeCatalog:
         result = analyze_catalog(df)
         assert result["beta_mean"] == pytest.approx(0.5, abs=0.05)
 
+    def test_pearson_keys_present(self, tmp_path):
+        """analyze_catalog must always return pearson_r_scm and pearson_p_scm."""
+        csv = _make_f3_catalog_csv(tmp_path, n_consistent=10)
+        df = pd.read_csv(csv)
+        result = analyze_catalog(df)
+        assert "pearson_r_scm" in result
+        assert "pearson_p_scm" in result
+
+    def test_pearson_nan_without_hierarchy_scm(self):
+        """Pearson fields must be NaN when hierarchy_scm column is absent."""
+        df = pd.DataFrame({
+            "friction_slope": [0.48, 0.51, 0.50, 0.49],
+            "velo_inerte_flag": [1.0, 1.0, 1.0, 1.0],
+        })
+        result = analyze_catalog(df)
+        assert math.isnan(result["pearson_r_scm"])
+        assert math.isnan(result["pearson_p_scm"])
+
+    def test_pearson_finite_with_hierarchy_scm(self, tmp_path):
+        """Pearson fields must be finite when hierarchy_scm is populated."""
+        csv = _make_f3_catalog_csv(tmp_path, n_consistent=10, n_nan=0,
+                                    with_hierarchy=True)
+        df = pd.read_csv(csv)
+        result = analyze_catalog(df)
+        # At least 3 rows have both valid slope and hierarchy_scm
+        assert np.isfinite(result["pearson_r_scm"])
+        assert np.isfinite(result["pearson_p_scm"])
+
+    def test_pearson_r_range(self, tmp_path):
+        """Pearson r must be in [-1, 1]."""
+        csv = _make_f3_catalog_csv(tmp_path, n_consistent=15, n_nan=0,
+                                    with_hierarchy=True)
+        df = pd.read_csv(csv)
+        result = analyze_catalog(df)
+        assert -1.0 <= result["pearson_r_scm"] <= 1.0
+
 
 # ---------------------------------------------------------------------------
 # print_summary (smoke test — just checks it doesn't raise)
@@ -391,6 +520,7 @@ class TestPrintSummary:
         assert "Consistent with" in captured.out
         assert "Inconsistent" in captured.out
         assert "Insufficient data" in captured.out
+        assert "Pearson" in captured.out
 
     def test_output_contains_nan_summary_when_no_valid(self, capsys):
         df = pd.DataFrame({
@@ -449,6 +579,28 @@ class TestGenerateMainCLI:
         out = tmp_path / "new_subdir" / "catalog.csv"
         generate_main(["--csv", str(csv), "--out", str(out)])
         assert out.exists()
+
+    def test_output_has_hierarchy_scm_column(self, tmp_path):
+        """Catalog output must include the hierarchy_scm column."""
+        csv = _make_mond_per_point_csv(tmp_path, n_galaxies=3)
+        out = tmp_path / "cat_hier.csv"
+        generate_main(["--csv", str(csv), "--out", str(out)])
+        df = pd.read_csv(out)
+        assert "hierarchy_scm" in df.columns
+
+    def test_r0_kpc_arg_changes_hierarchy_scm(self, tmp_path):
+        """Different --r0-kpc values must produce different hierarchy_scm values."""
+        csv = _make_mond_per_point_csv(tmp_path, n_galaxies=3, n_deep=20)
+        out1 = tmp_path / "cat1.csv"
+        out2 = tmp_path / "cat2.csv"
+        generate_main(["--csv", str(csv), "--out", str(out1), "--r0-kpc", "1.0"])
+        generate_main(["--csv", str(csv), "--out", str(out2), "--r0-kpc", "5.0"])
+        df1 = pd.read_csv(out1).dropna(subset=["hierarchy_scm"])
+        df2 = pd.read_csv(out2).dropna(subset=["hierarchy_scm"])
+        # S_SCM(r, 1.0) != S_SCM(r, 5.0) for the same r
+        assert not np.allclose(
+            df1["hierarchy_scm"].values, df2["hierarchy_scm"].values
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -535,7 +687,7 @@ class TestEndToEndPipeline:
         )
         df = pd.read_csv(catalog_path)
         for col in ["galaxy", "n_total", "n_deep", "friction_slope",
-                    "friction_slope_stderr", "velo_inerte_flag"]:
+                    "friction_slope_stderr", "velo_inerte_flag", "hierarchy_scm"]:
             assert col in df.columns, f"Missing column in artifact: {col}"
         assert len(df) > 0
 

@@ -50,12 +50,18 @@ Usage
 
     python scripts/generate_f3_catalog.py
 
+    # From a pre-computed per-radial-point CSV:
     python scripts/generate_f3_catalog.py \\
         --csv  results/universal_term_comparison_full.csv \\
         --out  results/f3_catalog_real.csv \\
         --a0   1.2e-10 \\
         --deep-threshold 0.3 \\
         --r0-kpc 1.0
+
+    # Directly from a SPARC data directory (runs the full SCM pipeline first):
+    python scripts/generate_f3_catalog.py \\
+        --data-dir data/SPARC \\
+        --out results/f3_catalog_real.csv
 """
 
 from __future__ import annotations
@@ -107,7 +113,8 @@ def hierarchy_level(x: "np.ndarray | float", x0: float) -> "np.ndarray | float":
     """
     x = np.asarray(x, dtype=float)
     with np.errstate(divide="ignore", invalid="ignore"):
-        result = np.log(x / x0) / np.log(BASE_60)
+        ratio = np.where(x / x0 > 0, x / x0, np.nan)
+        result = np.log(ratio) / np.log(BASE_60)
     return float(result) if result.ndim == 0 else result
 
 # ---------------------------------------------------------------------------
@@ -269,6 +276,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Per-radial-point input CSV (default: {CSV_DEFAULT}).",
     )
     parser.add_argument(
+        "--data-dir", default=None, dest="data_dir",
+        help=(
+            "SPARC data directory.  When supplied the full SCM pipeline is run "
+            "first (equivalent to 'python -m src.scm_analysis --data-dir DIR') "
+            "and the resulting per-radial-point CSV is used as input.  "
+            "Mutually exclusive with --csv."
+        ),
+    )
+    parser.add_argument(
         "--out", default=OUT_DEFAULT,
         help=f"Output catalog CSV path (default: {OUT_DEFAULT}).",
     )
@@ -301,12 +317,26 @@ def main(argv: list[str] | None = None) -> pd.DataFrame:
     Returns the catalog DataFrame so callers can inspect it programmatically.
     """
     args = _parse_args(argv)
-    csv_path = Path(args.csv)
+
+    if args.data_dir is not None:
+        # Run the full SCM pipeline to produce a per-radial-point CSV, then
+        # use that CSV as input for the catalog builder.
+        from src.scm_analysis import run_pipeline  # noqa: PLC0415
+        data_dir = Path(args.data_dir)
+        out_path = Path(args.out)
+        pipeline_out_dir = out_path.parent
+        pipeline_out_dir.mkdir(parents=True, exist_ok=True)
+        print(f"Running SCM pipeline on {data_dir} → {pipeline_out_dir} …")
+        run_pipeline(data_dir, pipeline_out_dir)
+        csv_path = pipeline_out_dir / "universal_term_comparison_full.csv"
+    else:
+        csv_path = Path(args.csv)
 
     if not csv_path.exists():
         raise FileNotFoundError(
             f"Input CSV not found: {csv_path}\n"
-            "Run 'python -m src.scm_analysis --data-dir data/SPARC --out results/' first."
+            "Run 'python -m src.scm_analysis --data-dir data/SPARC --out results/' first,\n"
+            "or use --data-dir to run the pipeline automatically."
         )
 
     df = pd.read_csv(csv_path)
