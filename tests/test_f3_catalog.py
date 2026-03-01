@@ -11,6 +11,7 @@ Covers:
 from __future__ import annotations
 
 import math
+import subprocess
 from pathlib import Path
 
 import numpy as np
@@ -436,4 +437,20 @@ class TestSemanticSeparation:
         args = _parse_args([])
         assert "f3_catalog_real.csv" in args.catalog, (
             "Analysis script default input must be f3_catalog_real.csv"
+        )
+
+    def test_f3_catalog_real_is_gitignored(self):
+        """results/f3_catalog_real.csv must be excluded by .gitignore.
+
+        This enforces the semantic separation: real SPARC measurement output
+        must never be accidentally committed to the repository.
+        """
+        result = subprocess.run(
+            ["git", "check-ignore", "--quiet", "results/f3_catalog_real.csv"],
+            capture_output=True,
+        )
+        assert result.returncode == 0, (
+            "results/f3_catalog_real.csv is NOT in .gitignore — "
+            "add 'results/f3_catalog_real.csv' to .gitignore to protect "
+            "the semantic separation between the CI fixture and real SPARC data."
         )
