@@ -129,6 +129,21 @@ class TestAnalyzeF3Catalog:
         with pytest.raises(ValueError, match="missing required columns"):
             analyze_f3_catalog(bad)
 
+    def test_accepts_scm_canonical_column_names(self):
+        """analyze_f3_catalog must accept friction_slope / velo_inerte_flag."""
+        rng = np.random.default_rng(99)
+        df = pd.DataFrame({
+            "galaxy": [f"G{i}" for i in range(5)],
+            "friction_slope": 1.0 + rng.normal(0, 0.02, 5),
+            "friction_slope_err": np.full(5, 0.01),
+            "velo_inerte_flag": np.ones(5, dtype=bool),
+            "n_deep": np.full(5, 10),
+        })
+        stats = analyze_f3_catalog(df)
+        assert stats["n_galaxies"] == 5
+        assert stats["n_reliable"] == 5
+        assert stats["beta_median"] == pytest.approx(1.0, abs=0.10)
+
     def test_beta_mean_all_includes_unreliable(self):
         """beta_mean_all should average beta over all non-NaN rows."""
         rng = np.random.default_rng(11)

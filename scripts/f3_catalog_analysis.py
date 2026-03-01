@@ -61,7 +61,16 @@ def analyze_f3_catalog(df: pd.DataFrame) -> dict:
     required = {"beta", "reliable"}
     missing = required - set(df.columns)
     if missing:
-        raise ValueError(f"Catalog missing required columns: {missing}")
+        # Accept SCM framework canonical names as aliases
+        alias = {"beta": "friction_slope", "reliable": "velo_inerte_flag"}
+        still_missing = {c for c in missing if alias.get(c, c) not in df.columns}
+        if still_missing:
+            raise ValueError(f"Catalog missing required columns: {still_missing}")
+        df = df.copy()
+        if "beta" not in df.columns:
+            df["beta"] = df["friction_slope"]
+        if "reliable" not in df.columns:
+            df["reliable"] = df["velo_inerte_flag"]
 
     reliable = df[df["reliable"]]["beta"].dropna()
     all_beta = df["beta"].dropna()

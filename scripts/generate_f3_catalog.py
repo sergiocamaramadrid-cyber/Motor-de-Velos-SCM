@@ -209,6 +209,10 @@ def generate_f3_catalog(
         df = pd.DataFrame(columns=cols)
     else:
         df = df[cols]
+    # SCM framework canonical aliases
+    df["friction_slope"] = df["beta"]
+    df["friction_slope_err"] = df["beta_err"]
+    df["velo_inerte_flag"] = df["reliable"]
     df = df.sort_values("galaxy").reset_index(drop=True)
     df.to_csv(out, index=False)
 

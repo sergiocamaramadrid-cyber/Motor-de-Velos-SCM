@@ -110,6 +110,27 @@ class TestSyntheticFixture:
             f"Missing columns: {required - set(df.columns)}"
         )
 
+    def test_fixture_scm_canonical_columns(self):
+        """Fixture must also expose the SCM framework canonical column names."""
+        df = pd.read_csv(FIXTURE_PATH)
+        scm_cols = {"friction_slope", "friction_slope_err", "velo_inerte_flag"}
+        assert scm_cols.issubset(set(df.columns)), (
+            f"Missing SCM canonical columns: {scm_cols - set(df.columns)}"
+        )
+
+    def test_fixture_scm_aliases_match_originals(self):
+        """friction_slope must equal beta, etc. (they are aliases)."""
+        df = pd.read_csv(FIXTURE_PATH)
+        pd.testing.assert_series_equal(
+            df["friction_slope"], df["beta"], check_names=False
+        )
+        pd.testing.assert_series_equal(
+            df["friction_slope_err"], df["beta_err"], check_names=False
+        )
+        pd.testing.assert_series_equal(
+            df["velo_inerte_flag"], df["reliable"], check_names=False
+        )
+
     def test_fixture_not_empty(self):
         df = pd.read_csv(FIXTURE_PATH)
         assert len(df) > 0, "Fixture catalog is empty"
@@ -245,6 +266,16 @@ class TestGenerateF3Catalog:
             "r_value", "p_value", "n_deep", "n_total", "reliable",
         }
         assert required.issubset(set(df.columns))
+
+    def test_output_scm_canonical_columns(self, tmp_path):
+        """Pipeline output must include SCM framework canonical column names."""
+        data_dir = _make_synthetic_sparc_dir(tmp_path / "data", n_gal=3)
+        out = tmp_path / "catalog.csv"
+        df = generate_f3_catalog(data_dir, out, verbose=False)
+        scm_cols = {"friction_slope", "friction_slope_err", "velo_inerte_flag"}
+        assert scm_cols.issubset(set(df.columns)), (
+            f"Missing SCM canonical columns: {scm_cols - set(df.columns)}"
+        )
 
     def test_output_file_created(self, tmp_path):
         data_dir = _make_synthetic_sparc_dir(tmp_path / "data", n_gal=3)
