@@ -69,7 +69,8 @@ class TestAnalyzeCatalog:
         stats = analyze_catalog(catalog)
         required = {
             "n_galaxies", "n_fitted", "mean_slope", "std_slope",
-            "median_slope", "t_stat", "p_value", "velo_inerte_frac",
+            "median_slope", "t_stat", "p_value",
+            "n_consistent", "n_inconsistent", "velo_inerte_frac",
             "ref_slope",
         }
         assert required.issubset(set(stats.keys()))
@@ -131,6 +132,14 @@ class TestAnalyzeCatalog:
         stats = analyze_catalog(catalog)
         assert 0.0 <= stats["velo_inerte_frac"] <= 1.0
 
+    def test_n_consistent_plus_n_inconsistent_le_n_fitted(self, tmp_path):
+        p = _make_catalog(tmp_path, n=20, include_flag=True)
+        catalog = pd.read_csv(p)
+        stats = analyze_catalog(catalog)
+        assert stats["n_consistent"] + stats["n_inconsistent"] <= stats["n_fitted"]
+        assert stats["n_consistent"] >= 0
+        assert stats["n_inconsistent"] >= 0
+
 
 # ---------------------------------------------------------------------------
 # format_report tests
@@ -147,13 +156,17 @@ class TestFormatReport:
         assert "Mean β" in combined
         assert "t-statistic" in combined
         assert "p-value" in combined
+        assert "n_consistent" in combined
+        assert "n_inconsistent" in combined
 
     def test_report_handles_zero_fitted(self):
         stats = {
             "n_galaxies": 5, "n_fitted": 0,
             "mean_slope": float("nan"), "std_slope": float("nan"),
             "median_slope": float("nan"), "t_stat": float("nan"),
-            "p_value": float("nan"), "velo_inerte_frac": float("nan"),
+            "p_value": float("nan"),
+            "n_consistent": 0, "n_inconsistent": 0,
+            "velo_inerte_frac": float("nan"),
             "ref_slope": REF_SLOPE,
         }
         lines = format_report(stats)

@@ -68,8 +68,11 @@ def analyze_catalog(
         median_slope        — ensemble median of friction_slope
         t_stat              — t-statistic from one-sample t-test vs ref_slope
         p_value             — two-tailed p-value of the t-test
-        velo_inerte_frac    — fraction of fitted galaxies whose velo_inerte_flag = 1
-                              (i.e. fitted β is consistent with β = 0.5 within 2σ)
+        n_consistent        — galaxies with velo_inerte_flag = 1
+                              (|β − 0.5| ≤ 2·σβ; consistent with prediction)
+        n_inconsistent      — galaxies with velo_inerte_flag = 0
+                              (|β − 0.5| > 2·σβ; deviant at ≥2σ)
+        velo_inerte_frac    — n_consistent / n_fitted
         ref_slope           — reference slope used for t-test
     """
     required = {"friction_slope"}
@@ -90,6 +93,8 @@ def analyze_catalog(
             "median_slope": float("nan"),
             "t_stat": float("nan"),
             "p_value": float("nan"),
+            "n_consistent": 0,
+            "n_inconsistent": 0,
             "velo_inerte_frac": float("nan"),
             "ref_slope": ref_slope,
         }
@@ -110,9 +115,12 @@ def analyze_catalog(
     # (flag = 1 → β consistent with 0.5 within 2σ; flag = 0 → deviant by ≥ 2σ)
     if "velo_inerte_flag" in catalog.columns:
         flags = catalog.loc[catalog["friction_slope"].notna(), "velo_inerte_flag"]
-        n_flagged = int((flags == 1.0).sum())
-        velo_inerte_frac = n_flagged / n_fitted if n_fitted > 0 else float("nan")
+        n_consistent = int((flags == 1.0).sum())
+        n_inconsistent = int((flags == 0.0).sum())
+        velo_inerte_frac = n_consistent / n_fitted if n_fitted > 0 else float("nan")
     else:
+        n_consistent = 0
+        n_inconsistent = 0
         velo_inerte_frac = float("nan")
 
     return {
@@ -123,6 +131,8 @@ def analyze_catalog(
         "median_slope": median_slope,
         "t_stat": t_stat,
         "p_value": p_value,
+        "n_consistent": n_consistent,
+        "n_inconsistent": n_inconsistent,
         "velo_inerte_frac": float(velo_inerte_frac),
         "ref_slope": ref_slope,
     }
@@ -166,7 +176,9 @@ def format_report(stats: dict) -> list[str]:
     if not np.isnan(stats["velo_inerte_frac"]):
         lines += [
             "",
-            f"  Velo-inerte fraction : {stats['velo_inerte_frac']:.3f}",
+            f"  Velo-inerte fraction   : {stats['velo_inerte_frac']:.3f}",
+            f"  n_consistent  (flag=1) : {stats['n_consistent']}",
+            f"  n_inconsistent(flag=0) : {stats['n_inconsistent']}",
         ]
     lines.append(_SEP)
     return lines
