@@ -22,10 +22,13 @@ from scipy.stats import linregress as _linregress
 
 from scripts.generate_f3_catalog import (
     A0_DEFAULT,
+    BASE_60,
     DEEP_THRESHOLD_DEFAULT,
     EXPECTED_SLOPE,
+    R0_KPC_DEFAULT,
     build_catalog,
     compute_galaxy_beta,
+    hierarchy_level,
     main as generate_main,
 )
 from scripts.f3_catalog_analysis import (
@@ -84,6 +87,7 @@ def _make_f3_catalog_csv(
     n_inconsistent: int = 3,
     n_nan: int = 2,
     rng_seed: int = 42,
+    with_hierarchy: bool = True,
 ) -> Path:
     """Create a synthetic per-galaxy f3 catalog CSV."""
     rng = np.random.default_rng(rng_seed)
@@ -97,12 +101,16 @@ def _make_f3_catalog_csv(
         log_gobs = 0.5 * log_gbar + 0.5 * np.log10(a0) + rng.normal(0, 0.01, n_deep)
         slope, _, _, _, stderr = _linregress(log_gbar, log_gobs)
         flag = 1.0 if abs(slope - 0.5) <= 2.0 * stderr else 0.0
-        rows.append({
+        r_med = rng.uniform(1.0, 10.0)
+        row = {
             "galaxy": f"CON{i:03d}", "n_total": 40, "n_deep": n_deep,
             "friction_slope": float(slope),
             "friction_slope_stderr": float(stderr),
             "velo_inerte_flag": flag,
-        })
+        }
+        if with_hierarchy:
+            row["hierarchy_scm"] = float(hierarchy_level(r_med, R0_KPC_DEFAULT))
+        rows.append(row)
 
     for i in range(n_inconsistent):
         n_deep = 30
@@ -111,25 +119,35 @@ def _make_f3_catalog_csv(
         log_gobs = 0.75 * log_gbar + 0.5 * np.log10(a0) + rng.normal(0, 0.001, n_deep)
         slope, _, _, _, stderr = _linregress(log_gbar, log_gobs)
         flag = 1.0 if abs(slope - 0.5) <= 2.0 * stderr else 0.0
-        rows.append({
+        r_med = rng.uniform(1.0, 10.0)
+        row = {
             "galaxy": f"INC{i:03d}", "n_total": 40, "n_deep": n_deep,
             "friction_slope": float(slope),
             "friction_slope_stderr": float(stderr),
             "velo_inerte_flag": flag,
-        })
+        }
+        if with_hierarchy:
+            row["hierarchy_scm"] = float(hierarchy_level(r_med, R0_KPC_DEFAULT))
+        rows.append(row)
 
     for i in range(n_nan):
-        rows.append({
+        row = {
             "galaxy": f"NAN{i:03d}", "n_total": 3, "n_deep": 0,
             "friction_slope": float("nan"),
             "friction_slope_stderr": float("nan"),
             "velo_inerte_flag": float("nan"),
-        })
+        }
+        if with_hierarchy:
+            row["hierarchy_scm"] = float("nan")
+        rows.append(row)
 
-    catalog = pd.DataFrame(rows, columns=[
+    cols = [
         "galaxy", "n_total", "n_deep",
         "friction_slope", "friction_slope_stderr", "velo_inerte_flag",
-    ])
+    ]
+    if with_hierarchy:
+        cols.append("hierarchy_scm")
+    catalog = pd.DataFrame(rows, columns=cols)
     p = tmp_path / "f3_catalog.csv"
     catalog.to_csv(p, index=False)
     return p

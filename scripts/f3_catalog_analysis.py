@@ -66,6 +66,9 @@ def analyze_catalog(df: pd.DataFrame) -> dict:
         beta_std       — sample std (ddof=1) of friction_slope over valid rows
         t_stat         — one-sample t-statistic vs β = 0.5
         p_value        — two-tailed p-value of the t-test
+        pearson_r_scm  — Pearson r between friction_slope and hierarchy_scm
+                         (NaN if hierarchy_scm column absent or < 3 valid rows)
+        pearson_p_scm  — two-tailed p-value of the Pearson correlation
     """
     required = {"friction_slope", "velo_inerte_flag"}
     missing = required - set(df.columns)
@@ -98,11 +101,25 @@ def analyze_catalog(df: pd.DataFrame) -> dict:
             "beta_std": float("nan"),
             "t_stat": float("nan"),
             "p_value": float("nan"),
+            "pearson_r_scm": float("nan"),
+            "pearson_p_scm": float("nan"),
         }
 
     beta_mean = float(df_valid["friction_slope"].mean())
     beta_std = float(df_valid["friction_slope"].std(ddof=1))
     t_stat, p_value = stats.ttest_1samp(df_valid["friction_slope"], 0.5)
+
+    # Pearson correlation between friction_slope and hierarchy_scm (if present)
+    if "hierarchy_scm" in df.columns:
+        valid_both = df_valid.dropna(subset=["hierarchy_scm"])
+        if len(valid_both) >= 3:
+            r_pearson, p_pearson = stats.pearsonr(
+                valid_both["friction_slope"], valid_both["hierarchy_scm"]
+            )
+        else:
+            r_pearson, p_pearson = float("nan"), float("nan")
+    else:
+        r_pearson, p_pearson = float("nan"), float("nan")
 
     return {
         "n_total_rows": n_total_rows,
@@ -114,6 +131,8 @@ def analyze_catalog(df: pd.DataFrame) -> dict:
         "beta_std": beta_std,
         "t_stat": float(t_stat),
         "p_value": float(p_value),
+        "pearson_r_scm": float(r_pearson),
+        "pearson_p_scm": float(p_pearson),
     }
 
 
@@ -130,6 +149,9 @@ def print_summary(result: dict) -> None:
     print(f"Std friction_slope:      {result['beta_std']:.6f}")
     print(f"t-statistic vs β=0.5:    {result['t_stat']:.6f}")
     print(f"p-value:                 {result['p_value']:.6e}")
+    print("")
+    print(f"Pearson r (β vs S_SCM):  {result['pearson_r_scm']:.6f}")
+    print(f"Pearson p-value:         {result['pearson_p_scm']:.6e}")
 
 
 # ---------------------------------------------------------------------------
