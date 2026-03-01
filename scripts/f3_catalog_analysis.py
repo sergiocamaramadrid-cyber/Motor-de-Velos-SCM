@@ -28,9 +28,11 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import stats as _scipy_stats
 
 _SEP = "=" * 64
 EXPECTED_BETA_MOND = 0.5
+ALPHA_THRESHOLD = 0.05
 
 
 # ---------------------------------------------------------------------------
@@ -55,8 +57,10 @@ def analyze_f3_catalog(df: pd.DataFrame) -> dict:
         beta_median       — median β (reliable only)
         beta_std          — std-dev of β (reliable only)
         beta_mean_all     — mean β (all, ignoring NaN)
-        delta_from_mond   — beta_median − 0.5
-        consistent_mond   — True if |beta_median − 0.5| < 0.15
+        delta_from_mond   — beta_mean − 0.5
+        t_stat            — one-sample t-statistic: (β̄ − 0.5) / (σ/√N)
+        p_value_ttest     — two-tailed p-value of the t-test vs β = 0.5
+        consistent_mond   — True if p_value_ttest > 0.05 (State A); False = State B
     """
     required = {"beta", "reliable"}
     missing = required - set(df.columns)
@@ -82,7 +86,16 @@ def analyze_f3_catalog(df: pd.DataFrame) -> dict:
     beta_median = float(reliable.median()) if n_reliable > 0 else float("nan")
     beta_std = float(reliable.std()) if n_reliable > 0 else float("nan")
     beta_mean_all = float(all_beta.mean()) if len(all_beta) > 0 else float("nan")
-    delta = beta_median - EXPECTED_BETA_MOND
+    delta = beta_mean - EXPECTED_BETA_MOND
+
+    # One-sample t-test: H0: β = 0.5
+    if n_reliable >= 2:
+        t_result = _scipy_stats.ttest_1samp(reliable.values, EXPECTED_BETA_MOND)
+        t_stat = float(t_result.statistic)
+        p_value_ttest = float(t_result.pvalue)
+    else:
+        t_stat = float("nan")
+        p_value_ttest = float("nan")
 
     return {
         "n_galaxies": n_galaxies,
@@ -92,7 +105,9 @@ def analyze_f3_catalog(df: pd.DataFrame) -> dict:
         "beta_std": beta_std,
         "beta_mean_all": beta_mean_all,
         "delta_from_mond": delta,
-        "consistent_mond": abs(delta) < 0.15 if not np.isnan(delta) else False,
+        "t_stat": t_stat,
+        "p_value_ttest": p_value_ttest,
+        "consistent_mond": (p_value_ttest > ALPHA_THRESHOLD) if not np.isnan(p_value_ttest) else False,
     }
 
 
@@ -109,19 +124,27 @@ def format_analysis_report(stats: dict, catalog_path: str) -> list[str]:
     ]
     if stats["n_reliable"] > 0:
         lines += [
-            f"  β median     : {stats['beta_median']:.4f}",
             f"  β mean       : {stats['beta_mean']:.4f}",
+            f"  β median     : {stats['beta_median']:.4f}",
             f"  β std-dev    : {stats['beta_std']:.4f}",
             f"  Expected (MOND): {EXPECTED_BETA_MOND:.4f}",
             f"  Δ from 0.5   : {stats['delta_from_mond']:+.4f}",
-            "",
         ]
+        if not np.isnan(stats.get("t_stat", float("nan"))):
+            lines += [
+                f"  t-statistic  : {stats['t_stat']:+.4f}",
+                f"  p-value      : {stats['p_value_ttest']:.4e}",
+            ]
+        lines.append("")
         if stats["consistent_mond"]:
-            verdict = "✅  β distribution consistent with MOND/deep-velos (β ≈ 0.5)"
+            verdict = (
+                "✅  Estado A — β distribution consistent with β = 0.5 "
+                f"(p = {stats['p_value_ttest']:.3f} > {ALPHA_THRESHOLD})"
+            )
         else:
             verdict = (
-                f"⚠️  β distribution deviates from MOND (median β = "
-                f"{stats['beta_median']:.3f}, expected ≈ 0.5)"
+                f"⚠️  Estado B — β distribution deviates from β = 0.5 "
+                f"(β̄ = {stats['beta_mean']:.3f}, p = {stats['p_value_ttest']:.3e} < {ALPHA_THRESHOLD})"
             )
         lines.append(f"  Verdict: {verdict}")
     else:

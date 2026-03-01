@@ -22,6 +22,7 @@ import pytest
 
 from scripts.f3_catalog_analysis import (
     EXPECTED_BETA_MOND,
+    ALPHA_THRESHOLD,
     analyze_f3_catalog,
     format_analysis_report,
     main,
@@ -72,6 +73,7 @@ class TestAnalyzeF3Catalog:
         required = {
             "n_galaxies", "n_reliable", "beta_mean", "beta_median",
             "beta_std", "beta_mean_all", "delta_from_mond", "consistent_mond",
+            "t_stat", "p_value_ttest",
         }
         assert required.issubset(set(stats.keys()))
 
@@ -92,10 +94,10 @@ class TestAnalyzeF3Catalog:
         assert stats["beta_mean"] == pytest.approx(beta_planted, abs=0.05)
         assert stats["beta_median"] == pytest.approx(beta_planted, abs=0.05)
 
-    def test_delta_from_mond_is_median_minus_half(self):
+    def test_delta_from_mond_is_mean_minus_half(self):
         df = _make_catalog(n=20, beta=0.80, seed=7)
         stats = analyze_f3_catalog(df)
-        expected_delta = stats["beta_median"] - EXPECTED_BETA_MOND
+        expected_delta = stats["beta_mean"] - EXPECTED_BETA_MOND
         assert stats["delta_from_mond"] == pytest.approx(expected_delta, abs=1e-9)
 
     def test_consistent_mond_true_when_beta_near_half(self):
@@ -109,6 +111,42 @@ class TestAnalyzeF3Catalog:
         df = _make_catalog(n=30, beta=1.0)
         stats = analyze_f3_catalog(df)
         assert stats["consistent_mond"] is False
+
+    def test_ttest_stat_and_pvalue_present(self):
+        """t_stat and p_value_ttest must be in the stats dict with valid ranges."""
+        stats = analyze_f3_catalog(_make_catalog(n=10))
+        assert "t_stat" in stats
+        assert "p_value_ttest" in stats
+        assert not math.isnan(stats["t_stat"])
+        assert not math.isnan(stats["p_value_ttest"])
+        assert 0.0 <= stats["p_value_ttest"] <= 1.0
+
+    def test_ttest_pvalue_large_when_beta_near_half(self):
+        """p > ALPHA_THRESHOLD (State A) when β ≈ 0.5 with low scatter."""
+        df = _make_catalog(n=50, beta=0.5, seed=1)
+        stats = analyze_f3_catalog(df)
+        assert stats["p_value_ttest"] > ALPHA_THRESHOLD
+        assert stats["consistent_mond"] is True
+
+    def test_ttest_pvalue_small_when_beta_far_from_half(self):
+        """p < ALPHA_THRESHOLD (State B) when β ≈ 1.0 with enough galaxies."""
+        df = _make_catalog(n=30, beta=1.0, seed=2)
+        stats = analyze_f3_catalog(df)
+        assert stats["p_value_ttest"] < ALPHA_THRESHOLD
+        assert stats["consistent_mond"] is False
+
+    def test_tstat_sign_and_magnitude(self):
+        """t-stat sign must match direction of deviation from 0.5."""
+        df = _make_catalog(n=50, beta=0.8, seed=3)
+        stats = analyze_f3_catalog(df)
+        assert stats["t_stat"] > 0, "β > 0.5 should give positive t-stat"
+
+    def test_tstat_nan_when_only_one_galaxy(self):
+        """t-stat is undefined (NaN) with fewer than 2 reliable data points."""
+        df = _make_catalog(n=1, beta=0.5)
+        stats = analyze_f3_catalog(df)
+        assert math.isnan(stats["t_stat"])
+        assert math.isnan(stats["p_value_ttest"])
 
     def test_nan_stats_when_no_reliable_galaxies(self):
         df = _make_catalog(n=5, reliable_all=True)
@@ -226,6 +264,30 @@ class TestFormatAnalysisReport:
         lines = format_analysis_report(stats, "test.csv")
         combined = "\n".join(lines)
         assert "7" in combined  # n_galaxies
+
+    def test_report_shows_tstat_and_pvalue(self):
+        """Report must display t-statistic and p-value."""
+        stats = analyze_f3_catalog(_make_catalog(n=20, beta=1.0))
+        lines = format_analysis_report(stats, "test.csv")
+        combined = "\n".join(lines)
+        assert "t-statistic" in combined
+        assert "p-value" in combined
+
+    def test_report_estado_a_label_when_consistent(self):
+        """State A label appears when β ≈ 0.5 (p > 0.05)."""
+        df = _make_catalog(n=50, beta=0.5, seed=1)
+        stats = analyze_f3_catalog(df)
+        lines = format_analysis_report(stats, "test.csv")
+        combined = "\n".join(lines)
+        assert "Estado A" in combined
+
+    def test_report_estado_b_label_when_deviates(self):
+        """State B label appears when β ≫ 0.5 (p < 0.05)."""
+        df = _make_catalog(n=30, beta=1.0, seed=2)
+        stats = analyze_f3_catalog(df)
+        lines = format_analysis_report(stats, "test.csv")
+        combined = "\n".join(lines)
+        assert "Estado B" in combined
 
 
 # ---------------------------------------------------------------------------
