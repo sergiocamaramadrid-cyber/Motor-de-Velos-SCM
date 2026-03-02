@@ -27,6 +27,8 @@ data/SPARC/processed/
 
 # Generated analysis outputs (created by running analysis scripts)
 results/littlethings_dust/
+# Physical SPARC measurement output — NOT committed; run locally with real data
+results/f3_catalog_real.csv
 
 # Editor / OS
 .DS_Store
