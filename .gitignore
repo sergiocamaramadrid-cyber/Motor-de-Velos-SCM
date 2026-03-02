@@ -33,3 +33,5 @@ results/littlethings_dust/
 
 # mypy
 .mypy_cache/
+# Prevent accidental commit of pip artifact files like "=14.0.1"
+=*
