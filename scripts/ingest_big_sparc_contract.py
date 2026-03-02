@@ -6,6 +6,9 @@ Normaliza BIG-SPARC (cuando lo descargues) al contrato interno SCM:
 - galaxies
 - rc_points
 
+NOTE: This ingestor expects pre-downloaded tables; BIG-SPARC download not included.
+      Obtain the BIG-SPARC tables independently and place them in --input-dir.
+
 Uso:
 python scripts/ingest_big_sparc_contract.py \
   --input-dir data/BIG_SPARC_raw \
@@ -22,13 +25,22 @@ from pathlib import Path
 
 import pandas as pd
 
-from scripts.contract_utils import (
-    ensure_dir,
-    read_table,
-    validate_galaxies_df,
-    validate_rc_points_df,
-    compute_vbar_kms,
-)
+try:
+    from scripts.contract_utils import (
+        ensure_dir,
+        read_table,
+        validate_galaxies_df,
+        validate_rc_points_df,
+        compute_vbar_kms,
+    )
+except ImportError:
+    from contract_utils import (  # type: ignore[no-redef]
+        ensure_dir,
+        read_table,
+        validate_galaxies_df,
+        validate_rc_points_df,
+        compute_vbar_kms,
+    )
 
 
 def parse_args() -> argparse.Namespace:

@@ -30,7 +30,10 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from scripts.contract_utils import ensure_dir, read_table
+try:
+    from scripts.contract_utils import ensure_dir, read_table
+except ImportError:
+    from contract_utils import ensure_dir, read_table  # type: ignore[no-redef]
 
 
 KPC_TO_M = 3.085677581e19
