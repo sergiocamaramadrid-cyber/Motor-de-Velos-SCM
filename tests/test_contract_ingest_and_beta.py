@@ -8,7 +8,7 @@ import numpy as np
 import pandas as pd
 
 
-def _make_contract_inputs(tmp_path: Path) -> tuple[Path, Path]:
+def _create_test_contract_tables(tmp_path: Path) -> tuple[Path, Path]:
     galaxies = pd.DataFrame({"galaxy": ["G002", "G001"]})
     rc_points = pd.DataFrame(
         {
@@ -28,7 +28,7 @@ def _make_contract_inputs(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def test_ingest_then_catalog_e2e_module(tmp_path):
-    galaxies_path, rc_points_path = _make_contract_inputs(tmp_path)
+    galaxies_path, rc_points_path = _create_test_contract_tables(tmp_path)
     ingest_out = tmp_path / "ingested"
 
     subprocess.run(
@@ -78,7 +78,7 @@ def test_ingest_then_catalog_e2e_module(tmp_path):
 
 
 def test_catalog_script_entrypoint(tmp_path):
-    galaxies_path, rc_points_path = _make_contract_inputs(tmp_path)
+    galaxies_path, rc_points_path = _create_test_contract_tables(tmp_path)
     ingest_out = tmp_path / "ingested_script"
 
     subprocess.run(

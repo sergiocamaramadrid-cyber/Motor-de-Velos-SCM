@@ -11,7 +11,13 @@ try:
 except ModuleNotFoundError:  # pragma: no cover - direct script execution
     from contract_utils import read_table, validate_contract
 
+# Convert (km/s)^2/kpc to m/s^2 using the same kpc-to-m conversion
+# convention already used in this repository (3.085677581e16 m).
 _CONV = 1e6 / 3.085677581e16
+# Radius floor to avoid division by zero in g = v^2/r.
+_MIN_RADIUS_KPC = 1e-10
+# Acceleration floor to avoid log10(0) when building deep-regime features.
+_MIN_ACCELERATION_MS2 = 1e-30
 
 
 def generate_f3_catalog(
@@ -24,13 +30,13 @@ def generate_f3_catalog(
     rc_points = read_table(rc_points_path)
     validate_contract(rc_points, ["galaxy", "r_kpc", "vobs_kms", "vbar_kms"], "rc_points")
 
-    r = np.maximum(rc_points["r_kpc"].to_numpy(dtype=float), 1e-10)
+    r = np.maximum(rc_points["r_kpc"].to_numpy(dtype=float), _MIN_RADIUS_KPC)
     g_bar = rc_points["vbar_kms"].to_numpy(dtype=float) ** 2 / r * _CONV
     g_obs = rc_points["vobs_kms"].to_numpy(dtype=float) ** 2 / r * _CONV
 
     rc_points = rc_points.copy()
-    rc_points["log_g_bar"] = np.log10(np.maximum(g_bar, 1e-30))
-    rc_points["log_g_obs"] = np.log10(np.maximum(g_obs, 1e-30))
+    rc_points["log_g_bar"] = np.log10(np.maximum(g_bar, _MIN_ACCELERATION_MS2))
+    rc_points["log_g_obs"] = np.log10(np.maximum(g_obs, _MIN_ACCELERATION_MS2))
     rc_points["is_deep"] = g_bar < (deep_threshold * a0)
 
     rows = []
