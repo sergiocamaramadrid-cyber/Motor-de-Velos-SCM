@@ -20,6 +20,10 @@ env/
 # Data (large files not tracked)
 data/SPARC/raw/
 data/SPARC/processed/
+data/SPARC/processed_contract/
+
+# Generated F3 catalog outputs
+results/f3_catalog_sparc_from_contract.parquet
 
 # Generated analysis outputs (created by running analysis scripts)
 results/littlethings_dust/
