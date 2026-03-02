@@ -8,6 +8,10 @@ dist/
 build/
 .eggs/
 
+# pip artifact files (=* lock-style pins)
+*.txt=*
+requirements*.txt=*
+
 # Virtual environments
 .venv/
 venv/
