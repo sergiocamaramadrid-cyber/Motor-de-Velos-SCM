@@ -19,8 +19,8 @@ def _write_contract_inputs(tmp_path: Path) -> tuple[Path, Path]:
 
     rows = []
     for galaxy, vbars in (("G_B", [18.0, 20.0, 22.0]), ("G_A", [20.0, 23.0, 26.0])):
-        for i, vbar in enumerate(vbars):
-            r = 8.0 + i
+        for point_index, vbar in enumerate(vbars):
+            r = 8.0 + point_index
             g_bar = (vbar ** 2 / r) * CONV
             g_obs = np.sqrt(g_bar * G0)
             rows.append(

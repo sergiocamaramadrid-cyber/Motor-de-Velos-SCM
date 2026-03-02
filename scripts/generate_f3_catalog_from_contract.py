@@ -14,6 +14,8 @@ except ImportError:  # pragma: no cover
 CONV = 1e6 / 3.085677581e19
 G0_DEFAULT = 1.2e-10
 DEEP_THRESHOLD_DEFAULT = 0.3
+# Numerical floor to avoid division-by-zero when malformed rows contain r_kpc<=0.
+MIN_SAFE_RADIUS_KPC = 1e-12
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -33,7 +35,7 @@ def _beta_for_galaxy(df: pd.DataFrame, g0: float, deep_threshold: float, min_dee
     vbar = df["vbar_kms"].to_numpy(dtype=float)
     vobs = df["v_obs_kms"].to_numpy(dtype=float)
 
-    safe_r = np.maximum(r, 1e-12)
+    safe_r = np.maximum(r, MIN_SAFE_RADIUS_KPC)
     g_bar = (vbar ** 2 / safe_r) * CONV
     g_obs = (vobs ** 2 / safe_r) * CONV
     deep = g_bar < (deep_threshold * g0)

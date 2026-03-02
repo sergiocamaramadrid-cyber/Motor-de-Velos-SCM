@@ -49,4 +49,9 @@ def validate_contract(galaxies: pd.DataFrame, rc_points: pd.DataFrame) -> None:
     rc_set = set(rc_points["galaxy"].dropna().astype(str))
     extra = sorted(rc_set - galaxies_set)
     if extra:
-        raise ValueError(f"rc_points contains galaxies missing in galaxies table: {extra[:5]}")
+        shown = extra[:5]
+        suffix = "..." if len(extra) > 5 else ""
+        raise ValueError(
+            "rc_points contains galaxies missing in galaxies table: "
+            f"{shown}{suffix} (total={len(extra)})"
+        )
