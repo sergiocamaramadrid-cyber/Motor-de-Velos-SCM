@@ -221,8 +221,10 @@ class TestGenerateCatalogModule:
             min_deep=2,
         )
         expected = [
-            "galaxy", "n_total", "n_deep", "beta", "beta_err",
-            "r_value", "p_value", "delta_from_mond", "verdict",
+            "galaxy", "n_total", "n_deep",
+            "friction_slope", "friction_slope_err",
+            "r_value", "p_value", "delta_from_mond",
+            "velo_inerte_flag", "verdict",
         ]
         assert cat.columns.tolist() == expected
 
@@ -234,13 +236,13 @@ class TestGenerateCatalogModule:
         )
         assert len(cat) == N_GALAXIES
 
-    def test_catalog_writes_csv(self, contract_parquet, tmp_path):
+    def test_catalog_writes_parquet(self, contract_parquet, tmp_path):
         generate_catalog(
             contract_path=contract_parquet,
             out_dir=tmp_path,
             min_deep=2,
         )
-        assert (tmp_path / "f3_beta_catalog.csv").exists()
+        assert (tmp_path / "f3_beta_catalog.parquet").exists()
 
     def test_catalog_min_deep_flag(self, contract_parquet, tmp_path):
         """--min-deep controls the 'unreliable' verdict threshold.
@@ -286,7 +288,7 @@ class TestGenerateCatalogModule:
 
 
 class TestGenerateCatalogScript:
-    def test_script_runs_and_writes_csv(self, contract_parquet, tmp_path):
+    def test_script_runs_and_writes_parquet(self, contract_parquet, tmp_path):
         result = subprocess.run(
             [
                 sys.executable,
@@ -299,7 +301,7 @@ class TestGenerateCatalogScript:
             text=True,
         )
         assert result.returncode == 0, result.stderr
-        assert (tmp_path / "f3_beta_catalog.csv").exists()
+        assert (tmp_path / "f3_beta_catalog.parquet").exists()
 
     def test_script_module_invocation(self, contract_parquet, tmp_path):
         result = subprocess.run(
@@ -315,4 +317,4 @@ class TestGenerateCatalogScript:
             cwd=str(SCRIPTS_DIR),
         )
         assert result.returncode == 0, result.stderr
-        assert (tmp_path / "f3_beta_catalog.csv").exists()
+        assert (tmp_path / "f3_beta_catalog.parquet").exists()
