@@ -12,6 +12,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
+import numpy as np
 import pandas as pd
 
 
@@ -54,3 +55,39 @@ def validate_rc_points_df(df: pd.DataFrame) -> ValidationResult:
         result.ok = False
         result.errors.append("rc_points: 'galaxy_id' contains null values")
     return result
+
+
+def compute_vbar_kms(df_rc: pd.DataFrame) -> pd.Series:
+    """Compute vbar_kms from components (vstar_kms, vgas_kms) in quadrature.
+
+    Returns *df_rc['vbar_kms']* if it already exists, otherwise combines
+    available components: vbar = sqrt(vstar² + vgas²).
+    """
+    if "vbar_kms" in df_rc.columns:
+        return df_rc["vbar_kms"].astype(float)
+
+    v2 = np.zeros(len(df_rc), dtype=float)
+    found = False
+    for c in ["vstar_kms", "vgas_kms"]:
+        if c in df_rc.columns:
+            found = True
+            v2 += np.square(df_rc[c].astype(float).to_numpy())
+
+    if not found:
+        raise ValueError(
+            "Cannot compute vbar_kms: no vbar_kms and no component columns "
+            "(vstar_kms, vgas_kms) present."
+        )
+    return pd.Series(np.sqrt(v2), index=df_rc.index, name="vbar_kms")
+
+
+def read_table(path: Path) -> pd.DataFrame:
+    """Read a CSV or Parquet file based on its extension."""
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {path}")
+    if path.suffix.lower() == ".csv":
+        return pd.read_csv(path)
+    if path.suffix.lower() in [".parquet", ".pq"]:
+        return pd.read_parquet(path)
+    raise ValueError(f"Unsupported file type: {path.suffix} (use .csv, .parquet, or .pq)")

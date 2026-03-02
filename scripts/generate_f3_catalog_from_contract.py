@@ -69,6 +69,8 @@ def parse_args() -> argparse.Namespace:
                     help=f"Characteristic acceleration in m/s² (default {_A0_DEFAULT})")
     ap.add_argument("--deep-threshold", type=float, default=_DEEP_THRESHOLD,
                     help=f"Deep-regime threshold as fraction of a0 (default {_DEEP_THRESHOLD})")
+    ap.add_argument("--min-deep", type=int, default=2,
+                    help="Minimum number of deep-regime points required to fit the slope (default 2)")
     return ap.parse_args()
 
 
@@ -94,6 +96,7 @@ def _compute_galaxy_stats(
     group: pd.DataFrame,
     a0: float,
     deep_threshold: float,
+    min_deep: int = 2,
 ) -> Dict[str, object]:
     """Return per-galaxy F3 metrics dict."""
     base: Dict[str, object] = {
@@ -124,7 +127,7 @@ def _compute_galaxy_stats(
     n_deep = int(deep_mask.sum())
     base["n_deep"] = n_deep
 
-    if n_deep >= 2:
+    if n_deep >= min_deep:
         slope, _, _, _, stderr = linregress(log_gb[deep_mask], log_go[deep_mask])
         base["friction_slope"] = float(slope)
         base["friction_slope_err"] = float(stderr)
@@ -139,6 +142,7 @@ def build_f3_catalog(
     data_dir: Path,
     a0: float = _A0_DEFAULT,
     deep_threshold: float = _DEEP_THRESHOLD,
+    min_deep: int = 2,
 ) -> pd.DataFrame:
     """Load contract and build the F3 per-galaxy catalog."""
     gal_path = data_dir / "galaxies.parquet"
@@ -154,7 +158,7 @@ def build_f3_catalog(
     rows: List[Dict[str, object]] = []
     for gid in df_gal["galaxy_id"]:
         group = df_rc[df_rc["galaxy_id"] == gid].copy()
-        rows.append(_compute_galaxy_stats(gid, group, a0, deep_threshold))
+        rows.append(_compute_galaxy_stats(gid, group, a0, deep_threshold, min_deep))
 
     result = pd.DataFrame(rows)
     # Stable column order
@@ -173,7 +177,8 @@ def main() -> None:
     out_path = Path(args.out)
 
     ensure_dir(out_path.parent)
-    catalog = build_f3_catalog(data_dir, a0=args.a0, deep_threshold=args.deep_threshold)
+    catalog = build_f3_catalog(data_dir, a0=args.a0, deep_threshold=args.deep_threshold,
+                               min_deep=args.min_deep)
 
     catalog.to_parquet(out_path, index=False)
 
