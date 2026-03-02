@@ -33,3 +33,6 @@ results/littlethings_dust/
 
 # mypy
 .mypy_cache/
+
+# pip artifact files (e.g. "=14.0.1" created by malformed pip install)
+=*
