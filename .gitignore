@@ -42,3 +42,4 @@ results/littlethings_dust/
 
 # mypy
 .mypy_cache/
+=*
