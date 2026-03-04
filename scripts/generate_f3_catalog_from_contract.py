@@ -124,12 +124,13 @@ def _compute_galaxy_stats(
         # clip to 1e-6 km/s before log10 to avoid log10(0) for near-zero velocities
         log_vbar = np.log10(deep_pts["vbar_kms"].abs().clip(lower=1e-6).values)
         log_vobs = np.log10(deep_pts["vobs_kms"].abs().clip(lower=1e-6).values)
-        # Least-squares slope through origin (no intercept) in log-log space
+        # Least-squares slope through origin (no intercept) in log-log space:
+        # minimize ||log_vobs - m * log_vbar||^2 ⇒ m = (x·y) / (x·x)
         if np.std(log_vbar) > 0:
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                coeffs = np.polyfit(log_vbar, log_vobs, 1)
-            deep_slope = float(coeffs[0])
+            denom = np.dot(log_vbar, log_vbar)
+            if denom > 0:
+                numer = np.dot(log_vbar, log_vobs)
+                deep_slope = float(numer / denom)
 
     return {
         "galaxy": galaxy,
