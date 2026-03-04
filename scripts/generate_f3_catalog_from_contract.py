@@ -12,12 +12,18 @@ import sys
 import numpy as np
 import pandas as pd
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
-
-from scripts.contract_utils import read_table, validate_contract
-
+try:
+    from scripts.contract_utils import read_table, validate_contract
+except ImportError:
+    # Allow direct execution via `python scripts/generate_f3_catalog_from_contract.py`
+    # without affecting import-time behavior when used as a library.
+    if __name__ == "__main__":
+        _REPO_ROOT = Path(__file__).resolve().parent.parent
+        if str(_REPO_ROOT) not in sys.path:
+            sys.path.insert(0, str(_REPO_ROOT))
+        from scripts.contract_utils import read_table, validate_contract
+    else:
+        raise
 _VFLAT_MIN_DEFAULT: float = 80.0
 _MBAR_MAX_DEFAULT: float = 10.5
 _MIN_DEEP_DEFAULT: int = 3
