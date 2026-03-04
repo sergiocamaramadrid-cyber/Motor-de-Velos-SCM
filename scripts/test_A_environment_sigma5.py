@@ -1,23 +1,36 @@
-# Test A — Diferencial de entorno (SCM): F3 vs Σ5 (proxy densidad local) 
+# Test A Environment Sigma5 script
 
-# Import necessary libraries
-import pandas as pd
 import numpy as np
-from scipy.stats import wilcoxon
+import pandas as pd
+import matplotlib.pyplot as plt
+from scipy.spatial import cKDTree
 
-# Simulated data for F3 and Sigma5 environments
-F3_data = np.random.normal(loc=0.5, scale=0.1, size=30)
-Sigma5_data = np.random.normal(loc=0.6, scale=0.1, size=30)
+# Constants 
+Mbar = 1.0    # mass of the bar
+Rdisk = 5.0   # radius of the disk
+inc = 0.1     # inclination angle
+SCM_ENV_MATCH_THR = 0.05  # Threshold for matching
+SCM_ENV_MIN_DEX = 0.1      # Minimum dexterity
 
-# Create a DataFrame for the data
-results = pd.DataFrame({'F3': F3_data, 'Sigma5': Sigma5_data})
+# Function to perform matching
 
-# Calculate differences
-results['diff'] = results['Sigma5'] - results['F3']
+def match_on_environment(coords, mass, radius, inclination):
+    # Implement the matching logic here
+    pass
 
-# Perform Wilcoxon signed-rank test
-statistic, p_value = wilcoxon(results['F3'], results['Sigma5'])
+# Output Results
+results_path = 'results/test_A_environment/'
+audit_csv_path = results_path + 'audit.csv'
+summary_txt_path = results_path + 'summary.txt'
 
-# Output the results
-print('Wilcoxon test statistic:', statistic)
-print('P-value:', p_value)
+# Environment Variables
+print(f'SCM_ENV_MATCH_THR: {SCM_ENV_MATCH_THR}')
+print(f'SCM_ENV_MIN_DEX: {SCM_ENV_MIN_DEX}')
+
+# Visualizations
+plt.figure()
+plt.plot()  # Implement the plotting logic
+plt.savefig(results_path + 'plot.png')
+
+# Save results
+
