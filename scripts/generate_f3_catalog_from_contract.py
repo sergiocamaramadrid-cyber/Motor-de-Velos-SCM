@@ -97,7 +97,7 @@ def _compute_galaxy_stats(
     Returns
     -------
     dict
-        Keys: galaxy, n_points, vflat_kms, log_mbar, deep_slope, deep_n.
+        Keys: galaxy, n_points, vflat_kms, log_mbar_proxy, deep_slope, deep_n.
     """
     galaxy = sub["galaxy"].iloc[0]
     n_points = len(sub)
