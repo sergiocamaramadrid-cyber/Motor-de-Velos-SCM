@@ -1,0 +1,1 @@
+Test A — Diferencial de entorno (SCM): F3 vs Σ5
