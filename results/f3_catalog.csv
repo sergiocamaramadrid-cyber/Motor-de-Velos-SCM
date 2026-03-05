@@ -1,0 +1,13 @@
+source,galaxy,outer_frac,F3_SCM,F3_SCM_err,R2,n_all,n_used,status,note,file
+LT_OH2015,DDO210,0.6,0.2854979902747301,0.017650445555386033,0.9961924249710404,6,3,ok,,data/raw/lt_oh2015/DDO210_rot.csv
+LT_OH2015,DDO210,0.7,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO210_rot.csv
+LT_OH2015,DDO210,0.8,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO210_rot.csv
+LT_OH2015,DDO69,0.6,0.36523023367661794,0.02652541088305994,0.994753060200169,6,3,ok,,data/raw/lt_oh2015/DDO69_rot.csv
+LT_OH2015,DDO69,0.7,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO69_rot.csv
+LT_OH2015,DDO69,0.8,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO69_rot.csv
+LT_OH2015,DDO70,0.6,0.3491798423770154,0.053156686291397914,0.9773500315289768,6,3,ok,,data/raw/lt_oh2015/DDO70_rot.csv
+LT_OH2015,DDO70,0.7,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO70_rot.csv
+LT_OH2015,DDO70,0.8,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO70_rot.csv
+LT_OH2015,DDO75,0.6,0.27632276889582724,0.037325782830279486,0.9820802687843488,6,3,ok,,data/raw/lt_oh2015/DDO75_rot.csv
+LT_OH2015,DDO75,0.7,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO75_rot.csv
+LT_OH2015,DDO75,0.8,,,,6,2,skip_few_points,only 2 valid outer point(s); need >= 3,data/raw/lt_oh2015/DDO75_rot.csv
