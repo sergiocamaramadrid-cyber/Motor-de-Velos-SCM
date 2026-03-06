@@ -28,10 +28,15 @@ jobs:
       - name: Check local SPARC data
         id: check_local_data
         run: |
+          CATALOG_PATH="data/SPARC/sparc_full.csv"
           CSV_TABLE_PATH="data/SPARC/SPARC_Lelli2016c.csv"
           MRT_TABLE_PATH="data/SPARC/SPARC_Lelli2016c.mrt"
           TABLE_EXISTS="no"
           TABLE_SOURCE="none"
+          CATALOG_EXISTS="no"
+          if [ -f "$CATALOG_PATH" ]; then
+            CATALOG_EXISTS="yes"
+          fi
           if [ -f "$CSV_TABLE_PATH" ]; then
             TABLE_EXISTS="yes"
             TABLE_SOURCE="csv"
@@ -58,24 +63,28 @@ jobs:
             echo "local_ready=false" >> "$GITHUB_OUTPUT"
             echo "Local SPARC data is incomplete (table exists: ${TABLE_EXISTS}, rotmod files: ${ROTMOD_COUNT})."
             echo "Expected table: data/SPARC/SPARC_Lelli2016c.csv or data/SPARC/SPARC_Lelli2016c.mrt"
-            echo "Will attempt to build catalog with remote download fallback."
+          fi
+          echo "catalog_ready=${CATALOG_EXISTS}" >> "$GITHUB_OUTPUT"
+          if [ "$CATALOG_EXISTS" = "yes" ]; then
+            echo "Using prebuilt catalog: ${CATALOG_PATH}"
           fi
 
       - name: Build SPARC Catalog
         run: |
           if [ -f scripts/build_sparc_full_catalog.py ]; then
-            if [ "${{ steps.check_local_data.outputs.local_ready }}" = "true" ]; then
+            if [ "${{ steps.check_local_data.outputs.catalog_ready }}" = "true" ]; then
+              echo "Prebuilt catalog detected; skipping catalog build."
+            elif [ "${{ steps.check_local_data.outputs.local_ready }}" = "true" ]; then
               echo "Building SPARC catalog from local inputs."
-            else
-              echo "Local inputs missing; attempting download-backed catalog build."
-            fi
-
-            if ! python scripts/build_sparc_full_catalog.py; then
-              if [ "${{ steps.check_local_data.outputs.local_ready }}" = "false" ]; then
-                echo "Error: Missing local SPARC data and download/build failed. Check network connectivity and download permissions."
-              else
+              if ! python scripts/build_sparc_full_catalog.py; then
                 echo "Error: Build failed despite local SPARC data being present. Review build logs for data validation errors."
+                exit 1
               fi
+            else
+              echo "Error: No local SPARC inputs available."
+              echo "Provide either:"
+              echo "  - data/SPARC/sparc_full.csv"
+              echo "  - data/SPARC/SPARC_Lelli2016c.mrt (or .csv) + data/SPARC/rotmod/*_rotmod.dat"
               exit 1
             fi
           else
