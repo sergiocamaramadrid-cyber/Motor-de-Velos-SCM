@@ -134,6 +134,14 @@ python scripts/process_sparc.py \
   --out results/SPARC/rotation_curves-v1.0.csv
 ```
 
+Also supported (compatibility alias):
+
+```bash
+python scripts/consolidar_sparc_v1.py \
+  --input data/SPARC \
+  --out results/SPARC/rotation_curves-v1.0.csv
+```
+
 ### SPARC coordinate enrichment (for anisotropy test)
 
 ```bash
