@@ -13,7 +13,8 @@ def test_consolidar_sparc_v1_alias_generates_v1_catalog(tmp_path):
     rotmod_dir.mkdir(parents=True)
     out_csv = tmp_path / "results" / "rotation_curves-v1.0.csv"
 
-    pd.DataFrame([[1.0, 100.0, 2.0, 30.0, 40.0, 50.0]]).to_csv(
+    sample_rotation_data = [1.0, 100.0, 2.0, 30.0, 40.0, 50.0]  # r, v_obs, err, v_gas, v_disk, v_bulge
+    pd.DataFrame([sample_rotation_data]).to_csv(
         rotmod_dir / "NGC2403_rotmod.dat", sep=" ", index=False, header=False
     )
 
