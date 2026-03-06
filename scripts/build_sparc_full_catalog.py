@@ -27,6 +27,8 @@ KM_TO_M = 1_000.0
 KPC_TO_M = 3.085677581e19
 UPSILON_DISK = 0.5
 UPSILON_BULGE = 0.7
+MRT_HEADER_LINES = 60
+MIN_ROTMOD_COLUMNS = 5
 
 
 def norm_name(value: str) -> str:
@@ -40,9 +42,12 @@ def download_file(url: str, outpath: Path, timeout: int = 60, retries: int = 3) 
             with urllib.request.urlopen(url, timeout=timeout) as response:
                 outpath.write_bytes(response.read())
             return
-        except (urllib.error.URLError, TimeoutError) as exc:
+        except TimeoutError as exc:
             last_error = exc
-            print(f"[WARN] Download attempt {attempt}/{retries} failed for {url}: {exc}")
+            print(f"[WARN] Download attempt {attempt}/{retries} timed out for {url}")
+        except urllib.error.URLError as exc:
+            last_error = exc
+            print(f"[WARN] Download attempt {attempt}/{retries} failed for {url}: network error {exc}")
     raise RuntimeError(f"Unable to download {url} after {retries} attempts") from last_error
 
 
@@ -54,6 +59,7 @@ def download_and_extract_zip(url: str, zip_path: Path, extract_dir: Path) -> Non
 
 
 def load_master_table(mrt_file: Path) -> pd.DataFrame:
+    # Fixed-width schema from SPARC_Lelli2016c.mrt data rows.
     col_widths = [11, 2, 6, 5, 2, 4, 4, 7, 7, 5, 6, 5, 6, 7, 5, 5, 5, 3, 14]
     names = [
         "Galaxy", "T", "D", "e_D", "f_D", "Inc", "e_Inc", "L_3.6", "e_L_3.6",
@@ -65,7 +71,7 @@ def load_master_table(mrt_file: Path) -> pd.DataFrame:
         mrt_file,
         widths=col_widths,
         names=names,
-        skiprows=60,
+        skiprows=MRT_HEADER_LINES,
         na_values=["...", "....", "....."],
     )
     df = df[df["Galaxy"].notna()].copy()
@@ -109,12 +115,18 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
 
     if data.ndim == 1:
         data = data.reshape(1, -1)
-    if data.shape[1] < 5:
-        print(f"[WARN] File has too few columns: {file_path}")
+    if data.shape[1] < MIN_ROTMOD_COLUMNS:
+        print(
+            f"[WARN] File has too few columns: {file_path} "
+            f"(found {data.shape[1]}, expected at least {MIN_ROTMOD_COLUMNS})"
+        )
         return pd.DataFrame()
 
     r = data[:, 0]
     vobs = data[:, 1]
+    # SPARC rotmod files commonly come as:
+    #   6+ cols: r, vobs, vobs_err, vgas, vdisk, vbul, ...
+    #   5 cols : r, vobs, vgas, vdisk, vbul
     if data.shape[1] > 5:
         vgas = data[:, 3]
         vdisk = data[:, 4]
@@ -155,7 +167,7 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
     else:
         out["logMbar"] = np.nan
         out["logSigmaHI_out"] = np.nan
-        print(f"[WARN] Galaxy not found in master table: {galaxy}")
+        print(f"[WARN] Galaxy not found in master table: {galaxy} (normalized: {galaxy_norm})")
     return out
 
 
