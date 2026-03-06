@@ -1,0 +1,61 @@
+name: "SCM Framework - SPARC Validation"
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          test -f requirements.txt || { echo "Error: requirements.txt no encontrado."; exit 1; }
+          pip install -r requirements.txt
+
+      - name: Build SPARC Catalog
+        run: |
+          if [ -f scripts/build_sparc_full_catalog.py ]; then
+            python scripts/build_sparc_full_catalog.py
+          else
+            echo "Error: scripts/build_sparc_full_catalog.py no encontrado."
+            exit 1
+          fi
+
+      - name: Run Framework Test
+        run: |
+          if [ -f scripts/run_big_sparc_veil_test.py ]; then
+            python scripts/run_big_sparc_veil_test.py --catalog data/SPARC/sparc_full.csv --out results
+          else
+            echo "Error: scripts/run_big_sparc_veil_test.py no encontrado."
+            exit 1
+          fi
+
+      - name: Display Results Overview
+        run: |
+          if [ -f results/results_overview.json ]; then
+            cat results/results_overview.json
+          else
+            echo "Error: No se generó el archivo de resultados."
+            exit 1
+          fi
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sparc-results
+          path: |
+            data/SPARC/sparc_full.csv
+            results/
