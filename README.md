@@ -137,9 +137,13 @@ python scripts/prepare_big_sparc_catalog.py \
   --galaxies NGC2403,NGC3198,NGC6503,DDO154,UGC0128 \
   --out data/big_sparc_catalog.csv
 
+# Option C: download/build full SPARC catalog in one command
+# (writes data/sparc_full.csv with galaxy,r_kpc,g_obs,g_bar,logMbar,logSigmaHI_out):
+python scripts/build_sparc_full_catalog.py
+
 # Run the β pipeline
 python scripts/run_big_sparc_veil_test.py \
-  --catalog data/big_sparc_catalog.csv \
+  --catalog data/sparc_full.csv \
   --out results
 ```
 
