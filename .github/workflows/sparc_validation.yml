@@ -63,6 +63,7 @@ jobs:
             echo "local_ready=false" >> "$GITHUB_OUTPUT"
             echo "Local SPARC data is incomplete (table exists: ${TABLE_EXISTS}, rotmod files: ${ROTMOD_COUNT})."
             echo "Expected table: data/SPARC/SPARC_Lelli2016c.csv or data/SPARC/SPARC_Lelli2016c.mrt"
+            echo "Provide local SPARC inputs or a prebuilt data/SPARC/sparc_full.csv to continue."
           fi
           echo "catalog_ready=${CATALOG_EXISTS}" >> "$GITHUB_OUTPUT"
           if [ "$CATALOG_EXISTS" = "yes" ]; then
