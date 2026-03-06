@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pandas as pd
+import pytest
 
 from scripts import build_sparc_catalog
 
@@ -41,7 +42,7 @@ def test_build_catalog_merges_tables_and_writes_csv(tmp_path, monkeypatch):
     ).to_csv(metadata_dir / "SPARC_Lelli2016c.mrt", index=False)
     pd.DataFrame(
         [
-            {"Galaxy": "NGC2403", "Vflat": 130.0, "Rmax": 18.0},
+            {"Galaxy": " NGC2403 ", "Vflat": 130.0, "Rmax": 18.0},
         ]
     ).to_csv(metadata_dir / "CDR_Lelli2016b.mrt", index=False)
     pd.DataFrame(
@@ -61,3 +62,20 @@ def test_build_catalog_merges_tables_and_writes_csv(tmp_path, monkeypatch):
     assert len(saved) == 2
     assert saved.loc[saved["Galaxy"] == "NGC2403", "Vflat"].iloc[0] == 130.0
     assert pd.isna(saved.loc[saved["Galaxy"] == "NGC3198", "Vflat"]).item()
+
+
+def test_load_tables_raises_when_required_file_is_missing(tmp_path, monkeypatch):
+    metadata_dir = tmp_path / "data" / "SPARC" / "metadata"
+    metadata_dir.mkdir(parents=True)
+
+    pd.DataFrame([{"Galaxy": "NGC2403", "Distance": 3.2}]).to_csv(
+        metadata_dir / "SPARC_Lelli2016c.mrt", index=False
+    )
+    pd.DataFrame([{"Galaxy": "NGC2403", "Vflat": 130.0}]).to_csv(
+        metadata_dir / "CDR_Lelli2016b.mrt", index=False
+    )
+
+    monkeypatch.setattr(build_sparc_catalog, "DATA_DIR", metadata_dir)
+
+    with pytest.raises(FileNotFoundError, match="Missing SPARC table:"):
+        build_sparc_catalog.load_tables()
