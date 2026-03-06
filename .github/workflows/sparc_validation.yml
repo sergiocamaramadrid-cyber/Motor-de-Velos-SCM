@@ -28,16 +28,36 @@ jobs:
       - name: Check local SPARC data
         id: check_local_data
         run: |
-          TABLE_PATH="data/SPARC/SPARC_Lelli2016c.csv"
+          CSV_TABLE_PATH="data/SPARC/SPARC_Lelli2016c.csv"
+          MRT_TABLE_PATH="data/SPARC/SPARC_Lelli2016c.mrt"
           TABLE_EXISTS="no"
-          [ -f "$TABLE_PATH" ] && TABLE_EXISTS="yes"
-          ROTMOD_COUNT=$(find data/SPARC/rotmod data/SPARC/raw -maxdepth 1 -type f -name "*_rotmod.dat" 2>/dev/null | xargs -r -n1 basename | sort -u | wc -l | tr -d ' ')
+          TABLE_SOURCE="none"
+          if [ -f "$CSV_TABLE_PATH" ]; then
+            TABLE_EXISTS="yes"
+            TABLE_SOURCE="csv"
+          elif [ -f "$MRT_TABLE_PATH" ]; then
+            TABLE_EXISTS="yes"
+            TABLE_SOURCE="mrt"
+          fi
+          ROTMOD_COUNT=0
+          ROTMOD_LIST="$(mktemp)"
+          if [ -d "data/SPARC/rotmod" ]; then
+            find data/SPARC/rotmod -maxdepth 1 -type f -name "*_rotmod.dat" -print0 | xargs -0 -r -n1 basename >> "$ROTMOD_LIST"
+          fi
+          if [ -d "data/SPARC/raw" ]; then
+            find data/SPARC/raw -maxdepth 1 -type f -name "*_rotmod.dat" -print0 | xargs -0 -r -n1 basename >> "$ROTMOD_LIST"
+          fi
+          if [ -s "$ROTMOD_LIST" ]; then
+            ROTMOD_COUNT=$(sort -u "$ROTMOD_LIST" | wc -l | tr -d ' ')
+          fi
+          rm -f "$ROTMOD_LIST"
           if [ "$TABLE_EXISTS" = "yes" ] && [ "${ROTMOD_COUNT}" -gt 0 ]; then
             echo "local_ready=true" >> "$GITHUB_OUTPUT"
-            echo "Using local SPARC data (${ROTMOD_COUNT} rotmod files found)."
+            echo "Using local SPARC data (${ROTMOD_COUNT} rotmod files found, table source: ${TABLE_SOURCE})."
           else
             echo "local_ready=false" >> "$GITHUB_OUTPUT"
             echo "Local SPARC data is incomplete (table exists: ${TABLE_EXISTS}, rotmod files: ${ROTMOD_COUNT})."
+            echo "Expected table: data/SPARC/SPARC_Lelli2016c.csv or data/SPARC/SPARC_Lelli2016c.mrt"
             echo "Will attempt to build catalog with remote download fallback."
           fi
 
