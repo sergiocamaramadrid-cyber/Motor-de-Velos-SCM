@@ -29,13 +29,15 @@ jobs:
         id: check_local_data
         run: |
           TABLE_PATH="data/SPARC/SPARC_Lelli2016c.csv"
-          ROTMOD_COUNT=$(find data/SPARC/rotmod data/SPARC/raw -maxdepth 1 -type f -name "*_rotmod.dat" 2>/dev/null | wc -l | tr -d ' ')
-          if [ -f "$TABLE_PATH" ] && [ "${ROTMOD_COUNT}" -gt 0 ]; then
+          TABLE_EXISTS="no"
+          [ -f "$TABLE_PATH" ] && TABLE_EXISTS="yes"
+          ROTMOD_COUNT=$(find data/SPARC/rotmod data/SPARC/raw -maxdepth 1 -type f -name "*_rotmod.dat" 2>/dev/null | xargs -r -n1 basename | sort -u | wc -l | tr -d ' ')
+          if [ "$TABLE_EXISTS" = "yes" ] && [ "${ROTMOD_COUNT}" -gt 0 ]; then
             echo "local_ready=true" >> "$GITHUB_OUTPUT"
             echo "Using local SPARC data (${ROTMOD_COUNT} rotmod files found)."
           else
             echo "local_ready=false" >> "$GITHUB_OUTPUT"
-            echo "Local SPARC data is incomplete (table exists: $([ -f "$TABLE_PATH" ] && echo yes || echo no), rotmod files: ${ROTMOD_COUNT})."
+            echo "Local SPARC data is incomplete (table exists: ${TABLE_EXISTS}, rotmod files: ${ROTMOD_COUNT})."
             echo "Will attempt to build catalog with remote download fallback."
           fi
 
@@ -50,7 +52,9 @@ jobs:
 
             if ! python scripts/build_sparc_full_catalog.py; then
               if [ "${{ steps.check_local_data.outputs.local_ready }}" = "false" ]; then
-                echo "Error: Missing local SPARC data and download/build failed."
+                echo "Error: Missing local SPARC data and download/build failed. Check network connectivity and download permissions."
+              else
+                echo "Error: Build failed despite local SPARC data being present. Review build logs for data validation errors."
               fi
               exit 1
             fi
