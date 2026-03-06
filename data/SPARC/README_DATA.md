@@ -28,4 +28,4 @@ These data are used to compute:
 Original references:
 
 Lelli et al. 2016, AJ, 152, 157
-Lelli et al. 2019, MNRAS
+Lelli et al. 2019, MNRAS, 484, 3267

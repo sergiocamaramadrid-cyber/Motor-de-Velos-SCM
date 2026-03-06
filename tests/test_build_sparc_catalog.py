@@ -60,4 +60,4 @@ def test_build_catalog_merges_tables_and_writes_csv(tmp_path, monkeypatch):
     assert len(out) == 2
     assert len(saved) == 2
     assert saved.loc[saved["Galaxy"] == "NGC2403", "Vflat"].iloc[0] == 130.0
-    assert pd.isna(saved.loc[saved["Galaxy"] == "NGC3198", "Vflat"]).iloc[0]
+    assert pd.isna(saved.loc[saved["Galaxy"] == "NGC3198", "Vflat"]).item()
