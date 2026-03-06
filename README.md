@@ -99,6 +99,29 @@ Generated results are **not versioned**.
 Download and preprocessing scripts are provided for reproducibility.  
 See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
 
+## Quick data check
+
+Before downloading SPARC or LITTLE THINGS again, check whether the data already
+exists locally:
+
+```bash
+find . -iname "*sparc*"
+find . -name "*rotmod.dat"
+find . -name "*.csv"
+find . -iname "*ddo*"
+```
+
+If ~175 `*_rotmod.dat` files are present, SPARC is already available and can be
+reused. Otherwise, rebuild the catalog with:
+
+```bash
+python scripts/build_sparc_full_catalog.py
+```
+
+For private or temporary GitHub links (for example `/tasks/...`) that return
+404, provide a screenshot, the visible text, or the correct public link.
+See `data/README.md` for detailed guidance.
+
 ---
 
 ## Running the Framework
