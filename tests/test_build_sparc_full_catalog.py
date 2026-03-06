@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+from urllib.parse import urlparse
 
 from scripts.build_sparc_full_catalog import (
     MRT_URL,
@@ -92,6 +93,6 @@ def test_parse_args_defaults_match_sparc_paths():
     assert args.out == "data/SPARC/sparc_full.csv"
 
 
-def test_download_sources_use_zenodo():
-    assert "zenodo.org" in ZIP_URL
-    assert "zenodo.org" in MRT_URL
+def test_download_urls_use_zenodo():
+    assert urlparse(ZIP_URL).netloc == "zenodo.org"
+    assert urlparse(MRT_URL).netloc == "zenodo.org"

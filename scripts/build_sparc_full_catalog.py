@@ -200,6 +200,7 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
 def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
     repo_root = Path(__file__).resolve().parent.parent
     data_root.mkdir(parents=True, exist_ok=True)
+    # Keep extracted files under data/SPARC/rotmod to match downstream checks.
     rot_dir = data_root / "rotmod"
     zip_path = data_root / "Rotmod_LTG.zip"
     mrt_path = _find_existing_master_table(data_root, repo_root)
