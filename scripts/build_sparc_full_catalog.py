@@ -9,7 +9,6 @@ Output columns:
 from __future__ import annotations
 
 import argparse
-import glob
 import sys
 import urllib.error
 import urllib.request
@@ -33,6 +32,34 @@ MIN_ROTMOD_COLUMNS = 5
 
 def norm_name(value: str) -> str:
     return str(value).strip().upper().replace(" ", "")
+
+
+def _find_existing_rotmod_files(data_root: Path, repo_root: Path, rot_dir: Path | None = None) -> list[Path]:
+    candidates = []
+    search_roots = [data_root, repo_root / "data"]
+    if rot_dir is not None:
+        search_roots.append(rot_dir)
+    seen_roots: set[Path] = set()
+    for base in search_roots:
+        resolved_base = base.resolve()
+        if resolved_base in seen_roots:
+            continue
+        seen_roots.add(resolved_base)
+        if base.exists():
+            candidates.extend(base.rglob("*_rotmod.dat"))
+    unique = sorted({path.resolve() for path in candidates})
+    return unique
+
+
+def _find_existing_master_table(data_root: Path, repo_root: Path) -> Path | None:
+    candidates = [
+        data_root / "SPARC_Lelli2016c.mrt",
+        repo_root / "data" / "SPARC_Lelli2016c.mrt",
+    ]
+    for path in candidates:
+        if path.exists():
+            return path.resolve()
+    return None
 
 
 def download_file(url: str, outpath: Path, timeout: int = 60, retries: int = 3) -> None:
@@ -172,18 +199,22 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
 
 
 def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
+    repo_root = Path(__file__).resolve().parent.parent
     data_root.mkdir(parents=True, exist_ok=True)
     rot_dir = data_root / "Rotmod_LTG"
     zip_path = data_root / "Rotmod_LTG.zip"
-    mrt_path = data_root / "SPARC_Lelli2016c.mrt"
+    mrt_path = _find_existing_master_table(data_root, repo_root)
+    files = _find_existing_rotmod_files(data_root, repo_root, rot_dir=rot_dir)
 
-    if not rot_dir.exists():
+    if not files:
         print(f"Downloading and extracting {ZIP_URL}")
         download_and_extract_zip(ZIP_URL, zip_path, rot_dir)
+        files = _find_existing_rotmod_files(data_root, repo_root, rot_dir=rot_dir)
     else:
-        print(f"Using existing rotmod directory: {rot_dir}")
+        print(f"Using {len(files)} existing rotmod files found in repository data paths")
 
-    if not mrt_path.exists():
+    if mrt_path is None:
+        mrt_path = data_root / "SPARC_Lelli2016c.mrt"
         print(f"Downloading {MRT_URL}")
         download_file(MRT_URL, mrt_path, timeout=60, retries=3)
     else:
@@ -192,9 +223,10 @@ def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
     master_df = add_master_derived_columns(load_master_table(mrt_path))
     galaxy_params = master_df.set_index("Galaxy_norm")[["logMbar", "logSigmaHI_out"]].to_dict(orient="index")
 
-    files = sorted(Path(p) for p in glob.glob(str(rot_dir / "**" / "*_rotmod.dat"), recursive=True))
     if not files:
-        raise FileNotFoundError(f"No *_rotmod.dat files found under {rot_dir}")
+        raise FileNotFoundError(
+            f"No *_rotmod.dat files found under {data_root}, {repo_root / 'data'}, or {rot_dir}"
+        )
 
     rows = [df for df in (process_rotmod(path, galaxy_params) for path in files) if not df.empty]
     if not rows:

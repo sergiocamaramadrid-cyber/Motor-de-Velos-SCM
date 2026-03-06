@@ -7,6 +7,8 @@ from scripts.build_sparc_full_catalog import (
     KPC_TO_M,
     UPSILON_BULGE,
     UPSILON_DISK,
+    _find_existing_master_table,
+    _find_existing_rotmod_files,
     add_master_derived_columns,
     norm_name,
     process_rotmod,
@@ -15,6 +17,29 @@ from scripts.build_sparc_full_catalog import (
 
 def test_norm_name_normalizes_spaces_and_case():
     assert norm_name(" ngc 2403 ") == "NGC2403"
+
+
+def test_find_existing_rotmod_files_searches_data_paths(tmp_path):
+    data_root = tmp_path / "data"
+    repo_root = tmp_path / "repo"
+    (data_root / "Rotmod_LTG" / "nested").mkdir(parents=True)
+    (repo_root / "data" / "SPARC" / "raw").mkdir(parents=True)
+    (data_root / "Rotmod_LTG" / "nested" / "A_rotmod.dat").write_text("1 2 3 4 5\n")
+    (repo_root / "data" / "SPARC" / "raw" / "B_rotmod.dat").write_text("1 2 3 4 5\n")
+    found = _find_existing_rotmod_files(data_root, repo_root, rot_dir=data_root / "Rotmod_LTG")
+    names = [p.name for p in found]
+    assert names == ["A_rotmod.dat", "B_rotmod.dat"]
+
+
+def test_find_existing_master_table_prefers_existing_paths(tmp_path):
+    data_root = tmp_path / "data"
+    repo_root = tmp_path / "repo"
+    data_root.mkdir(parents=True)
+    (repo_root / "data").mkdir(parents=True)
+    table = repo_root / "data" / "SPARC_Lelli2016c.mrt"
+    table.write_text("header\n")
+    found = _find_existing_master_table(data_root, repo_root)
+    assert found == table.resolve()
 
 
 def test_add_master_derived_columns_builds_log_columns():
