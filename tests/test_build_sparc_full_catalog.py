@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 from urllib.parse import urlparse
 
 from scripts.build_sparc_full_catalog import (
@@ -10,6 +11,7 @@ from scripts.build_sparc_full_catalog import (
     KPC_TO_M,
     UPSILON_BULGE,
     UPSILON_DISK,
+    check_local_sparc_data,
     _parse_args,
     _find_existing_master_table,
     _find_existing_rotmod_files,
@@ -96,3 +98,17 @@ def test_parse_args_defaults_match_sparc_paths():
 def test_download_urls_use_zenodo():
     assert urlparse(ZIP_URL).netloc == "zenodo.org"
     assert urlparse(MRT_URL).netloc == "zenodo.org"
+
+
+def test_check_local_sparc_data_raises_clear_error_when_missing(tmp_path):
+    with pytest.raises(FileNotFoundError, match="SPARC data not found locally"):
+        check_local_sparc_data(tmp_path / "data" / "SPARC")
+
+
+def test_check_local_sparc_data_accepts_table_and_rotmod(tmp_path):
+    data_root = tmp_path / "data" / "SPARC"
+    rotmod = data_root / "rotmod"
+    rotmod.mkdir(parents=True)
+    (data_root / "SPARC_Lelli2016c.mrt").write_text("header\n")
+    (rotmod / "NGC0300_rotmod.dat").write_text("1 2 3 4 5\n")
+    check_local_sparc_data(data_root)

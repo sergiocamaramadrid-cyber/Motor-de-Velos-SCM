@@ -33,6 +33,31 @@ def norm_name(value: str) -> str:
     return str(value).strip().upper().replace(" ", "")
 
 
+def check_local_sparc_data(data_root: Path) -> None:
+    table_csv = data_root / "SPARC_Lelli2016c.csv"
+    table_mrt = data_root / "SPARC_Lelli2016c.mrt"
+    rotmod_dir = data_root / "rotmod"
+
+    table_exists = table_csv.exists() or table_mrt.exists()
+    rotmod_count = len(list(rotmod_dir.glob("*_rotmod.dat"))) if rotmod_dir.is_dir() else 0
+
+    if table_exists and rotmod_count > 0:
+        return
+
+    raise FileNotFoundError(
+        "\nSPARC data not found locally.\n\n"
+        "Required structure:\n\n"
+        "data/SPARC/\n"
+        " ├── SPARC_Lelli2016c.csv  (or .mrt)\n"
+        " └── rotmod/\n"
+        "      ├── NGC0300_rotmod.dat\n"
+        "      ├── NGC0891_rotmod.dat\n"
+        "      └── ... (≈175 files)\n\n"
+        "Alternatively you can provide:\n"
+        "data/SPARC/sparc_full.csv\n"
+    )
+
+
 def _find_existing_rotmod_files(data_root: Path, repo_root: Path, rot_dir: Path | None = None) -> list[Path]:
     candidates = []
     search_roots = [data_root, repo_root / "data"]
@@ -199,26 +224,18 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
 
 def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
     repo_root = Path(__file__).resolve().parent.parent
+    check_local_sparc_data(data_root)
     data_root.mkdir(parents=True, exist_ok=True)
     # Keep extracted files under data/SPARC/rotmod to match downstream checks.
     rot_dir = data_root / "rotmod"
-    zip_path = data_root / "Rotmod_LTG.zip"
     mrt_path = _find_existing_master_table(data_root, repo_root)
     files = _find_existing_rotmod_files(data_root, repo_root, rot_dir=rot_dir)
 
-    if not files:
-        print(f"Downloading and extracting {ZIP_URL}")
-        download_and_extract_zip(ZIP_URL, zip_path, rot_dir)
-        files = _find_existing_rotmod_files(data_root, repo_root, rot_dir=rot_dir)
-    else:
-        print(f"Using {len(files)} existing rotmod files found in repository data paths")
+    print(f"Using {len(files)} existing rotmod files found in repository data paths")
 
     if mrt_path is None:
-        mrt_path = data_root / "SPARC_Lelli2016c.mrt"
-        print(f"Downloading {MRT_URL}")
-        download_file(MRT_URL, mrt_path, timeout=60, retries=3)
-    else:
-        print(f"Using existing master table: {mrt_path}")
+        raise FileNotFoundError("SPARC master table not found: expected data/SPARC/SPARC_Lelli2016c.mrt")
+    print(f"Using existing master table: {mrt_path}")
 
     master_df = add_master_derived_columns(load_master_table(mrt_path))
     galaxy_params = master_df.set_index("Galaxy_norm")[["logMbar", "logSigmaHI_out"]].to_dict(orient="index")
