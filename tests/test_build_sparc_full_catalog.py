@@ -4,9 +4,12 @@ import numpy as np
 import pandas as pd
 
 from scripts.build_sparc_full_catalog import (
+    MRT_URL,
+    ZIP_URL,
     KPC_TO_M,
     UPSILON_BULGE,
     UPSILON_DISK,
+    _parse_args,
     _find_existing_master_table,
     _find_existing_rotmod_files,
     add_master_derived_columns,
@@ -81,3 +84,14 @@ def test_process_rotmod_converts_to_si_and_joins_master_values(tmp_path):
     assert np.isclose(out.loc[0, "g_bar"], expected_g_bar)
     assert np.all(out["logMbar"] == 10.2)
     assert np.all(out["logSigmaHI_out"] == 0.1)
+
+
+def test_parse_args_defaults_match_sparc_paths():
+    args = _parse_args([])
+    assert args.data_root == "data/SPARC"
+    assert args.out == "data/SPARC/sparc_full.csv"
+
+
+def test_download_sources_use_zenodo():
+    assert "zenodo.org" in ZIP_URL
+    assert "zenodo.org" in MRT_URL

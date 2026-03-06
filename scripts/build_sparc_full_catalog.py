@@ -18,9 +18,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-SPARC_BASE = "https://astroweb.cwru.edu/SPARC"
-ZIP_URL = f"{SPARC_BASE}/Rotmod_LTG.zip"
-MRT_URL = f"{SPARC_BASE}/SPARC_Lelli2016c.mrt"
+ZIP_URL = "https://zenodo.org/records/16284118/files/Rotmod_LTG.zip?download=1"
+MRT_URL = "https://zenodo.org/records/16284118/files/SPARC_Lelli2016c.mrt?download=1"
 
 KM_TO_M = 1_000.0
 KPC_TO_M = 3.085677581e19
@@ -201,7 +200,7 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
 def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
     repo_root = Path(__file__).resolve().parent.parent
     data_root.mkdir(parents=True, exist_ok=True)
-    rot_dir = data_root / "Rotmod_LTG"
+    rot_dir = data_root / "rotmod"
     zip_path = data_root / "Rotmod_LTG.zip"
     mrt_path = _find_existing_master_table(data_root, repo_root)
     files = _find_existing_rotmod_files(data_root, repo_root, rot_dir=rot_dir)
@@ -244,8 +243,8 @@ def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build full SPARC CSV for BIG-SPARC veil test.")
-    parser.add_argument("--data-root", default="data", help="Data directory root (default: data).")
-    parser.add_argument("--out", default="data/sparc_full.csv", help="Output CSV path.")
+    parser.add_argument("--data-root", default="data/SPARC", help="SPARC data directory (default: data/SPARC).")
+    parser.add_argument("--out", default="data/SPARC/sparc_full.csv", help="Output CSV path.")
     return parser.parse_args(argv)
 
 

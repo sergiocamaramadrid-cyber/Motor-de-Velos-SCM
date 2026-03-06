@@ -32,7 +32,7 @@ y puedes reutilizarlo directamente.
 Ejemplo para lanzar el test sin reconstrucción:
 
 ```bash
-python scripts/run_big_sparc_veil_test.py --catalog data/sparc_full.csv --out results
+python scripts/run_big_sparc_veil_test.py --catalog data/SPARC/sparc_full.csv --out results
 ```
 
 Si no aparecen `*_rotmod.dat`, reconstruye el catálogo completo con:
