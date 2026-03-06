@@ -41,6 +41,9 @@ def consolidate_sparc(
     output_file: str | Path = "results/SPARC/rotation_curves-v1.0.csv",
 ) -> pd.DataFrame:
     sparc_dir = Path(input_dir)
+    if not sparc_dir.exists():
+        raise FileNotFoundError(f"SPARC input directory not found: {sparc_dir}")
+
     files = _find_rotmod_files(sparc_dir)
     if not files:
         raise FileNotFoundError(
@@ -48,12 +51,20 @@ def consolidate_sparc(
         )
 
     rows: list[pd.DataFrame] = []
+    skipped: list[tuple[str, str]] = []
     for path in files:
         galaxy = path.name.replace("_rotmod.dat", "")
-        rc = _read_rotmod(path)
+        try:
+            rc = _read_rotmod(path)
+        except (pd.errors.ParserError, ValueError) as exc:
+            skipped.append((galaxy, str(exc)))
+            continue
         rc.insert(0, "galaxy", galaxy)
         rc["v_bar"] = (rc["v_gas"] ** 2 + rc["v_disk"] ** 2 + rc["v_bulge"] ** 2) ** 0.5
         rows.append(rc)
+
+    if not rows:
+        raise ValueError("No readable *_rotmod.dat files were found after parsing input files.")
 
     out = pd.concat(rows, ignore_index=True)
     out = out.replace([float("inf"), float("-inf")], pd.NA).dropna(
@@ -65,6 +76,10 @@ def consolidate_sparc(
     out_path = Path(output_file)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_path, index=False)
+
+    for galaxy, msg in skipped:
+        print(f"⚠️  Skipped {galaxy}: {msg}")
+
     return out
 
 

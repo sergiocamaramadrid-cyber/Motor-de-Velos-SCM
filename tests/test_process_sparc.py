@@ -30,5 +30,28 @@ def test_consolidate_sparc_builds_v1_catalog_from_rotmod_dir(tmp_path):
 
 
 def test_consolidate_sparc_fails_if_no_rotmods(tmp_path):
+    (tmp_path / "SPARC").mkdir()
     with pytest.raises(FileNotFoundError, match=r"No \*_rotmod\.dat files found"):
         consolidate_sparc(input_dir=tmp_path / "SPARC", output_file=tmp_path / "out.csv")
+
+
+def test_consolidate_sparc_fails_if_input_directory_missing(tmp_path):
+    with pytest.raises(FileNotFoundError, match="SPARC input directory not found"):
+        consolidate_sparc(input_dir=tmp_path / "SPARC", output_file=tmp_path / "out.csv")
+
+
+def test_consolidate_sparc_skips_malformed_rotmod_and_keeps_valid_ones(tmp_path):
+    sparc_dir = tmp_path / "SPARC"
+    rotmod_dir = sparc_dir / "rotmod"
+    rotmod_dir.mkdir(parents=True)
+    out_csv = tmp_path / "results" / "rotation_curves-v1.0.csv"
+
+    pd.DataFrame([[1.0, 100.0, 2.0, 30.0, 40.0, 50.0]]).to_csv(
+        rotmod_dir / "NGC2403_rotmod.dat", sep=" ", index=False, header=False
+    )
+    (rotmod_dir / "BADGAL_rotmod.dat").write_text("not-a-numeric-rotmod\n", encoding="utf-8")
+
+    out = consolidate_sparc(input_dir=sparc_dir, output_file=out_csv)
+
+    assert out_csv.exists()
+    assert sorted(out["galaxy"].unique().tolist()) == ["NGC2403"]

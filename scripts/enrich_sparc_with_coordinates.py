@@ -46,9 +46,9 @@ def enrich_with_coordinates(
 
     galaxy_col = _resolve_column(df_curves, ["galaxy"])
     name_col = _resolve_column(df_meta, ["Name", "Galaxy"])
-    ra_col = _resolve_column(df_meta, ["RA"])
-    dec_col = _resolve_column(df_meta, ["Dec", "DEC"])
-    d_col = _resolve_column(df_meta, ["D"])
+    ra_col = _resolve_column(df_meta, ["RA", "RAdeg"])
+    dec_col = _resolve_column(df_meta, ["Dec", "DEC", "DEdeg"])
+    d_col = _resolve_column(df_meta, ["D", "Dist"])
     type_col = _resolve_column(df_meta, ["Type", "T"], required=False)
 
     df_curves = df_curves.copy()

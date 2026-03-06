@@ -60,3 +60,28 @@ def test_enrich_with_coordinates_accepts_galaxy_and_t_columns(tmp_path):
     assert out.loc[0, "Dec"] == 68.4
     assert out.loc[0, "D"] == 4.0
     assert out.loc[0, "Type"] == 9.0
+
+
+def test_enrich_with_coordinates_accepts_radeg_dedeg_dist_columns(tmp_path):
+    input_csv = tmp_path / "rotation_curves-v1.0.csv"
+    metadata_csv = tmp_path / "SPARC_Lelli2016c.csv"
+    output_csv = tmp_path / "rotation_curves-v1.1-coords.csv"
+
+    pd.DataFrame([{"galaxy": "NGC2403", "r": 1.0, "g_obs": 1.0e-10, "g_bar": 8.0e-11}]).to_csv(
+        input_csv, index=False
+    )
+
+    pd.DataFrame([{"Name": "NGC2403", "RAdeg": 114.2, "DEdeg": 65.6, "Dist": 3.2}]).to_csv(
+        metadata_csv, index=False
+    )
+
+    out = enrich_with_coordinates(
+        input_file=input_csv,
+        metadata_file=metadata_csv,
+        output_file=output_csv,
+    )
+
+    assert output_csv.exists()
+    assert out.loc[0, "RA"] == 114.2
+    assert out.loc[0, "Dec"] == 65.6
+    assert out.loc[0, "D"] == 3.2
