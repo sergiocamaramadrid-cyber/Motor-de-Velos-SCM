@@ -3,7 +3,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from scripts.prepare_big_sparc_catalog import prepare_catalog
+from scripts.prepare_big_sparc_catalog import _KILOPARSEC_TO_METERS, prepare_catalog
 
 
 def test_prepare_catalog_passthrough_when_g_columns_exist(tmp_path):
@@ -40,3 +40,7 @@ def test_prepare_catalog_converts_contract_columns_to_acceleration(tmp_path):
     assert len(df) == 3
     assert np.all(df["g_obs"] > 0.0)
     assert np.all(df["g_bar"] > 0.0)
+    expected_g_obs_first = ((100.0 * 1_000.0) ** 2) / (1.0 * _KILOPARSEC_TO_METERS)
+    expected_g_bar_first = ((80.0 * 1_000.0) ** 2) / (1.0 * _KILOPARSEC_TO_METERS)
+    assert np.isclose(df.iloc[0]["g_obs"], expected_g_obs_first)
+    assert np.isclose(df.iloc[0]["g_bar"], expected_g_bar_first)

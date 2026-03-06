@@ -31,7 +31,7 @@ except ImportError:
 
 _REQ_DIRECT = {"galaxy", "g_obs", "g_bar"}
 _REQ_CONTRACT = {"galaxy", "r_kpc", "vobs_kms", "vbar_kms"}
-_KPC_TO_M = 3.085677581491367e19
+_KILOPARSEC_TO_METERS = 3.085677581491367e19
 
 
 def _compute_accel_from_contract(df: pd.DataFrame) -> pd.DataFrame:
@@ -43,18 +43,26 @@ def _compute_accel_from_contract(df: pd.DataFrame) -> pd.DataFrame:
         )
 
     out = df.copy()
-    radius_m = out["r_kpc"].astype(float).to_numpy() * _KPC_TO_M
-    vobs_mps = out["vobs_kms"].astype(float).to_numpy() * 1_000.0
-    vbar_mps = out["vbar_kms"].astype(float).to_numpy() * 1_000.0
+    radius_m = out["r_kpc"].astype(float).to_numpy() * _KILOPARSEC_TO_METERS
+    vobs_m_per_s = out["vobs_kms"].astype(float).to_numpy() * 1_000.0
+    vbar_m_per_s = out["vbar_kms"].astype(float).to_numpy() * 1_000.0
 
-    valid = np.isfinite(radius_m) & (radius_m > 0.0)
+    valid = (
+        np.isfinite(radius_m)
+        & np.isfinite(vobs_m_per_s)
+        & np.isfinite(vbar_m_per_s)
+        & (radius_m > 0.0)
+    )
     if not np.any(valid):
-        raise ValueError("No valid rows with r_kpc > 0 available to compute accelerations.")
+        raise ValueError(
+            "No valid rows available to compute accelerations: require finite "
+            "r_kpc, finite velocities, and r_kpc > 0."
+        )
 
     g_obs = np.full(len(out), np.nan, dtype=float)
     g_bar = np.full(len(out), np.nan, dtype=float)
-    g_obs[valid] = (vobs_mps[valid] ** 2) / radius_m[valid]
-    g_bar[valid] = (vbar_mps[valid] ** 2) / radius_m[valid]
+    g_obs[valid] = (vobs_m_per_s[valid] ** 2) / radius_m[valid]
+    g_bar[valid] = (vbar_m_per_s[valid] ** 2) / radius_m[valid]
 
     out["g_obs"] = g_obs
     out["g_bar"] = g_bar
