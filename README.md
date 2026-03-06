@@ -134,6 +134,15 @@ python scripts/process_sparc.py \
   --out results/SPARC/rotation_curves-v1.0.csv
 ```
 
+### SPARC coordinate enrichment (for anisotropy test)
+
+```bash
+python scripts/enrich_sparc_with_coordinates.py \
+  --metadata data/SPARC/SPARC_Lelli2016c.csv \
+  --input results/SPARC/rotation_curves-v1.0.csv \
+  --output results/SPARC/rotation_curves-v1.1-coords.csv
+```
+
 ### Deep-Regime Slope Diagnostic
 
 ```bash
