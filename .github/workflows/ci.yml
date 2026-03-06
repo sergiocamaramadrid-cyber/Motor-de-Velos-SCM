@@ -29,8 +29,8 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-          pip install numpy pandas scipy scikit-learn statsmodels matplotlib joblib requests
+          test -f requirements.txt || { echo "ERROR: requirements.txt is required for CI dependency installation. Ensure it exists at repository root."; exit 1; }
+          pip install -r requirements.txt
           pip install pytest
 
       - name: Run tests
