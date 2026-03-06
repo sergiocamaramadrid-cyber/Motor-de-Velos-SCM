@@ -10,6 +10,7 @@ Default I/O:
 from __future__ import annotations
 
 import argparse
+import warnings
 from pathlib import Path
 
 import pandas as pd
@@ -64,7 +65,13 @@ def consolidate_sparc(
         rows.append(rc)
 
     if not rows:
-        raise ValueError("No readable *_rotmod.dat files were found after parsing input files.")
+        raise ValueError(
+            f"All {len(files)} rotmod files failed to parse; "
+            f"{len(skipped)} files were skipped due to parse/value-conversion errors."
+        )
+
+    for galaxy, msg in skipped:
+        warnings.warn(f"Skipped {galaxy}: {msg}", stacklevel=2)
 
     out = pd.concat(rows, ignore_index=True)
     out = out.replace([float("inf"), float("-inf")], pd.NA).dropna(
@@ -76,9 +83,6 @@ def consolidate_sparc(
     out_path = Path(output_file)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out.to_csv(out_path, index=False)
-
-    for galaxy, msg in skipped:
-        print(f"⚠️  Skipped {galaxy}: {msg}")
 
     return out
 

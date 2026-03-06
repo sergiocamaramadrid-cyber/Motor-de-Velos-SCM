@@ -30,7 +30,7 @@ def test_consolidate_sparc_builds_v1_catalog_from_rotmod_dir(tmp_path):
 
 
 def test_consolidate_sparc_fails_if_no_rotmods(tmp_path):
-    (tmp_path / "SPARC").mkdir()
+    (tmp_path / "SPARC" / "rotmod").mkdir(parents=True)
     with pytest.raises(FileNotFoundError, match=r"No \*_rotmod\.dat files found"):
         consolidate_sparc(input_dir=tmp_path / "SPARC", output_file=tmp_path / "out.csv")
 
