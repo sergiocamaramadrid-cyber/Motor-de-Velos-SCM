@@ -5,7 +5,7 @@ This directory contains the data products used by the SCM–Motor de Velos frame
 Source:
 http://astroweb.case.edu/SPARC/
 
-Included tables:
+Included tables (used for the master catalog)
 
 SPARC_Lelli2016c.mrt
     Global galaxy properties.
@@ -13,19 +13,22 @@ SPARC_Lelli2016c.mrt
 CDR_Lelli2016b.mrt
     Circular velocity parameters (Vmax, Vflat, Rmax).
 
-MassModels_Lelli2016c.mrt
-    Baryonic mass models and rotation curve decomposition.
-
 BTFR_Lelli2019.mrt
     Baryonic Tully-Fisher relation dataset.
 
-These data are used to compute:
+Additional tables available
+
+MassModels_Lelli2016c.mrt
+    Baryonic mass models and rotation curve decomposition.
+    Used for radial analyses but not included in the master catalog merge.
+
+These data are used within the framework to compute:
 
 - F3_SCM (outer rotation curve slope)
 - β (deep regime slope)
-- Out-of-sample tests of the SCM framework.
+- Out-of-sample validation tests of the SCM framework.
 
-Original references:
+Original references
 
-Lelli et al. 2016, AJ, 152, 157
+Lelli et al. 2016, AJ, 152, 157  
 Lelli et al. 2019, MNRAS, 484, 3267
