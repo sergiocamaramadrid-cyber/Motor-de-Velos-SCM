@@ -130,7 +130,7 @@ See `data/README.md` for detailed guidance.
 
 ```bash
 python scripts/process_sparc.py \
-  --input data/SPARC/sparc_raw.csv \
+  --input data/SPARC \
   --out results/SPARC/rotation_curves-v1.0.csv
 ```
 
