@@ -15,6 +15,46 @@ licencia.
 3. Descarga los archivos de curvas de rotación individuales (`*_rotmod.dat`)
    y colócalos en `data/SPARC/raw/`.
 
+## Comprobación rápida antes de descargar
+
+Antes de descargar nada, verifica si los datos ya existen en tu clon local:
+
+```bash
+find . -iname "*sparc*"
+find . -name "*rotmod.dat"
+find . -name "*.csv"
+find . -iname "*ddo*"
+```
+
+Si `find . -name "*rotmod.dat"` devuelve ~175 archivos, SPARC ya está disponible
+y puedes reutilizarlo directamente.
+
+Ejemplo para lanzar el test sin reconstrucción:
+
+```bash
+python scripts/run_big_sparc_veil_test.py --catalog data/sparc_full.csv --out results
+```
+
+Si no aparecen `*_rotmod.dat`, reconstruye el catálogo completo con:
+
+```bash
+python scripts/build_sparc_full_catalog.py
+```
+
+## Troubleshooting de enlaces (404 / Not Found)
+
+Si un enlace devuelve `404`, suele deberse a que:
+
+- es una URL privada o temporal,
+- requiere sesión iniciada en GitHub,
+- o la ruta (por ejemplo `/tasks/...`) no es pública.
+
+En ese caso, comparte una de estas tres opciones para desbloquear la revisión:
+
+1. una captura de pantalla,
+2. el texto exacto del error,
+3. o el enlace público correcto al commit, PR, issue o archivo.
+
 ## Estructura esperada
 
 ```
