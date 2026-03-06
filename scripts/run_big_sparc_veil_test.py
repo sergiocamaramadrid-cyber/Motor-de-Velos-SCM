@@ -21,6 +21,8 @@ DEEP_THRESHOLD_DEFAULT = 0.3
 BOOTSTRAP_ITERS_DEFAULT = 2000
 BOOTSTRAP_SEED_DEFAULT = 42
 CV_FOLDS_DEFAULT = 5
+REG_FEATURE_COLUMNS = ["logSigmaHI_out", "logMbar"]
+BOOTSTRAP_COEF_COLUMNS = ["iter", "coef_intercept", "coef_logSigmaHI_out", "coef_logMbar"]
 
 
 def compute_beta_from_curve(sub: pd.DataFrame) -> dict:
@@ -62,7 +64,7 @@ def compute_beta_from_curve(sub: pd.DataFrame) -> dict:
 
 
 def _fit_environmental_regression(beta_catalog: pd.DataFrame) -> tuple[dict, np.ndarray, np.ndarray]:
-    needed = {"beta", "logSigmaHI_out", "logMbar"}
+    needed = {"beta", *REG_FEATURE_COLUMNS}
     if not needed.issubset(beta_catalog.columns):
         return {}, np.array([]), np.array([])
 
@@ -71,8 +73,8 @@ def _fit_environmental_regression(beta_catalog: pd.DataFrame) -> tuple[dict, np.
         return {}, np.array([]), np.array([])
 
     y = reg["beta"].to_numpy(dtype=float)
-    x1 = reg["logSigmaHI_out"].to_numpy(dtype=float)
-    x2 = reg["logMbar"].to_numpy(dtype=float)
+    x1 = reg[REG_FEATURE_COLUMNS[0]].to_numpy(dtype=float)
+    x2 = reg[REG_FEATURE_COLUMNS[1]].to_numpy(dtype=float)
     x = np.column_stack([np.ones(len(reg)), x1, x2])
 
     coefs, *_ = np.linalg.lstsq(x, y, rcond=None)
@@ -98,7 +100,7 @@ def _bootstrap_regression_coefs(
     seed: int,
 ) -> pd.DataFrame:
     if len(y) == 0:
-        return pd.DataFrame(columns=["iter", "intercept", "b_logSigmaHI_out", "c_logMbar"])
+        return pd.DataFrame(columns=BOOTSTRAP_COEF_COLUMNS)
 
     rng = np.random.default_rng(seed)
     n = len(y)
@@ -111,9 +113,9 @@ def _bootstrap_regression_coefs(
         rows.append(
             {
                 "iter": i + 1,
-                "intercept": float(coefs[0]),
-                "b_logSigmaHI_out": float(coefs[1]),
-                "c_logMbar": float(coefs[2]),
+                "coef_intercept": float(coefs[0]),
+                "coef_logSigmaHI_out": float(coefs[1]),
+                "coef_logMbar": float(coefs[2]),
             }
         )
     return pd.DataFrame(rows)
