@@ -110,20 +110,37 @@ def _read_rotmod_for_catalog(path: Path) -> pd.DataFrame:
     return pd.DataFrame({name: raw.iloc[:, idx].astype(float) for name, idx in cols.items()})
 
 
-def _derive_env_columns(rc: pd.DataFrame) -> tuple[float, float]:
-    valid = rc.replace([np.inf, -np.inf], np.nan).dropna(subset=["r_kpc", "v_gas", "v_disk", "v_bul"])
-    valid = valid[valid["r_kpc"] > 0.0]
-    if valid.empty:
+def _valid_kinematic_mask(radius_m: np.ndarray, *velocities_m_per_s: np.ndarray) -> np.ndarray:
+    mask = np.isfinite(radius_m) & (radius_m > 0.0)
+    for vel in velocities_m_per_s:
+        mask &= np.isfinite(vel)
+    return mask
+
+
+def _derive_env_columns(
+    radius_m: np.ndarray,
+    vgas_m_per_s: np.ndarray,
+    vdisk_m_per_s: np.ndarray,
+    vbul_m_per_s: np.ndarray,
+) -> tuple[float, float]:
+    valid = _valid_kinematic_mask(radius_m, vgas_m_per_s, vdisk_m_per_s, vbul_m_per_s)
+    if not np.any(valid):
         return float("nan"), float("nan")
 
-    r_m = valid["r_kpc"].to_numpy(dtype=float) * _KILOPARSEC_TO_METERS
-    vgas = valid["v_gas"].to_numpy(dtype=float) * 1_000.0
-    vdisk = valid["v_disk"].to_numpy(dtype=float) * 1_000.0
-    vbul = valid["v_bul"].to_numpy(dtype=float) * 1_000.0
+    r_m = radius_m[valid]
+    vgas = vgas_m_per_s[valid]
+    vdisk = vdisk_m_per_s[valid]
+    vbul = vbul_m_per_s[valid]
+    order = np.argsort(r_m)
+    r_m = r_m[order]
+    vgas = vgas[order]
+    vdisk = vdisk[order]
+    vbul = vbul[order]
 
     g_bar = (vgas**2 + vdisk**2 + vbul**2) / r_m
     g_gas = (vgas**2) / r_m
-    i_out = int(np.argmax(r_m))
+    # Use the outermost measured radius as the "out" location.
+    i_out = len(r_m) - 1
     mbar_kg = g_bar[i_out] * (r_m[i_out] ** 2) / _GRAVITATIONAL_CONSTANT
     sigma_gas_kg_m2 = g_gas[i_out] / (2.0 * np.pi * _GRAVITATIONAL_CONSTANT)
     sigma_gas_msun_pc2 = sigma_gas_kg_m2 * _KG_M2_TO_MSUN_PC2
@@ -162,13 +179,13 @@ def prepare_catalog_from_sparc_dir(
         v_disk = rc["v_disk"].to_numpy(dtype=float) * 1_000.0
         v_bul = rc["v_bul"].to_numpy(dtype=float) * 1_000.0
 
-        valid = np.isfinite(radius_m) & np.isfinite(v_obs) & np.isfinite(v_gas) & np.isfinite(v_disk) & np.isfinite(v_bul) & (radius_m > 0.0)
+        valid = _valid_kinematic_mask(radius_m, v_obs, v_gas, v_disk, v_bul)
         if not np.any(valid):
             continue
 
         g_obs = (v_obs[valid] ** 2) / radius_m[valid]
         g_bar = (v_gas[valid] ** 2 + v_disk[valid] ** 2 + v_bul[valid] ** 2) / radius_m[valid]
-        log_mbar, log_sigma_hi_out = _derive_env_columns(rc.loc[valid, ["r_kpc", "v_gas", "v_disk", "v_bul"]])
+        log_mbar, log_sigma_hi_out = _derive_env_columns(radius_m, v_gas, v_disk, v_bul)
 
         rows.append(
             pd.DataFrame(
@@ -186,7 +203,9 @@ def prepare_catalog_from_sparc_dir(
         raise ValueError("No valid rows were generated from provided SPARC rotmod files.")
 
     out = pd.concat(rows, ignore_index=True)
-    out = out.replace([np.inf, -np.inf], np.nan).dropna(subset=["galaxy", "g_obs", "g_bar"])
+    out = out.replace([np.inf, -np.inf], np.nan).dropna(
+        subset=["galaxy", "g_obs", "g_bar", "logMbar", "logSigmaHI_out"]
+    )
     out = out[(out["g_obs"] > 0.0) & (out["g_bar"] > 0.0)]
     out = out.sort_values(["galaxy"]).reset_index(drop=True)
     out_path.parent.mkdir(parents=True, exist_ok=True)

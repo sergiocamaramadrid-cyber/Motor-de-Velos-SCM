@@ -4,7 +4,10 @@ import numpy as np
 import pandas as pd
 
 from scripts.prepare_big_sparc_catalog import (
+    _GRAVITATIONAL_CONSTANT,
+    _KG_M2_TO_MSUN_PC2,
     _KILOPARSEC_TO_METERS,
+    _SOLAR_MASS_KG,
     prepare_catalog,
     prepare_catalog_from_sparc_dir,
 )
@@ -85,3 +88,18 @@ def test_prepare_catalog_from_sparc_dir_reads_rotmod_and_derives_env_columns(tmp
     per_galaxy = df.groupby("galaxy")[["logMbar", "logSigmaHI_out"]].nunique()
     assert np.all(per_galaxy["logMbar"] == 1)
     assert np.all(per_galaxy["logSigmaHI_out"] == 1)
+
+    ngc2403 = df[df["galaxy"] == "NGC2403"].iloc[0]
+    r_out = 3.0 * _KILOPARSEC_TO_METERS
+    vgas_out = 50.0 * 1_000.0
+    vdisk_out = 80.0 * 1_000.0
+    vbul_out = 8.0 * 1_000.0
+    gbar_out = (vgas_out**2 + vdisk_out**2 + vbul_out**2) / r_out
+    mbar_kg = gbar_out * (r_out**2) / _GRAVITATIONAL_CONSTANT
+    expected_logmbar = np.log10(mbar_kg / _SOLAR_MASS_KG)
+    ggas_out = (vgas_out**2) / r_out
+    sigma_kg_m2 = ggas_out / (2.0 * np.pi * _GRAVITATIONAL_CONSTANT)
+    expected_logsigma = np.log10(sigma_kg_m2 * _KG_M2_TO_MSUN_PC2)
+
+    assert np.isclose(ngc2403["logMbar"], expected_logmbar)
+    assert np.isclose(ngc2403["logSigmaHI_out"], expected_logsigma)
