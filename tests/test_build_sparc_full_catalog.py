@@ -16,6 +16,7 @@ from scripts.build_sparc_full_catalog import (
     _find_existing_master_table,
     _find_existing_rotmod_files,
     add_master_derived_columns,
+    load_master_table,
     norm_name,
     process_rotmod,
 )
@@ -112,3 +113,42 @@ def test_check_local_sparc_data_accepts_table_and_rotmod(tmp_path):
     (data_root / "SPARC_Lelli2016c.mrt").write_text("header\n")
     (rotmod / "NGC0300_rotmod.dat").write_text("1 2 3 4 5\n")
     check_local_sparc_data(data_root)
+
+
+def test_load_master_table_csv_renames_l36_and_normalizes_galaxy(tmp_path):
+    csv_path = tmp_path / "SPARC_Lelli2016c.csv"
+    pd.DataFrame(
+        [{"Galaxy": " NGC 2403 ", "L36": 1.0, "MHI": 2.0, "RHI": 3.0}]
+    ).to_csv(csv_path, index=False)
+
+    out = load_master_table(csv_path)
+    assert "L_3.6" in out.columns
+    assert out.loc[0, "Galaxy"] == "NGC 2403"
+    assert out.loc[0, "Galaxy_norm"] == "NGC2403"
+
+
+def test_check_local_sparc_data_raises_when_only_prebuilt_catalog_present(tmp_path):
+    data_root = tmp_path / "data" / "SPARC"
+    data_root.mkdir(parents=True)
+    (data_root / "sparc_full.csv").write_text("galaxy,r_kpc,g_obs,g_bar\n")
+
+    with pytest.raises(FileNotFoundError, match="Detected prebuilt catalog"):
+        check_local_sparc_data(data_root)
+
+
+def test_load_master_table_csv_requires_baryonic_columns(tmp_path):
+    csv_path = tmp_path / "SPARC_Lelli2016c.csv"
+    pd.DataFrame([{"Galaxy": "NGC2403", "L36": 1.0}]).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="missing required columns"):
+        load_master_table(csv_path)
+
+
+def test_load_master_table_csv_fails_when_rhi_missing(tmp_path):
+    csv_path = tmp_path / "SPARC_Lelli2016c.csv"
+    pd.DataFrame(
+        [{"Galaxy": "NGC2403", "L_3.6": 1.0, "MHI": 2.0}]
+    ).to_csv(csv_path, index=False)
+
+    with pytest.raises(ValueError, match="RHI"):
+        load_master_table(csv_path)

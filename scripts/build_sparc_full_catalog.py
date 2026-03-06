@@ -33,16 +33,43 @@ def norm_name(value: str) -> str:
     return str(value).strip().upper().replace(" ", "")
 
 
-def check_local_sparc_data(data_root: Path) -> None:
+def check_local_sparc_data(data_root: Path) -> tuple[Path, list[Path]]:
+    """Validate local SPARC inputs and return the master table and rotmod files.
+
+    Parameters
+    ----------
+    data_root
+        SPARC root directory (typically ``data/SPARC``).
+
+    Returns
+    -------
+    tuple[Path, list[Path]]
+        The selected local master table path (MRT preferred over CSV) and the
+        discovered ``*_rotmod.dat`` files under ``<data_root>/rotmod``.
+    """
     table_csv = data_root / "SPARC_Lelli2016c.csv"
     table_mrt = data_root / "SPARC_Lelli2016c.mrt"
     rotmod_dir = data_root / "rotmod"
+    prebuilt_catalog = data_root / "sparc_full.csv"
 
-    table_exists = table_csv.exists() or table_mrt.exists()
-    rotmod_count = len(list(rotmod_dir.glob("*_rotmod.dat"))) if rotmod_dir.is_dir() else 0
+    table_path: Path | None = None
+    if table_mrt.exists():
+        table_path = table_mrt
+    elif table_csv.exists():
+        table_path = table_csv
 
-    if table_exists and rotmod_count > 0:
-        return
+    rotmod_files = sorted(rotmod_dir.glob("*_rotmod.dat")) if rotmod_dir.is_dir() else []
+
+    if table_path is not None and rotmod_files:
+        return table_path, rotmod_files
+
+    if prebuilt_catalog.exists():
+        raise FileNotFoundError(
+            "\nSPARC raw inputs not found for catalog build.\n\n"
+            f"Detected prebuilt catalog:\n{prebuilt_catalog}\n\n"
+            "Run directly:\n"
+            f"python scripts/run_big_sparc_veil_test.py --catalog {prebuilt_catalog} --out results\n"
+        )
 
     raise FileNotFoundError(
         "\nSPARC data not found locally.\n\n"
@@ -52,9 +79,7 @@ def check_local_sparc_data(data_root: Path) -> None:
         " └── rotmod/\n"
         "      ├── NGC0300_rotmod.dat\n"
         "      ├── NGC0891_rotmod.dat\n"
-        "      └── ... (≈175 files)\n\n"
-        "Alternatively you can provide:\n"
-        "data/SPARC/sparc_full.csv\n"
+        "      └── ... (≈175 files)\n"
     )
 
 
@@ -77,7 +102,9 @@ def _find_existing_rotmod_files(data_root: Path, repo_root: Path, rot_dir: Path 
 
 def _find_existing_master_table(data_root: Path, repo_root: Path) -> Path | None:
     candidates = [
+        data_root / "SPARC_Lelli2016c.csv",
         data_root / "SPARC_Lelli2016c.mrt",
+        repo_root / "data" / "SPARC_Lelli2016c.csv",
         repo_root / "data" / "SPARC_Lelli2016c.mrt",
     ]
     for path in candidates:
@@ -110,6 +137,23 @@ def download_and_extract_zip(url: str, zip_path: Path, extract_dir: Path) -> Non
 
 
 def load_master_table(mrt_file: Path) -> pd.DataFrame:
+    """Load the SPARC master table from MRT or CSV path."""
+    if mrt_file.suffix.lower() == ".csv":
+        df = pd.read_csv(mrt_file)
+        if "Galaxy" not in df.columns:
+            raise ValueError(f"CSV master table must include 'Galaxy' column: {mrt_file}")
+        if "L36" in df.columns and "L_3.6" not in df.columns:
+            df = df.rename(columns={"L36": "L_3.6"})
+        required = {"L_3.6", "MHI", "RHI"}
+        missing = required - set(df.columns)
+        if missing:
+            raise ValueError(
+                f"CSV master table is missing required columns {sorted(missing)}: {mrt_file}"
+            )
+        df["Galaxy"] = df["Galaxy"].astype(str).str.strip()
+        df["Galaxy_norm"] = df["Galaxy"].apply(norm_name)
+        return df
+
     # Fixed-width schema from SPARC_Lelli2016c.mrt data rows.
     col_widths = [11, 2, 6, 5, 2, 4, 4, 7, 7, 5, 6, 5, 6, 7, 5, 5, 5, 3, 14]
     names = [
@@ -223,27 +267,14 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
 
 
 def build_catalog(data_root: Path, out_csv: Path) -> pd.DataFrame:
-    repo_root = Path(__file__).resolve().parent.parent
-    check_local_sparc_data(data_root)
     data_root.mkdir(parents=True, exist_ok=True)
-    # Keep extracted files under data/SPARC/rotmod to match downstream checks.
-    rot_dir = data_root / "rotmod"
-    mrt_path = _find_existing_master_table(data_root, repo_root)
-    files = _find_existing_rotmod_files(data_root, repo_root, rot_dir=rot_dir)
+    mrt_path, files = check_local_sparc_data(data_root)
 
     print(f"Using {len(files)} existing rotmod files found in repository data paths")
-
-    if mrt_path is None:
-        raise FileNotFoundError("SPARC master table not found: expected data/SPARC/SPARC_Lelli2016c.mrt")
-    print(f"Using existing master table: {mrt_path}")
+    print(f"Using existing master table: {mrt_path.resolve()}")
 
     master_df = add_master_derived_columns(load_master_table(mrt_path))
     galaxy_params = master_df.set_index("Galaxy_norm")[["logMbar", "logSigmaHI_out"]].to_dict(orient="index")
-
-    if not files:
-        raise FileNotFoundError(
-            f"No *_rotmod.dat files found under {data_root}, {repo_root / 'data'}, or {rot_dir}"
-        )
 
     rows = [df for df in (process_rotmod(path, galaxy_params) for path in files) if not df.empty]
     if not rows:
