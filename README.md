@@ -121,6 +121,21 @@ python scripts/deep_slope_test.py \
   --out results/diagnostics/deep_slope_test
 ```
 
+### BIG-SPARC veil test pipeline
+
+```bash
+# If your source table is contract-style (galaxy, r_kpc, vobs_kms, vbar_kms),
+# normalize it first:
+python scripts/prepare_big_sparc_catalog.py \
+  --input data/big_sparc/contract/big_sparc_contract.parquet \
+  --out data/big_sparc_catalog.csv
+
+# Run the β pipeline
+python scripts/run_big_sparc_veil_test.py \
+  --catalog data/big_sparc_catalog.csv \
+  --out results
+```
+
 ---
 
 ## Statistical Protocol
