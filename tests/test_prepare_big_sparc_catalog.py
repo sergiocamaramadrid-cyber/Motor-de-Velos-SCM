@@ -3,7 +3,11 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from scripts.prepare_big_sparc_catalog import _KILOPARSEC_TO_METERS, prepare_catalog
+from scripts.prepare_big_sparc_catalog import (
+    _KILOPARSEC_TO_METERS,
+    prepare_catalog,
+    prepare_catalog_from_sparc_dir,
+)
 
 
 def test_prepare_catalog_passthrough_when_g_columns_exist(tmp_path):
@@ -44,3 +48,40 @@ def test_prepare_catalog_converts_contract_columns_to_acceleration(tmp_path):
     expected_g_bar_first = ((80.0 * 1_000.0) ** 2) / (1.0 * _KILOPARSEC_TO_METERS)
     assert np.isclose(df.iloc[0]["g_obs"], expected_g_obs_first)
     assert np.isclose(df.iloc[0]["g_bar"], expected_g_bar_first)
+
+
+def test_prepare_catalog_from_sparc_dir_reads_rotmod_and_derives_env_columns(tmp_path):
+    sparc_dir = tmp_path / "SPARC"
+    raw_dir = sparc_dir / "raw"
+    raw_dir.mkdir(parents=True)
+    out = tmp_path / "big_sparc_catalog.csv"
+
+    # 6-column SPARC-like format: r, vobs, err, vgas, vdisk, vbul
+    pd.DataFrame(
+        [
+            [1.0, 100.0, 3.0, 45.0, 70.0, 5.0],
+            [2.0, 120.0, 4.0, 48.0, 76.0, 6.0],
+            [3.0, 130.0, 5.0, 50.0, 80.0, 8.0],
+        ]
+    ).to_csv(raw_dir / "NGC2403_rotmod.dat", sep=" ", index=False, header=False)
+
+    # 5-column simplified format: r, vobs, vgas, vdisk, vbul
+    pd.DataFrame(
+        [
+            [1.2, 90.0, 35.0, 60.0, 0.0],
+            [2.2, 95.0, 38.0, 62.0, 0.0],
+            [3.2, 98.0, 39.0, 65.0, 0.0],
+        ]
+    ).to_csv(raw_dir / "UGC0128_rotmod.dat", sep=" ", index=False, header=False)
+
+    df = prepare_catalog_from_sparc_dir(sparc_dir, out, galaxies=["NGC2403", "UGC0128"])
+
+    assert out.exists()
+    assert list(df.columns) == ["galaxy", "g_obs", "g_bar", "logMbar", "logSigmaHI_out"]
+    assert set(df["galaxy"]) == {"NGC2403", "UGC0128"}
+    assert np.all(df["g_obs"] > 0.0)
+    assert np.all(df["g_bar"] > 0.0)
+    # one environmental value per galaxy, repeated per row
+    per_galaxy = df.groupby("galaxy")[["logMbar", "logSigmaHI_out"]].nunique()
+    assert np.all(per_galaxy["logMbar"] == 1)
+    assert np.all(per_galaxy["logSigmaHI_out"] == 1)

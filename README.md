@@ -124,10 +124,17 @@ python scripts/deep_slope_test.py \
 ### BIG-SPARC veil test pipeline
 
 ```bash
-# If your source table is contract-style (galaxy, r_kpc, vobs_kms, vbar_kms),
-# normalize it first:
+# Option A: if your source table is contract-style
+# (galaxy, r_kpc, vobs_kms, vbar_kms), normalize it first:
 python scripts/prepare_big_sparc_catalog.py \
   --input data/big_sparc/contract/big_sparc_contract.parquet \
+  --out data/big_sparc_catalog.csv
+
+# Option B: build directly from SPARC *_rotmod.dat files
+# (supports both full run and subset via --galaxies):
+python scripts/prepare_big_sparc_catalog.py \
+  --sparc-dir data/SPARC \
+  --galaxies NGC2403,NGC3198,NGC6503,DDO154,UGC0128 \
   --out data/big_sparc_catalog.csv
 
 # Run the β pipeline
