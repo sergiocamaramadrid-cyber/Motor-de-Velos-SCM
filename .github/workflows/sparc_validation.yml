@@ -25,10 +25,35 @@ jobs:
           test -f requirements.txt || { echo "Error: requirements.txt not found."; exit 1; }
           pip install -r requirements.txt
 
+      - name: Check local SPARC data
+        id: check_local_data
+        run: |
+          TABLE_PATH="data/SPARC/SPARC_Lelli2016c.csv"
+          ROTMOD_COUNT=$(find data/SPARC/rotmod data/SPARC/raw -maxdepth 1 -type f -name "*_rotmod.dat" 2>/dev/null | wc -l | tr -d ' ')
+          if [ -f "$TABLE_PATH" ] && [ "${ROTMOD_COUNT}" -gt 0 ]; then
+            echo "local_ready=true" >> "$GITHUB_OUTPUT"
+            echo "Using local SPARC data (${ROTMOD_COUNT} rotmod files found)."
+          else
+            echo "local_ready=false" >> "$GITHUB_OUTPUT"
+            echo "Local SPARC data is incomplete (table exists: $([ -f "$TABLE_PATH" ] && echo yes || echo no), rotmod files: ${ROTMOD_COUNT})."
+            echo "Will attempt to build catalog with remote download fallback."
+          fi
+
       - name: Build SPARC Catalog
         run: |
           if [ -f scripts/build_sparc_full_catalog.py ]; then
-            python scripts/build_sparc_full_catalog.py
+            if [ "${{ steps.check_local_data.outputs.local_ready }}" = "true" ]; then
+              echo "Building SPARC catalog from local inputs."
+            else
+              echo "Local inputs missing; attempting download-backed catalog build."
+            fi
+
+            if ! python scripts/build_sparc_full_catalog.py; then
+              if [ "${{ steps.check_local_data.outputs.local_ready }}" = "false" ]; then
+                echo "Error: Missing local SPARC data and download/build failed."
+              fi
+              exit 1
+            fi
           else
             echo "Error: scripts/build_sparc_full_catalog.py not found."
             exit 1
