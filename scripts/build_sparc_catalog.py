@@ -27,6 +27,8 @@ def load_tables() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     meta = pd.read_csv(DATA_DIR / "SPARC_Lelli2016c.mrt")
     cdr = pd.read_csv(DATA_DIR / "CDR_Lelli2016b.mrt")
     btfr = pd.read_csv(DATA_DIR / "BTFR_Lelli2019.mrt")
+    # Validated for radial analyses; not merged in sparc_master_catalog.csv.
+    pd.read_csv(DATA_DIR / "MassModels_Lelli2016c.mrt")
 
     for df in (meta, cdr, btfr):
         df["Galaxy"] = df["Galaxy"].astype(str).str.strip()
