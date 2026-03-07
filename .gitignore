@@ -18,6 +18,7 @@ env/
 *.ipynb
 
 # Data (large files not tracked)
+data/SPARC/*.mrt
 data/SPARC/raw/
 data/SPARC/processed/
 
