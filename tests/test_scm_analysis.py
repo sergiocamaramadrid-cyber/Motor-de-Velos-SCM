@@ -72,6 +72,21 @@ def sparc_dir(tmp_path):
     return tmp_path
 
 
+@pytest.fixture()
+def sparc_dir_without_rotmod(tmp_path):
+    """Create a SPARC-like directory with table only (no rotation-curve files)."""
+    galaxy_csv = tmp_path / "SPARC_Lelli2016c.csv"
+    pd.DataFrame({
+        "Galaxy": ["NGC0000", "NGC0001"],
+        "D": [10.0, 20.0],
+        "Inc": [45.0, 60.0],
+        "L36": [1e9, 2e9],
+        "Vflat": [150.0, 200.0],
+        "e_Vflat": [5.0, 5.0],
+    }).to_csv(galaxy_csv, index=False)
+    return tmp_path
+
+
 # ---------------------------------------------------------------------------
 # load_galaxy_table
 # ---------------------------------------------------------------------------
@@ -197,6 +212,17 @@ class TestRunPipeline:
         summary = json.loads(summary_path.read_text(encoding="utf-8"))
         assert summary["n_galaxies"] == 3
         assert summary["a0_m_s2"] == pytest.approx(1.2e-10)
+
+    def test_handles_missing_rotation_curves_gracefully(self, sparc_dir_without_rotmod, tmp_path):
+        out_dir = tmp_path / "results"
+        df = run_pipeline(sparc_dir_without_rotmod, out_dir, verbose=False)
+        assert list(df.columns) == [
+            "galaxy", "upsilon_disk", "chi2_reduced",
+            "n_points", "Vflat_kms", "M_bar_BTFR_Msun",
+        ]
+        assert df.empty
+        summary = json.loads((out_dir / "scm_summary.json").read_text(encoding="utf-8"))
+        assert summary["n_galaxies"] == 0
 
 
 # ---------------------------------------------------------------------------
