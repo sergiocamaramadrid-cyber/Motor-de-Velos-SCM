@@ -265,18 +265,22 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     compare_df.to_csv(csv_path, index=False)
 
     # --- Write deep-slope test CSV (derived directly from compare_df) ---
-    _write_deep_slope_csv(compare_df, out_dir / "deep_slope_test.csv", a0=a0)
+    deep_slope_path = out_dir / "deep_slope_test.csv"
+    _write_deep_slope_csv(compare_df, deep_slope_path, a0=a0)
 
     # --- Write sensitivity analysis CSV (a0 grid scan) ---
     # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
     from .sensitivity import run_sensitivity  # noqa: PLC0415
     run_sensitivity(data_dir, out_dir, verbose=verbose)
+    sensitivity_path = out_dir / "sensitivity_a0.csv"
 
     # --- Write executive summary ---
-    _write_executive_summary(results_df, out_dir / "executive_summary.txt")
+    executive_summary_path = out_dir / "executive_summary.txt"
+    _write_executive_summary(results_df, executive_summary_path)
 
     # --- Write top-10 LaTeX table ---
-    _write_top10_latex(results_df, out_dir / "top10_universal.tex")
+    top10_path = out_dir / "top10_universal.tex"
+    _write_top10_latex(results_df, top10_path)
 
     # --- Write machine-readable run summary ---
     _write_run_summary_json(
@@ -285,6 +289,14 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         data_dir=data_dir,
         out_dir=out_dir,
         a0=a0,
+        artifacts=[
+            per_galaxy_path,
+            csv_path,
+            deep_slope_path,
+            sensitivity_path,
+            executive_summary_path,
+            top10_path,
+        ],
     )
 
     if verbose:
@@ -361,7 +373,7 @@ def _write_executive_summary(df, path):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _write_run_summary_json(df, path, data_dir, out_dir, a0):
+def _write_run_summary_json(df, path, data_dir, out_dir, a0, artifacts):
     """Write a machine-readable JSON summary for one SCM pipeline run."""
     summary = {
         "data_dir": str(data_dir),
@@ -378,14 +390,7 @@ def _write_run_summary_json(df, path, data_dir, out_dir, a0):
             if "upsilon_disk" in df.columns and len(df)
             else None
         ),
-        "artifacts": [
-            "per_galaxy_summary.csv",
-            "universal_term_comparison_full.csv",
-            "deep_slope_test.csv",
-            "sensitivity_a0.csv",
-            "executive_summary.txt",
-            "top10_universal.tex",
-        ],
+        "artifacts": [str(Path(p).relative_to(out_dir)) for p in artifacts],
     }
     path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
