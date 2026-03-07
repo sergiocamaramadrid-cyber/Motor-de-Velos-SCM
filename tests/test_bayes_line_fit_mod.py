@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from BayesLineFit_mod import lnprob_vertical
 
@@ -17,7 +18,7 @@ def test_lnprob_vertical_uses_squared_x_error_term():
     residual = y - (slope * x + intercept)
     expected = -0.5 * np.sum((residual**2) / variance + np.log(2.0 * np.pi * variance))
 
-    assert got == np.float64(expected)
+    assert got == pytest.approx(expected)
 
 
 def test_lnprob_vertical_rejects_negative_intrinsic_scatter():

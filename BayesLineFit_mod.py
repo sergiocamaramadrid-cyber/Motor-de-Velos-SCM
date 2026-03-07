@@ -1,7 +1,7 @@
 """Bayesian line-fit utilities.
 
 This module keeps the vertical log-probability used by the classic
-Desmond & Lelli (2019) line-fit workflow.  The error propagation term follows
+Desmond & Lelli (2019) line-fit workflow. The error propagation term follows
 
     var = err_y^2 + (slope * err_x)^2 + sigma_int^2
 
