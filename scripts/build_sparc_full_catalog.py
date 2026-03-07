@@ -49,12 +49,18 @@ def check_local_sparc_data(data_root: Path) -> tuple[Path, list[Path]]:
     """
     table_csv = data_root / "SPARC_Lelli2016c.csv"
     table_mrt = data_root / "SPARC_Lelli2016c.mrt"
+    table2_mrt = data_root / "SPARC_table2.mrt"
+    table2_legacy_mrt = data_root / "Table2.mrt"
     rotmod_dir = data_root / "rotmod"
     prebuilt_catalog = data_root / "sparc_full.csv"
 
     table_path: Path | None = None
     if table_mrt.exists():
         table_path = table_mrt
+    elif table2_mrt.exists():
+        table_path = table2_mrt
+    elif table2_legacy_mrt.exists():
+        table_path = table2_legacy_mrt
     elif table_csv.exists():
         table_path = table_csv
 
@@ -75,7 +81,7 @@ def check_local_sparc_data(data_root: Path) -> tuple[Path, list[Path]]:
         "\nSPARC data not found locally.\n\n"
         "Required structure:\n\n"
         "data/SPARC/\n"
-        " ├── SPARC_Lelli2016c.csv  (or .mrt)\n"
+        " ├── SPARC_Lelli2016c.csv/.mrt (or SPARC_table2.mrt)\n"
         " └── rotmod/\n"
         "      ├── NGC0300_rotmod.dat\n"
         "      ├── NGC0891_rotmod.dat\n"
@@ -104,8 +110,12 @@ def _find_existing_master_table(data_root: Path, repo_root: Path) -> Path | None
     candidates = [
         data_root / "SPARC_Lelli2016c.csv",
         data_root / "SPARC_Lelli2016c.mrt",
+        data_root / "SPARC_table2.mrt",
+        data_root / "Table2.mrt",
         repo_root / "data" / "SPARC_Lelli2016c.csv",
         repo_root / "data" / "SPARC_Lelli2016c.mrt",
+        repo_root / "data" / "SPARC_table2.mrt",
+        repo_root / "data" / "Table2.mrt",
     ]
     for path in candidates:
         if path.exists():

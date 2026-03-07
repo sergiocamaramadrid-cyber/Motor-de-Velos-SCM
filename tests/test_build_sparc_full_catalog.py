@@ -115,6 +115,15 @@ def test_check_local_sparc_data_accepts_table_and_rotmod(tmp_path):
     check_local_sparc_data(data_root)
 
 
+def test_check_local_sparc_data_accepts_sparc_table2_and_rotmod(tmp_path):
+    data_root = tmp_path / "data" / "SPARC"
+    rotmod = data_root / "rotmod"
+    rotmod.mkdir(parents=True)
+    (data_root / "SPARC_table2.mrt").write_text("header\n")
+    (rotmod / "NGC0300_rotmod.dat").write_text("1 2 3 4 5\n")
+    check_local_sparc_data(data_root)
+
+
 def test_load_master_table_csv_renames_l36_and_normalizes_galaxy(tmp_path):
     csv_path = tmp_path / "SPARC_Lelli2016c.csv"
     pd.DataFrame(

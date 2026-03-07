@@ -45,7 +45,7 @@ _A0_DEFAULT = 1.2e-10
 # ---------------------------------------------------------------------------
 
 def load_galaxy_table(data_dir):
-    """Load the SPARC galaxy table (SPARC_Lelli2016c.mrt or .csv).
+    """Load the SPARC galaxy table (SPARC_Lelli2016c or SPARC_table2).
 
     The function tries several common file-name variants.  If none are found
     it raises :class:`FileNotFoundError`.
@@ -65,6 +65,8 @@ def load_galaxy_table(data_dir):
     candidates = [
         data_dir / "SPARC_Lelli2016c.csv",
         data_dir / "SPARC_Lelli2016c.mrt",
+        data_dir / "SPARC_table2.mrt",
+        data_dir / "Table2.mrt",
         data_dir / "raw" / "SPARC_Lelli2016c.csv",
         data_dir / "processed" / "SPARC_Lelli2016c.csv",
     ]
@@ -75,7 +77,7 @@ def load_galaxy_table(data_dir):
             return df
     raise FileNotFoundError(
         f"SPARC galaxy table not found in {data_dir}. "
-        "Expected SPARC_Lelli2016c.csv or .mrt"
+        "Expected SPARC_Lelli2016c.csv/.mrt or SPARC_table2.mrt"
     )
 
 
@@ -88,7 +90,7 @@ def load_rotation_curve(data_dir, galaxy_name):
         Root directory.
     galaxy_name : str
         Galaxy identifier matching a file ``<galaxy_name>_rotmod.dat`` inside
-        ``data_dir/raw/`` or ``data_dir/``.
+        ``data_dir/rotmod/``, ``data_dir/raw/`` or ``data_dir/``.
 
     Returns
     -------
@@ -99,6 +101,7 @@ def load_rotation_curve(data_dir, galaxy_name):
     data_dir = Path(data_dir)
     candidates = [
         data_dir / f"{galaxy_name}_rotmod.dat",
+        data_dir / "rotmod" / f"{galaxy_name}_rotmod.dat",
         data_dir / "raw" / f"{galaxy_name}_rotmod.dat",
     ]
     for path in candidates:

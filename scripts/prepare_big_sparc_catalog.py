@@ -157,11 +157,13 @@ def prepare_catalog_from_sparc_dir(
 ) -> pd.DataFrame:
     all_rotmods = {
         p.name.replace("_rotmod.dat", ""): p
-        for base in (sparc_dir, sparc_dir / "raw")
+        for base in (sparc_dir, sparc_dir / "rotmod", sparc_dir / "raw")
         for p in base.glob("*_rotmod.dat")
     }
     if not all_rotmods:
-        raise FileNotFoundError(f"No *_rotmod.dat files found in {sparc_dir} or {sparc_dir / 'raw'}")
+        raise FileNotFoundError(
+            f"No *_rotmod.dat files found in {sparc_dir}, {sparc_dir / 'rotmod'}, or {sparc_dir / 'raw'}"
+        )
 
     target_galaxies = galaxies if galaxies else sorted(all_rotmods)
     rows = []

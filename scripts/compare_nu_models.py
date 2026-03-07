@@ -373,6 +373,8 @@ def _load_galaxy_table(data_dir: Path) -> pd.DataFrame:
     candidates = [
         data_dir / "SPARC_Lelli2016c.csv",
         data_dir / "SPARC_Lelli2016c.mrt",
+        data_dir / "SPARC_table2.mrt",
+        data_dir / "Table2.mrt",
         data_dir / "raw" / "SPARC_Lelli2016c.csv",
         data_dir / "processed" / "SPARC_Lelli2016c.csv",
     ]
@@ -382,13 +384,14 @@ def _load_galaxy_table(data_dir: Path) -> pd.DataFrame:
             return pd.read_csv(p, sep=sep, comment="#")
     raise FileNotFoundError(
         f"SPARC galaxy table not found in {data_dir}. "
-        "Expected SPARC_Lelli2016c.csv or .mrt"
+        "Expected SPARC_Lelli2016c.csv/.mrt or SPARC_table2.mrt"
     )
 
 
 def _load_rotation_curve(data_dir: Path, name: str) -> pd.DataFrame:
     candidates = [
         data_dir / f"{name}_rotmod.dat",
+        data_dir / "rotmod" / f"{name}_rotmod.dat",
         data_dir / "raw" / f"{name}_rotmod.dat",
     ]
     for p in candidates:

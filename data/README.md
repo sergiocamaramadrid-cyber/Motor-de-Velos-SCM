@@ -11,6 +11,7 @@ licencia.
 
 2. Coloca en `data/SPARC/` las tablas:
    - `SPARC_Lelli2016c.mrt` (o `SPARC_Lelli2016c.csv`)
+   - `SPARC_table2.mrt` (alias aceptado para la tabla principal)
    - `MassModels_Lelli2016c.mrt` (opcional para el build, útil para análisis extendidos)
 
 3. Descarga los archivos de curvas de rotación individuales (`*_rotmod.dat`)
@@ -62,6 +63,7 @@ En ese caso, comparte una de estas tres opciones para desbloquear la revisión:
 ```
 data/SPARC/
 ├── SPARC_Lelli2016c.mrt      ← tabla principal de galaxias (o .csv)
+├── SPARC_table2.mrt          ← alias alternativo para la tabla principal
 ├── MassModels_Lelli2016c.mrt ← tabla de modelos de masa
 └── rotmod/
     ├── NGC0300_rotmod.dat

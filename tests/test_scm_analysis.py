@@ -112,6 +112,13 @@ class TestLoadGalaxyTable:
         with pytest.raises(FileNotFoundError):
             load_galaxy_table(tmp_path)
 
+    def test_loads_sparc_table2_mrt(self, tmp_path):
+        table_path = tmp_path / "SPARC_table2.mrt"
+        table_path.write_text("Galaxy D Inc L36 Vflat e_Vflat\nNGC0000 10 45 1e9 150 5\n", encoding="utf-8")
+        df = load_galaxy_table(tmp_path)
+        assert "Galaxy" in df.columns
+        assert len(df) == 1
+
 
 # ---------------------------------------------------------------------------
 # load_rotation_curve
@@ -130,6 +137,25 @@ class TestLoadRotationCurve:
     def test_row_count(self, sparc_dir):
         rc = load_rotation_curve(sparc_dir, "NGC0001")
         assert len(rc) == 20
+
+    def test_loads_from_rotmod_dir(self, tmp_path):
+        rotmod_dir = tmp_path / "rotmod"
+        rotmod_dir.mkdir(parents=True)
+        rc_df = pd.DataFrame(
+            {
+                "r": [1.0, 2.0],
+                "v_obs": [100.0, 110.0],
+                "v_obs_err": [5.0, 5.0],
+                "v_gas": [30.0, 31.0],
+                "v_disk": [60.0, 61.0],
+                "v_bul": [0.0, 0.0],
+                "SBdisk": [0.0, 0.0],
+                "SBbul": [0.0, 0.0],
+            }
+        )
+        rc_df.to_csv(rotmod_dir / "NGC0003_rotmod.dat", sep=" ", index=False, header=False)
+        rc = load_rotation_curve(tmp_path, "NGC0003")
+        assert len(rc) == 2
 
 
 # ---------------------------------------------------------------------------
