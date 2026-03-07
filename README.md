@@ -330,16 +330,29 @@ Use this sequence to "walk" the full SPARC sample with reproducible checks, from
 #### Ultra-short runbook (copy/paste)
 
 ```bash
+# 1) Validate SPARC rotmod coverage (~175 expected)
 find data/SPARC/rotmod -name '*_rotmod.dat' | wc -l
+
+# 2) Build full homogeneous catalog
 python scripts/build_sparc_full_catalog.py --data-root data/SPARC --out results/SPARC
+
+# 3) Generate F3 catalog from a contract-compliant table
 python scripts/generate_f3_catalog_from_contract.py --input data/big_sparc/contract/big_sparc_contract.parquet --out results/SPARC
+
+# 4) Compute deep-regime beta catalog
 python scripts/run_big_sparc_veil_test.py --catalog results/SPARC/sparc_full_catalog.csv --out results/SPARC
-python scripts/scm_oos_validation.py
+
+# 5) Run your branch-specific OOS validation script
+python scripts/<your_oos_validation_script>.py
+
+# 6) Inspect generated artifacts
 ls results/SPARC
+
+# 7) Read final synthesis
 cat results/executive_summary.txt
 ```
 
-Use the OOS command above when that script is available in your branch/pipeline.
+Replace `<your_oos_validation_script>` with the OOS entrypoint available in your branch/pipeline.
 
 ---
 
