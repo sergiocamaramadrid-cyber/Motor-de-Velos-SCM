@@ -216,7 +216,7 @@ python scripts/run_big_sparc_veil_test.py \
 
 ### Recommended practical order for SPARC analysis
 
-Use this sequence to move from data sanity-checks to statistical validation.
+Use this sequence to move from data sanity-checks to statistical validation in practice.
 
 1. **Confirm SPARC inputs are complete enough**
 
