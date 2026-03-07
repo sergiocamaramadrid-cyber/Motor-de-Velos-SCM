@@ -214,30 +214,96 @@ python scripts/run_big_sparc_veil_test.py \
   --out results
 ```
 
-### Recommended order to review complete SPARC results
+### Recommended practical order for SPARC analysis
 
-When you run:
+Use this sequence to move from data sanity-checks to statistical validation.
 
-```bash
-python scripts/build_sparc_full_catalog.py --data-root data/SPARC --out results/SPARC
-```
+1. **Confirm SPARC inputs are complete enough**
 
-and then the pipeline, review outputs in this order:
+   Expected structure:
 
-1. `results/SPARC/sparc_full_catalog.csv`  
-   Verify sample size (~175 galaxies), anomalous NaN values, and galaxies with very few points.
-2. `results/SPARC/f3_catalog.csv`  
-   Check `F3_SCM` distribution (it should not collapse to a single value).
-3. `results/SPARC/beta_catalog.csv`  
-   Check dispersion of `beta` (without artificial collapse to a fixed value).
-4. `results/oos_validation/oos_generalization_results.csv`  
-   Compare models (`baseline` vs `SCM`) on `RMSE_out`, `MAE_out`, `delta_logL`.
-5. Wilcoxon test (from OOS logs/CSV)  
-   Interpret `p-value` as statistical evidence of improvement.
-6. `hist_delta_rmse_out.pdf`  
-   A shift toward negative ΔRMSE favors SCM.
-7. `results/executive_summary.txt`  
-   Final human-readable summary for report/PR (improvement, median ΔRMSE, p-value).
+   ```text
+   data/SPARC/
+   ├── SPARC_table2.mrt (or SPARC_Lelli2016c.mrt/.csv)
+   ├── MassModels_Lelli2016c.mrt
+   └── rotmod/
+       └── *_rotmod.dat
+   ```
+
+   A near-complete run typically has ~175 `*_rotmod.dat` files.
+
+2. **Build the homogeneous SPARC catalog**
+
+   ```bash
+   python scripts/build_sparc_full_catalog.py --data-root data/SPARC --out results/SPARC
+   ```
+
+   First file to inspect:
+
+   - `results/SPARC/sparc_full_catalog.csv`
+
+   Quick checks:
+
+   - galaxy count (target: ~170–175),
+   - anomalous NaN patterns,
+   - galaxies with very few radial points.
+
+3. **Compute the framework observable catalog (`F3`)**
+
+   Depending on your branch/pipeline, run your F3 generation step (for example `scripts/generate_f3_catalog_from_contract.py` when working from a contract table) and inspect:
+
+   - `results/SPARC/f3_catalog.csv`
+
+   Check that `F3_SCM` shows a broad/continuous distribution and does not collapse to a single value.
+
+4. **Compute the deep-regime slope catalog (`beta`)**
+
+   Inspect:
+
+   - `results/SPARC/beta_catalog.csv`
+
+   Check that `beta` has real dispersion (not all values identical) and evaluate its relation with `F3_SCM`.
+
+5. **Run out-of-sample (OOS) validation**
+
+   Run the OOS step available in your branch/pipeline, then inspect:
+
+   - `results/oos_validation/oos_generalization_results.csv`
+
+   Compare models (`baseline` vs `SCM`) on:
+
+   - `RMSE_out` (lower is better),
+   - `MAE_out` (lower is better),
+   - `delta_logL` (higher is better).
+
+6. **Inspect ΔRMSE distribution**
+
+   Open:
+
+   - `hist_delta_rmse_out.pdf`
+
+   with:
+
+   - `ΔRMSE = RMSE_SCM - RMSE_baseline`
+
+   A histogram shifted toward negative values indicates SCM improvement.
+
+7. **Check Wilcoxon significance**
+
+   Read `p-value` from OOS logs/CSV and interpret quickly:
+
+   - `> 0.1`: inconclusive
+   - `< 0.05`: evidence
+   - `< 0.01`: strong evidence
+   - `< 0.001`: very strong evidence
+
+8. **Read the final executive summary**
+
+   Inspect:
+
+   - `results/executive_summary.txt`
+
+   This is the paper/PR-ready synthesis (improvement fraction, median `ΔRMSE_out`, Wilcoxon `p-value`).
 
 ---
 
