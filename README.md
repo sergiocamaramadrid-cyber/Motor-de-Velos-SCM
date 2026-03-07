@@ -327,6 +327,20 @@ Use this sequence to "walk" the full SPARC sample with reproducible checks, from
 
    This is the paper/PR-ready synthesis (improvement fraction, median `ΔRMSE_out`, Wilcoxon `p-value`).
 
+#### Ultra-short runbook (copy/paste)
+
+```bash
+find data/SPARC/rotmod -name '*_rotmod.dat' | wc -l
+python scripts/build_sparc_full_catalog.py --data-root data/SPARC --out results/SPARC
+python scripts/generate_f3_catalog_from_contract.py --input data/big_sparc/contract/big_sparc_contract.parquet --out results/SPARC
+python scripts/run_big_sparc_veil_test.py --catalog results/SPARC/sparc_full_catalog.csv --out results/SPARC
+python scripts/scm_oos_validation.py
+ls results/SPARC
+cat results/executive_summary.txt
+```
+
+Use the OOS command above when that script is available in your branch/pipeline.
+
 ---
 
 ## Statistical Protocol
