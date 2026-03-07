@@ -161,7 +161,7 @@ def main(argv: list[str] | None = None) -> None:
         n_tail = catalog.loc[delta.index, "n_tail_points"]
         corr = float("nan")
         if delta.nunique() > 1 and n_tail.nunique() > 1:
-            corr = float(catalog.loc[delta.index, "delta_f3"].corr(n_tail))
+            corr = float(delta.corr(n_tail))
         print(
             "delta_f3 stats: "
             f"median={float(delta.median()):.4f}, "

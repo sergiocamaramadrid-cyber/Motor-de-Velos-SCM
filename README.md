@@ -264,15 +264,15 @@ Use this sequence to "walk" the full SPARC sample with reproducible checks, from
      --out results/SPARC
    ```
 
-    Then inspect:
+   Then inspect:
 
-    - `results/SPARC/f3_catalog.csv`
+   - `results/SPARC/f3_catalog.csv`
 
-    The legacy quantity `deep_slope` is preserved for backward compatibility,
-    while the centered observable `delta_f3 = deep_slope - 0.5` is adopted as
-    the primary diagnostic quantity.
+   The legacy quantity `deep_slope` is preserved for backward compatibility,
+   while the centered observable `delta_f3 = deep_slope - 0.5` is adopted as
+   the primary diagnostic quantity.
 
-    Check that `F3_SCM` shows a broad/continuous distribution and does not collapse to a single value.
+   Check that `F3_SCM` shows a broad/continuous distribution and does not collapse to a single value.
 
    If you prefer a single guarded command (generate + validate, with optional β analysis):
 
