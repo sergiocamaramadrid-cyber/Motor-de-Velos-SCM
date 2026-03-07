@@ -14,6 +14,11 @@ REQUIRED_COLUMNS = {"galaxy", "delta_f3", "logSigmaHI_out"}
 CONTROL_COLUMNS = ["logMstar", "Rdisk", "inclination"]
 
 
+def _min_samples_for_regression(features: list[str]) -> int:
+    # One coefficient per feature plus intercept.
+    return len(features) + 1
+
+
 def _fit_ols(df: pd.DataFrame, y_col: str, x_cols: list[str]) -> dict:
     x = df[x_cols].to_numpy(dtype=float)
     y = df[y_col].to_numpy(dtype=float)
@@ -36,7 +41,7 @@ def _choose_features(df: pd.DataFrame) -> tuple[list[str], pd.DataFrame]:
     available_controls = [c for c in CONTROL_COLUMNS if c in df.columns]
     full_features = ["logSigmaHI_out", *available_controls]
     full_data = df[["delta_f3", *full_features]].replace([np.inf, -np.inf], np.nan).dropna()
-    if len(full_data) >= len(full_features) + 1:
+    if len(full_data) >= _min_samples_for_regression(full_features):
         return full_features, full_data
 
     fallback_features = ["logSigmaHI_out"]
@@ -108,14 +113,22 @@ def run_analysis(table_path: Path, out_dir: Path, seed: int = 42, test_fraction:
     )
     plt.figure(figsize=(7, 4.5))
     if not scatter_df.empty:
-        plt.scatter(scatter_df["logSigmaHI_out"], scatter_df["delta_f3"], alpha=0.8)
+        plt.scatter(
+            scatter_df["logSigmaHI_out"],
+            scatter_df["delta_f3"],
+            alpha=0.85,
+            s=38,
+            c="#1f77b4",
+            edgecolors="black",
+            linewidths=0.3,
+        )
     else:
         plt.text(0.5, 0.5, "No valid points", ha="center", va="center")
         plt.axis("off")
     plt.xlabel("logSigmaHI_out")
     plt.ylabel("delta_f3")
     plt.tight_layout()
-    plt.savefig(out_dir / "deltaf3_vs_logSigmaHI_out.png", dpi=150)
+    plt.savefig(out_dir / "deltaf3_hi_scatter.png", dpi=150)
     plt.close()
 
     if len(scatter_df) >= 2:
@@ -132,7 +145,7 @@ def run_analysis(table_path: Path, out_dir: Path, seed: int = 42, test_fraction:
     }
 
     features, reg_df = _choose_features(df)
-    if len(reg_df) >= len(features) + 1:
+    if len(reg_df) >= _min_samples_for_regression(features):
         reg_fit = _fit_ols(reg_df, y_col="delta_f3", x_cols=features)
         regression = {
             "features": features,

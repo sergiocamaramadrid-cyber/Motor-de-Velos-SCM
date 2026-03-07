@@ -43,7 +43,7 @@ def test_run_analysis_writes_outputs_and_keeps_positive_hi_term(tmp_path):
 
     summary = run_analysis(table_path=table, out_dir=out_dir, seed=7)
 
-    assert (out_dir / "deltaf3_vs_logSigmaHI_out.png").exists()
+    assert (out_dir / "deltaf3_hi_scatter.png").exists()
     summary_json = out_dir / "deltaf3_hi_population_summary.json"
     assert summary_json.exists()
     loaded = json.loads(summary_json.read_text(encoding="utf-8"))
