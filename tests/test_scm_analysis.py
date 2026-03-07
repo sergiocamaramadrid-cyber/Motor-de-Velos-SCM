@@ -7,6 +7,7 @@ that no real SPARC download is required.
 
 import os
 import csv
+import json
 import tempfile
 from pathlib import Path
 
@@ -187,6 +188,15 @@ class TestRunPipeline:
         out_dir = tmp_path / "results_a0"
         df = run_pipeline(sparc_dir, out_dir, a0=0.5e-10, verbose=False)
         assert len(df) == 3
+
+    def test_creates_json_summary(self, sparc_dir, tmp_path):
+        out_dir = tmp_path / "results"
+        run_pipeline(sparc_dir, out_dir, verbose=False)
+        summary_path = out_dir / "scm_summary.json"
+        assert summary_path.exists()
+        summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert summary["n_galaxies"] == 3
+        assert summary["a0_m_s2"] == pytest.approx(1.2e-10)
 
 
 # ---------------------------------------------------------------------------

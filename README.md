@@ -134,6 +134,33 @@ python scripts/process_sparc.py \
   --out results/SPARC/rotation_curves-v1.0.csv
 ```
 
+### SCM framework on SPARC catalog
+
+```bash
+python -m src.scm_analysis \
+  --data-dir data/SPARC \
+  --out results/SPARC/scm_run
+```
+
+If you also maintain the merged SPARC metadata catalog:
+
+```bash
+python scripts/build_sparc_catalog.py
+python -m src.scm_analysis \
+  --data-dir data/SPARC \
+  --out results/SPARC/scm_run
+```
+
+Main outputs under `results/SPARC/scm_run/`:
+
+- `per_galaxy_summary.csv`
+- `universal_term_comparison_full.csv`
+- `deep_slope_test.csv`
+- `sensitivity_a0.csv`
+- `executive_summary.txt`
+- `top10_universal.tex`
+- `scm_summary.json`
+
 Also supported (compatibility alias):
 
 ```bash

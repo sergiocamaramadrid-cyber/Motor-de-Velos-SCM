@@ -12,6 +12,7 @@ Or import and call :func:`run_pipeline` programmatically.
 
 import argparse
 import csv
+import json
 import os
 import sys
 from pathlib import Path
@@ -277,6 +278,15 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     # --- Write top-10 LaTeX table ---
     _write_top10_latex(results_df, out_dir / "top10_universal.tex")
 
+    # --- Write machine-readable run summary ---
+    _write_run_summary_json(
+        results_df,
+        out_dir / "scm_summary.json",
+        data_dir=data_dir,
+        out_dir=out_dir,
+        a0=a0,
+    )
+
     if verbose:
         print(f"\nResults written to {out_dir}")
 
@@ -349,6 +359,35 @@ def _write_executive_summary(df, path):
     if "upsilon_disk" in df.columns and len(df):
         lines.append(f"upsilon_disk median: {df['upsilon_disk'].median():.4f}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_run_summary_json(df, path, data_dir, out_dir, a0):
+    """Write a machine-readable JSON summary for one SCM pipeline run."""
+    summary = {
+        "data_dir": str(data_dir),
+        "out_dir": str(out_dir),
+        "a0_m_s2": float(a0),
+        "n_galaxies": int(len(df)),
+        "chi2_reduced_median": (
+            float(df["chi2_reduced"].median())
+            if "chi2_reduced" in df.columns and len(df)
+            else None
+        ),
+        "upsilon_disk_median": (
+            float(df["upsilon_disk"].median())
+            if "upsilon_disk" in df.columns and len(df)
+            else None
+        ),
+        "artifacts": [
+            "per_galaxy_summary.csv",
+            "universal_term_comparison_full.csv",
+            "deep_slope_test.csv",
+            "sensitivity_a0.csv",
+            "executive_summary.txt",
+            "top10_universal.tex",
+        ],
+    }
+    path.write_text(json.dumps(summary, indent=2) + "\n", encoding="utf-8")
 
 
 def _write_top10_latex(df, path):
