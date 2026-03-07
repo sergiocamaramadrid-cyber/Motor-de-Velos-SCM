@@ -75,6 +75,7 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
             "tail_points_used",
             "tail_r_min",
             "tail_r_max",
+            "tail_points_used",
             "f3_flag",
         ]
     ).issubset(catalog.columns)

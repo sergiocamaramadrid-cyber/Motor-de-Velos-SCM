@@ -36,6 +36,7 @@ def _compute_galaxy_stats(
     sub: pd.DataFrame,
     min_deep: int,
     vbar_deep: float,
+    expected_slope: float,
     tail_points: int,
 ) -> dict:
     galaxy = sub["galaxy"].iloc[0]
@@ -70,7 +71,7 @@ def _compute_galaxy_stats(
                 coeffs = np.polyfit(log_vbar, log_vobs, 1)
             deep_slope = float(coeffs[0])
 
-    delta_f3 = float("nan") if np.isnan(deep_slope) else float(deep_slope - _EXPECTED_SLOPE_DEFAULT)
+    delta_f3 = float("nan") if np.isnan(deep_slope) else float(deep_slope - expected_slope)
 
     return {
         "galaxy": galaxy,
@@ -84,7 +85,7 @@ def _compute_galaxy_stats(
         "tail_r_max": round(tail_r_max, 4) if not np.isnan(tail_r_max) else float("nan"),
         "deep_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
         "F3_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
-        "expected_slope": _EXPECTED_SLOPE_DEFAULT,
+        "expected_slope": expected_slope,
         "delta_f3": round(delta_f3, 4) if not np.isnan(delta_f3) else float("nan"),
     }
 
@@ -96,8 +97,12 @@ def generate_catalog(
     mbar_max: float = _MBAR_MAX_DEFAULT,
     min_deep: int = _MIN_DEEP_DEFAULT,
     vbar_deep: float = _VBAR_DEEP_DEFAULT,
+    expected_slope: float = _EXPECTED_SLOPE_DEFAULT,
     tail_points: int = _TAIL_POINTS_DEFAULT,
 ) -> pd.DataFrame:
+    if tail_points < 3:
+        raise ValueError("tail_points must be >= 3")
+
     df = read_table(input_path)
     validate_contract(df, source=str(input_path))
 
@@ -108,6 +113,7 @@ def generate_catalog(
                 sub,
                 min_deep=min_deep,
                 vbar_deep=vbar_deep,
+                expected_slope=expected_slope,
                 tail_points=tail_points,
             )
         )
@@ -134,7 +140,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--mbar-max", type=float, default=_MBAR_MAX_DEFAULT, dest="mbar_max", metavar="FLOAT")
     parser.add_argument("--min-deep", type=int, default=_MIN_DEEP_DEFAULT, dest="min_deep", metavar="INT")
     parser.add_argument("--vbar-deep", type=float, default=_VBAR_DEEP_DEFAULT, dest="vbar_deep", metavar="FLOAT")
-    parser.add_argument("--tail-points", type=int, default=_TAIL_POINTS_DEFAULT, dest="tail_points", metavar="INT")
+    parser.add_argument(
+        "--tail-points",
+        type=int,
+        default=_TAIL_POINTS_DEFAULT,
+        dest="tail_points",
+        metavar="INT",
+        help=f"Number of outer deep-regime points used to fit deep_slope (default: {_TAIL_POINTS_DEFAULT}, min: 3).",
+    )
     args = parser.parse_args(argv)
     if args.tail_points < 3:
         parser.error("--tail-points must be >= 3")
@@ -157,19 +170,18 @@ def main(argv: list[str] | None = None) -> None:
         f"F3 catalog: {len(catalog)} galaxies, {n_f3} flagged as F3 (vflat_min={args.vflat_min}, mbar_max={args.mbar_max}, min_deep={args.min_deep}, tail_points={args.tail_points})"
     )
     delta = catalog["delta_f3"].dropna()
-    if not delta.empty:
-        n_tail = catalog.loc[delta.index, "n_tail_points"]
+    pos = int((delta > 0).sum())
+    neg = int((delta < 0).sum())
+    tail_counts = catalog.loc[delta.index, "n_tail_points"]
+    if len(delta) > 1 and tail_counts.nunique(dropna=True) > 1:
+        corr = float(delta.corr(tail_counts))
+    else:
         corr = float("nan")
-        if delta.nunique() > 1 and n_tail.nunique() > 1:
-            corr = float(delta.corr(n_tail))
-        print(
-            "delta_f3 stats: "
-            f"median={float(delta.median()):.4f}, "
-            f"std={float(delta.std(ddof=1)):.4f}, "
-            f"count_gt_0={int((delta > 0).sum())}, "
-            f"count_lt_0={int((delta < 0).sum())}, "
-            f"corr_with_n_tail_points={corr:.4f}"
-        )
+    print(
+        "delta_f3 quick stats: "
+        f"median={float(delta.median()):.4f}, std={float(delta.std(ddof=1)):.4f}, "
+        f"count_gt0={pos}, count_lt0={neg}, corr_with_n_tail_points={corr:.4f}"
+    )
     print(f"Written to: {Path(args.out) / 'f3_catalog.csv'}")
 
 
