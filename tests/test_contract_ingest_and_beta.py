@@ -75,7 +75,6 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
             "tail_points_used",
             "tail_r_min",
             "tail_r_max",
-            "tail_points_used",
             "f3_flag",
         ]
     ).issubset(catalog.columns)
@@ -113,6 +112,8 @@ def test_f3_tail_points_reflect_available_deep_points(tmp_path):
 
     catalog = generate_catalog(contract, out_dir, min_deep=3, vbar_deep=500.0)
     assert int(catalog.loc[0, "n_tail_points"]) == 3
+    # `tail_points_used` stores the configured fit window (default=5),
+    # even when only 3 deep points are available in this galaxy.
     assert int(catalog.loc[0, "tail_points_used"]) == 5
     assert float(catalog.loc[0, "tail_r_min"]) == pytest.approx(1.0)
     assert float(catalog.loc[0, "tail_r_max"]) == pytest.approx(3.0)

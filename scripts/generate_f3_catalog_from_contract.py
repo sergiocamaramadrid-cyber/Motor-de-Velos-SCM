@@ -173,7 +173,7 @@ def main(argv: list[str] | None = None) -> None:
     pos = int((delta > 0).sum())
     neg = int((delta < 0).sum())
     tail_counts = catalog.loc[delta.index, "n_tail_points"]
-    if len(delta) > 1 and tail_counts.nunique(dropna=True) > 1:
+    if len(delta) > 1 and tail_counts.notna().any() and tail_counts.nunique(dropna=True) > 1:
         corr = float(delta.corr(tail_counts))
     else:
         corr = float("nan")
