@@ -87,6 +87,12 @@ def sparc_dir_without_rotmod(tmp_path):
     return tmp_path
 
 
+@pytest.fixture()
+def sparc_dir_without_table(tmp_path):
+    """Create a SPARC-like directory with no galaxy table file."""
+    return tmp_path
+
+
 # ---------------------------------------------------------------------------
 # load_galaxy_table
 # ---------------------------------------------------------------------------
@@ -216,6 +222,17 @@ class TestRunPipeline:
     def test_handles_missing_rotation_curves_gracefully(self, sparc_dir_without_rotmod, tmp_path):
         out_dir = tmp_path / "results"
         df = run_pipeline(sparc_dir_without_rotmod, out_dir, verbose=False)
+        assert list(df.columns) == [
+            "galaxy", "upsilon_disk", "chi2_reduced",
+            "n_points", "Vflat_kms", "M_bar_BTFR_Msun",
+        ]
+        assert df.empty
+        summary = json.loads((out_dir / "scm_summary.json").read_text(encoding="utf-8"))
+        assert summary["n_galaxies"] == 0
+
+    def test_handles_missing_galaxy_table_gracefully(self, sparc_dir_without_table, tmp_path):
+        out_dir = tmp_path / "results"
+        df = run_pipeline(sparc_dir_without_table, out_dir, verbose=False)
         assert list(df.columns) == [
             "galaxy", "upsilon_disk", "chi2_reduced",
             "n_points", "Vflat_kms", "M_bar_BTFR_Msun",

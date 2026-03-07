@@ -191,8 +191,14 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    galaxy_table = load_galaxy_table(data_dir)
-    galaxy_names = galaxy_table["Galaxy"].tolist()
+    try:
+        galaxy_table = load_galaxy_table(data_dir)
+        galaxy_names = galaxy_table["Galaxy"].tolist()
+    except FileNotFoundError as exc:
+        if verbose:
+            print(f"  [warn] {exc}", file=sys.stderr)
+        galaxy_table = pd.DataFrame(columns=["Galaxy"])
+        galaxy_names = []
 
     records = []
     compare_rows = []  # per-radial-point rows for universal_term_comparison_full.csv
@@ -270,9 +276,16 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
 
     # --- Write sensitivity analysis CSV (a0 grid scan) ---
     # Imported here to avoid a circular import (sensitivity imports from scm_analysis).
-    from .sensitivity import run_sensitivity  # noqa: PLC0415
-    run_sensitivity(data_dir, out_dir, verbose=verbose)
     sensitivity_path = out_dir / "sensitivity_a0.csv"
+    from .sensitivity import run_sensitivity  # noqa: PLC0415
+    try:
+        sensitivity_df = run_sensitivity(data_dir, out_dir, verbose=verbose)
+    except FileNotFoundError:
+        sensitivity_df = pd.DataFrame(columns=["a0", "chi2_median", "chi2_mean"])
+        sensitivity_df.to_csv(sensitivity_path, index=False)
+    else:
+        if not sensitivity_path.exists():
+            sensitivity_df.to_csv(sensitivity_path, index=False)
 
     # --- Write executive summary ---
     executive_summary_path = out_dir / "executive_summary.txt"
