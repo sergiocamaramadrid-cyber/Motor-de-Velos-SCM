@@ -240,6 +240,9 @@ class TestRunPipeline:
         assert df.empty
         summary = json.loads((out_dir / "scm_summary.json").read_text(encoding="utf-8"))
         assert summary["n_galaxies"] == 0
+        sensitivity_df = pd.read_csv(out_dir / "sensitivity_a0.csv")
+        assert list(sensitivity_df.columns) == ["a0", "chi2_median", "chi2_mean"]
+        assert sensitivity_df.empty
 
 
 # ---------------------------------------------------------------------------
