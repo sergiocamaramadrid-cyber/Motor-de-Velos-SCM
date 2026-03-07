@@ -34,6 +34,11 @@ METADATA_TABLE_CANDIDATES = (
     "sparc_master_catalog.csv",
 )
 
+HI_MASS_SCALE = 1e9
+KPC2_TO_PC2 = 1e6
+STELLAR_MASS_TO_LIGHT_36 = 0.5
+LOG10_TO_SOLAR_MASS_OFFSET = 9.0
+
 
 def _norm_galaxy(value: object) -> str:
     return str(value).strip().upper().replace(" ", "")
@@ -106,9 +111,13 @@ def _load_metadata(path: Path) -> pd.DataFrame:
     )
     out["galaxy_norm"] = out["galaxy"].map(_norm_galaxy)
 
-    sigma = (out["MHI"] * 1e9) / (np.pi * (out["RHI"] ** 2) * 1e6)
+    sigma = (out["MHI"] * HI_MASS_SCALE) / (np.pi * (out["RHI"] ** 2) * KPC2_TO_PC2)
     out["logSigmaHI_out"] = np.where(sigma > 0, np.log10(sigma), np.nan)
-    out["logMstar"] = np.where(out["L_3.6"] > 0, np.log10(0.5 * out["L_3.6"]) + 9.0, np.nan)
+    out["logMstar"] = np.where(
+        out["L_3.6"] > 0,
+        np.log10(STELLAR_MASS_TO_LIGHT_36 * out["L_3.6"]) + LOG10_TO_SOLAR_MASS_OFFSET,
+        np.nan,
+    )
     out["logRd"] = np.where(out["Rdisk"] > 0, np.log10(out["Rdisk"]), np.nan)
 
     return out[["galaxy_norm", "logSigmaHI_out", "logMstar", "logRd", "inclination"]].drop_duplicates("galaxy_norm")

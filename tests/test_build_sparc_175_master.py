@@ -8,7 +8,8 @@ from scripts.build_sparc_175_master import build_sparc_175_master
 
 
 def _write_rotmod(path, radii, vobs):
-    data = np.column_stack([radii, vobs, np.zeros_like(radii), np.zeros_like(radii), np.zeros_like(radii)])
+    zeros = np.zeros_like(radii)
+    data = np.column_stack([radii, vobs, zeros, zeros, zeros])
     np.savetxt(path, data)
 
 
