@@ -27,7 +27,7 @@ def test_run_oos_validation_writes_expected_artifacts(tmp_path):
     result_csv = out_dir / "oos_generalization_results.csv"
     assert result_csv.exists()
     out_df = pd.read_csv(result_csv)
-    assert set(["galaxy", "rmse_out_baseline", "rmse_out_scm", "delta_rmse_out"]).issubset(
+    assert set(["galaxy", "n_out", "rmse_out_baseline", "rmse_out_scm", "delta_rmse_out"]).issubset(
         out_df.columns
     )
     assert len(out_df) == 2
@@ -39,4 +39,3 @@ def test_run_oos_validation_writes_expected_artifacts(tmp_path):
     assert "n_galaxies = 2" in log_text
     assert "median ΔRMSE_out" in log_text
     assert "p-value Wilcoxon" in log_text
-

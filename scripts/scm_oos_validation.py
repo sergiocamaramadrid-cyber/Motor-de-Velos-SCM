@@ -56,6 +56,8 @@ def run_oos_validation(
 
         x = gbar / a0
         gpred_baseline = _nu_simple(x) * gbar
+        # SCM (Motor de Velos) baseline in acceleration space:
+        # g_pred = g_bar + a0  (equivalent to V_total² = V_bar² + a0_kpc·r)
         gpred_scm = gbar + a0
 
         rmse_baseline = float(np.sqrt(np.mean((gobs - gpred_baseline) ** 2)))
@@ -93,10 +95,16 @@ def run_oos_validation(
 
     plt.figure(figsize=(6.5, 4.0))
     plt.hist(out_df["delta_rmse_out"], bins=20)
-    plt.axvline(median_delta, linestyle="--")
+    plt.axvline(
+        median_delta,
+        linestyle="--",
+        color="tab:red",
+        label="Median ΔRMSE_out = RMSE_SCM - RMSE_baseline",
+    )
     plt.xlabel("ΔRMSE_out = RMSE_SCM - RMSE_baseline")
     plt.ylabel("Count")
     plt.title("OOS ΔRMSE distribution")
+    plt.legend()
     plt.tight_layout()
     plt.savefig(out_dir / "hist_delta_rmse_out.pdf")
     plt.close()
