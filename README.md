@@ -216,7 +216,7 @@ python scripts/run_big_sparc_veil_test.py \
 
 ### Recommended practical order for SPARC analysis
 
-Use this sequence to move from data sanity-checks to statistical validation in practice.
+Use this sequence to "walk" the full SPARC sample with reproducible checks, from raw inputs to final statistical interpretation.
 
 1. **Confirm SPARC inputs are complete enough**
 
@@ -231,6 +231,12 @@ Use this sequence to move from data sanity-checks to statistical validation in p
    ```
 
    A near-complete run typically has ~175 `*_rotmod.dat` files.
+
+   Quick file-count check:
+
+   ```bash
+   find data/SPARC/rotmod -name '*_rotmod.dat' | wc -l
+   ```
 
 2. **Build the homogeneous SPARC catalog**
 
@@ -250,13 +256,29 @@ Use this sequence to move from data sanity-checks to statistical validation in p
 
 3. **Compute the framework observable catalog (`F3`)**
 
-   Depending on your branch/pipeline, run your F3 generation step (for example `scripts/generate_f3_catalog_from_contract.py` when working from a contract table) and inspect:
+   When working from a contract-compliant table, a practical command is:
+
+   ```bash
+   python scripts/generate_f3_catalog_from_contract.py \
+     --input data/big_sparc/contract/big_sparc_contract.parquet \
+     --out results/SPARC
+   ```
+
+   Then inspect:
 
    - `results/SPARC/f3_catalog.csv`
 
    Check that `F3_SCM` shows a broad/continuous distribution and does not collapse to a single value.
 
 4. **Compute the deep-regime slope catalog (`beta`)**
+
+   A practical full-catalog command is:
+
+   ```bash
+   python scripts/run_big_sparc_veil_test.py \
+     --catalog results/SPARC/sparc_full_catalog.csv \
+     --out results/SPARC
+   ```
 
    Inspect:
 
@@ -266,7 +288,7 @@ Use this sequence to move from data sanity-checks to statistical validation in p
 
 5. **Run out-of-sample (OOS) validation**
 
-   Run the OOS step available in your branch/pipeline, then inspect:
+   Run the OOS step available in your branch/pipeline (for example `python scripts/scm_oos_validation.py` where available), then inspect:
 
    - `results/oos_validation/oos_generalization_results.csv`
 
