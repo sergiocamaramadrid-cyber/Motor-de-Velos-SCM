@@ -270,6 +270,19 @@ Use this sequence to "walk" the full SPARC sample with reproducible checks, from
 
    Check that `F3_SCM` shows a broad/continuous distribution and does not collapse to a single value.
 
+   If you prefer a single guarded command (generate + validate, with optional β analysis):
+
+   ```bash
+   ./run_f3_pipeline.sh --input data/big_sparc/contract/big_sparc_contract.parquet --out results/SPARC
+   # add --full-analysis to run scripts/run_big_sparc_veil_test.py after validation
+   ```
+
+   Mini command to print `min/max/std` from the generated catalog:
+
+   ```bash
+   python -c "import pandas as pd; p='results/SPARC/f3_catalog.csv'; df=pd.read_csv(p); c='F3_SCM' if 'F3_SCM' in df.columns else 'deep_slope'; s=df[c].dropna(); print({'columna': c, 'min': float(s.min()), 'max': float(s.max()), 'std': float(s.std(ddof=1))})"
+   ```
+
 4. **Compute the deep-regime slope catalog (`beta`)**
 
    A practical full-catalog command is:
