@@ -72,6 +72,7 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
             "expected_slope",
             "delta_f3",
             "n_tail_points",
+            "tail_points_used",
             "tail_r_min",
             "tail_r_max",
             "f3_flag",
@@ -84,6 +85,7 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
         equal_nan=True,
     )
     assert (catalog["n_tail_points"] == 5).all()
+    assert (catalog["tail_points_used"] == 5).all()
 
 
 def test_f3_min_deep_flag_behavior(fixture_dir, tmp_path):
@@ -110,8 +112,19 @@ def test_f3_tail_points_reflect_available_deep_points(tmp_path):
 
     catalog = generate_catalog(contract, out_dir, min_deep=3, vbar_deep=500.0)
     assert int(catalog.loc[0, "n_tail_points"]) == 3
+    assert int(catalog.loc[0, "tail_points_used"]) == 5
     assert float(catalog.loc[0, "tail_r_min"]) == pytest.approx(1.0)
     assert float(catalog.loc[0, "tail_r_max"]) == pytest.approx(3.0)
+
+
+def test_f3_tail_points_cli_and_api_override(fixture_dir, tmp_path):
+    out = tmp_path / "ingest"
+    ingest(fixture_dir / "galaxies.csv", fixture_dir / "rc_points.csv", out)
+    p = out / "big_sparc_contract.parquet"
+
+    catalog = generate_catalog(p, tmp_path / "custom_tail", min_deep=1, vbar_deep=500.0, tail_points=4)
+    assert (catalog["n_tail_points"] == 4).all()
+    assert (catalog["tail_points_used"] == 4).all()
 
 
 def test_ingest_cli_module_and_script(fixture_dir, tmp_path):
@@ -144,21 +157,77 @@ def test_f3_cli_module_and_script(fixture_dir, tmp_path):
 
     out1 = tmp_path / "mod"
     result1 = subprocess.run(
-        [sys.executable, "-m", "scripts.generate_f3_catalog_from_contract", "--input", str(inp), "--out", str(out1), "--min-deep", "1", "--vbar-deep", "500.0"],
+        [
+            sys.executable,
+            "-m",
+            "scripts.generate_f3_catalog_from_contract",
+            "--input",
+            str(inp),
+            "--out",
+            str(out1),
+            "--min-deep",
+            "1",
+            "--vbar-deep",
+            "500.0",
+            "--tail-points",
+            "4",
+        ],
         capture_output=True,
         text=True,
         cwd=str(_REPO_ROOT),
     )
     assert result1.returncode == 0, result1.stderr
     assert (out1 / "f3_catalog.csv").exists()
+    c1 = pd.read_csv(out1 / "f3_catalog.csv")
+    assert (c1["tail_points_used"] == 4).all()
 
     out2 = tmp_path / "script"
     script = str(_REPO_ROOT / "scripts" / "generate_f3_catalog_from_contract.py")
     result2 = subprocess.run(
-        [sys.executable, script, "--input", str(inp), "--out", str(out2), "--min-deep", "1", "--vbar-deep", "500.0"],
+        [
+            sys.executable,
+            script,
+            "--input",
+            str(inp),
+            "--out",
+            str(out2),
+            "--min-deep",
+            "1",
+            "--vbar-deep",
+            "500.0",
+            "--tail-points",
+            "4",
+        ],
         capture_output=True,
         text=True,
         cwd=str(_REPO_ROOT),
     )
     assert result2.returncode == 0, result2.stderr
     assert (out2 / "f3_catalog.csv").exists()
+    c2 = pd.read_csv(out2 / "f3_catalog.csv")
+    assert (c2["tail_points_used"] == 4).all()
+
+
+def test_f3_cli_tail_points_must_be_at_least_three(fixture_dir, tmp_path):
+    ingest_out = tmp_path / "ingest"
+    ingest(fixture_dir / "galaxies.csv", fixture_dir / "rc_points.csv", ingest_out)
+    inp = ingest_out / "big_sparc_contract.parquet"
+
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "scripts.generate_f3_catalog_from_contract",
+            "--input",
+            str(inp),
+            "--out",
+            str(tmp_path / "invalid"),
+            "--tail-points",
+            "2",
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(_REPO_ROOT),
+    )
+    assert result.returncode != 0
+    assert "--tail-points must be >= 3" in (result.stderr + result.stdout)

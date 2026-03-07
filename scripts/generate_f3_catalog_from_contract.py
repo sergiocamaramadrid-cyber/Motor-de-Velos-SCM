@@ -32,7 +32,12 @@ _EXPECTED_SLOPE_DEFAULT: float = 0.5
 _TAIL_POINTS_DEFAULT: int = 5
 
 
-def _compute_galaxy_stats(sub: pd.DataFrame, min_deep: int, vbar_deep: float) -> dict:
+def _compute_galaxy_stats(
+    sub: pd.DataFrame,
+    min_deep: int,
+    vbar_deep: float,
+    tail_points: int,
+) -> dict:
     galaxy = sub["galaxy"].iloc[0]
     n_points = len(sub)
 
@@ -52,7 +57,7 @@ def _compute_galaxy_stats(sub: pd.DataFrame, min_deep: int, vbar_deep: float) ->
 
     deep_slope: float = float("nan")
     if deep_n >= min_deep:
-        tail_pts = deep_pts.sort_values("r_kpc").tail(_TAIL_POINTS_DEFAULT)
+        tail_pts = deep_pts.sort_values("r_kpc").tail(tail_points)
         tail_n = int(len(tail_pts))
         if tail_n > 0:
             tail_r_min = float(tail_pts["r_kpc"].min())
@@ -74,6 +79,7 @@ def _compute_galaxy_stats(sub: pd.DataFrame, min_deep: int, vbar_deep: float) ->
         "log_mbar_proxy": round(log_mbar_proxy, 4),
         "deep_n": deep_n,
         "n_tail_points": tail_n,
+        "tail_points_used": int(tail_points),
         "tail_r_min": round(tail_r_min, 4) if not np.isnan(tail_r_min) else float("nan"),
         "tail_r_max": round(tail_r_max, 4) if not np.isnan(tail_r_max) else float("nan"),
         "deep_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
@@ -90,13 +96,21 @@ def generate_catalog(
     mbar_max: float = _MBAR_MAX_DEFAULT,
     min_deep: int = _MIN_DEEP_DEFAULT,
     vbar_deep: float = _VBAR_DEEP_DEFAULT,
+    tail_points: int = _TAIL_POINTS_DEFAULT,
 ) -> pd.DataFrame:
     df = read_table(input_path)
     validate_contract(df, source=str(input_path))
 
     rows = []
     for _, sub in df.groupby("galaxy", sort=True):
-        rows.append(_compute_galaxy_stats(sub, min_deep=min_deep, vbar_deep=vbar_deep))
+        rows.append(
+            _compute_galaxy_stats(
+                sub,
+                min_deep=min_deep,
+                vbar_deep=vbar_deep,
+                tail_points=tail_points,
+            )
+        )
     catalog = pd.DataFrame(rows)
 
     has_slope = catalog["deep_slope"].notna()
@@ -120,7 +134,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--mbar-max", type=float, default=_MBAR_MAX_DEFAULT, dest="mbar_max", metavar="FLOAT")
     parser.add_argument("--min-deep", type=int, default=_MIN_DEEP_DEFAULT, dest="min_deep", metavar="INT")
     parser.add_argument("--vbar-deep", type=float, default=_VBAR_DEEP_DEFAULT, dest="vbar_deep", metavar="FLOAT")
-    return parser.parse_args(argv)
+    parser.add_argument("--tail-points", type=int, default=_TAIL_POINTS_DEFAULT, dest="tail_points", metavar="INT")
+    args = parser.parse_args(argv)
+    if args.tail_points < 3:
+        parser.error("--tail-points must be >= 3")
+    return args
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -132,11 +150,26 @@ def main(argv: list[str] | None = None) -> None:
         mbar_max=args.mbar_max,
         min_deep=args.min_deep,
         vbar_deep=args.vbar_deep,
+        tail_points=args.tail_points,
     )
     n_f3 = int(catalog["f3_flag"].sum())
     print(
-        f"F3 catalog: {len(catalog)} galaxies, {n_f3} flagged as F3 (vflat_min={args.vflat_min}, mbar_max={args.mbar_max}, min_deep={args.min_deep})"
+        f"F3 catalog: {len(catalog)} galaxies, {n_f3} flagged as F3 (vflat_min={args.vflat_min}, mbar_max={args.mbar_max}, min_deep={args.min_deep}, tail_points={args.tail_points})"
     )
+    delta = catalog["delta_f3"].dropna()
+    if not delta.empty:
+        n_tail = catalog.loc[delta.index, "n_tail_points"]
+        corr = float("nan")
+        if delta.nunique() > 1 and n_tail.nunique() > 1:
+            corr = float(catalog.loc[delta.index, "delta_f3"].corr(n_tail))
+        print(
+            "delta_f3 stats: "
+            f"median={float(delta.median()):.4f}, "
+            f"std={float(delta.std(ddof=1)):.4f}, "
+            f"count_gt_0={int((delta > 0).sum())}, "
+            f"count_lt_0={int((delta < 0).sum())}, "
+            f"corr_with_n_tail_points={corr:.4f}"
+        )
     print(f"Written to: {Path(args.out) / 'f3_catalog.csv'}")
 
 
