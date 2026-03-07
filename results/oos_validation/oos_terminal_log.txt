@@ -1,0 +1,3 @@
+n_galaxies = 175
+median ΔRMSE_out = -7.073315112358051e-11
+p-value Wilcoxon = 4.9859773182587286e-17
