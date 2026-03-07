@@ -97,6 +97,23 @@ def test_f3_min_deep_flag_behavior(fixture_dir, tmp_path):
     assert c_hi["deep_slope"].isna().all()
 
 
+def test_f3_tail_points_reflect_available_deep_points(tmp_path):
+    contract = tmp_path / "contract.csv"
+    out_dir = tmp_path / "f3_out"
+    pd.DataFrame(
+        [
+            {"galaxy": "G_SMALL", "r_kpc": 1.0, "vobs_kms": 20.0, "vobs_err_kms": 1.0, "vbar_kms": 10.0},
+            {"galaxy": "G_SMALL", "r_kpc": 2.0, "vobs_kms": 25.0, "vobs_err_kms": 1.0, "vbar_kms": 20.0},
+            {"galaxy": "G_SMALL", "r_kpc": 3.0, "vobs_kms": 30.0, "vobs_err_kms": 1.0, "vbar_kms": 30.0},
+        ]
+    ).to_csv(contract, index=False)
+
+    catalog = generate_catalog(contract, out_dir, min_deep=3, vbar_deep=500.0)
+    assert int(catalog.loc[0, "n_tail_points"]) == 3
+    assert float(catalog.loc[0, "tail_r_min"]) == pytest.approx(1.0)
+    assert float(catalog.loc[0, "tail_r_max"]) == pytest.approx(3.0)
+
+
 def test_ingest_cli_module_and_script(fixture_dir, tmp_path):
     out1 = tmp_path / "mod"
     result1 = subprocess.run(
