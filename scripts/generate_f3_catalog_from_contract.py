@@ -28,6 +28,8 @@ _VFLAT_MIN_DEFAULT: float = 80.0
 _MBAR_MAX_DEFAULT: float = 10.5
 _MIN_DEEP_DEFAULT: int = 3
 _VBAR_DEEP_DEFAULT: float = 50.0
+_EXPECTED_SLOPE_DEFAULT: float = 0.5
+_TAIL_POINTS_DEFAULT: int = 5
 
 
 def _compute_galaxy_stats(sub: pd.DataFrame, min_deep: int, vbar_deep: float) -> dict:
@@ -44,16 +46,26 @@ def _compute_galaxy_stats(sub: pd.DataFrame, min_deep: int, vbar_deep: float) ->
     deep_mask = sub["vbar_kms"].abs() < vbar_deep
     deep_pts = sub[deep_mask]
     deep_n = int(deep_mask.sum())
+    tail_n = 0
+    tail_r_min = float("nan")
+    tail_r_max = float("nan")
 
     deep_slope: float = float("nan")
     if deep_n >= min_deep:
-        log_vbar = np.log10(deep_pts["vbar_kms"].abs().clip(lower=1e-6).values)
-        log_vobs = np.log10(deep_pts["vobs_kms"].abs().clip(lower=1e-6).values)
+        tail_pts = deep_pts.sort_values("r_kpc").tail(_TAIL_POINTS_DEFAULT)
+        tail_n = int(len(tail_pts))
+        if tail_n > 0:
+            tail_r_min = float(tail_pts["r_kpc"].min())
+            tail_r_max = float(tail_pts["r_kpc"].max())
+        log_vbar = np.log10(tail_pts["vbar_kms"].abs().clip(lower=1e-6).values)
+        log_vobs = np.log10(tail_pts["vobs_kms"].abs().clip(lower=1e-6).values)
         if np.std(log_vbar) > 0:
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")
                 coeffs = np.polyfit(log_vbar, log_vobs, 1)
             deep_slope = float(coeffs[0])
+
+    delta_f3 = float("nan") if np.isnan(deep_slope) else float(deep_slope - _EXPECTED_SLOPE_DEFAULT)
 
     return {
         "galaxy": galaxy,
@@ -61,7 +73,13 @@ def _compute_galaxy_stats(sub: pd.DataFrame, min_deep: int, vbar_deep: float) ->
         "vflat_kms": round(vflat, 3),
         "log_mbar_proxy": round(log_mbar_proxy, 4),
         "deep_n": deep_n,
+        "n_tail_points": tail_n,
+        "tail_r_min": round(tail_r_min, 4) if not np.isnan(tail_r_min) else float("nan"),
+        "tail_r_max": round(tail_r_max, 4) if not np.isnan(tail_r_max) else float("nan"),
         "deep_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
+        "F3_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
+        "expected_slope": _EXPECTED_SLOPE_DEFAULT,
+        "delta_f3": round(delta_f3, 4) if not np.isnan(delta_f3) else float("nan"),
     }
 
 

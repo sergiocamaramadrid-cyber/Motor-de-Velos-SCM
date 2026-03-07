@@ -63,7 +63,27 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
     cat_out = tmp_path / "f3"
     catalog = generate_catalog(out / "big_sparc_contract.parquet", cat_out, min_deep=1, vbar_deep=500.0)
     assert (cat_out / "f3_catalog.csv").exists()
-    assert set(["galaxy", "n_points", "deep_slope", "f3_flag"]).issubset(catalog.columns)
+    assert set(
+        [
+            "galaxy",
+            "n_points",
+            "deep_slope",
+            "F3_slope",
+            "expected_slope",
+            "delta_f3",
+            "n_tail_points",
+            "tail_r_min",
+            "tail_r_max",
+            "f3_flag",
+        ]
+    ).issubset(catalog.columns)
+    assert np.allclose(
+        catalog["delta_f3"].values,
+        catalog["deep_slope"].values - catalog["expected_slope"].values,
+        atol=1e-4,
+        equal_nan=True,
+    )
+    assert (catalog["n_tail_points"] == 5).all()
 
 
 def test_f3_min_deep_flag_behavior(fixture_dir, tmp_path):
