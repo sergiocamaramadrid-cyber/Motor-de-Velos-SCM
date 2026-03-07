@@ -19,6 +19,9 @@ def test_load_tables_reads_expected_files(tmp_path, monkeypatch):
     pd.DataFrame([{"Galaxy": "NGC2403", "Mbar": 1.1e10}]).to_csv(
         metadata_dir / "BTFR_Lelli2019.mrt", index=False
     )
+    pd.DataFrame([{"Galaxy": "NGC2403", "Vbar": 140.0}]).to_csv(
+        metadata_dir / "MassModels_Lelli2016c.mrt", index=False
+    )
 
     monkeypatch.setattr(build_sparc_catalog, "DATA_DIR", metadata_dir)
 
@@ -51,6 +54,12 @@ def test_build_catalog_merges_tables_and_writes_csv(tmp_path, monkeypatch):
             {"Galaxy": "NGC3198", "Mbar": 2.2e10},
         ]
     ).to_csv(metadata_dir / "BTFR_Lelli2019.mrt", index=False)
+    pd.DataFrame(
+        [
+            {"Galaxy": "NGC2403", "Vbar": 140.0},
+            {"Galaxy": "NGC3198", "Vbar": 150.0},
+        ]
+    ).to_csv(metadata_dir / "MassModels_Lelli2016c.mrt", index=False)
 
     monkeypatch.setattr(build_sparc_catalog, "DATA_DIR", metadata_dir)
     monkeypatch.setattr(build_sparc_catalog, "OUT_DIR", out_dir)
@@ -77,5 +86,5 @@ def test_load_tables_raises_when_required_file_is_missing(tmp_path, monkeypatch)
 
     monkeypatch.setattr(build_sparc_catalog, "DATA_DIR", metadata_dir)
 
-    with pytest.raises(FileNotFoundError, match="Missing SPARC table:"):
+    with pytest.raises(FileNotFoundError, match="Missing SPARC metadata table\\(s\\):"):
         build_sparc_catalog.load_tables()

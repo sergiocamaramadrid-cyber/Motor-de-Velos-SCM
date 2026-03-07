@@ -6,21 +6,27 @@ import pandas as pd
 
 DATA_DIR = Path("data/SPARC/metadata")
 OUT_DIR = Path("data/SPARC")
+REQUIRED_METADATA_FILES = (
+    "SPARC_Lelli2016c.mrt",
+    "CDR_Lelli2016b.mrt",
+    "BTFR_Lelli2019.mrt",
+    "MassModels_Lelli2016c.mrt",
+)
 
 
 def load_tables() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    files = {
-        "meta": DATA_DIR / "SPARC_Lelli2016c.mrt",
-        "cdr": DATA_DIR / "CDR_Lelli2016b.mrt",
-        "btfr": DATA_DIR / "BTFR_Lelli2019.mrt",
-    }
-    for path in files.values():
-        if not path.exists():
-            raise FileNotFoundError(f"Missing SPARC table: {path}")
+    missing = [name for name in REQUIRED_METADATA_FILES if not (DATA_DIR / name).exists()]
+    if missing:
+        expected = ", ".join(REQUIRED_METADATA_FILES)
+        raise FileNotFoundError(
+            "Missing SPARC metadata table(s): "
+            f"{', '.join(missing)}. "
+            f"Expected files in {DATA_DIR}: {expected}"
+        )
 
-    meta = pd.read_csv(files["meta"])
-    cdr = pd.read_csv(files["cdr"])
-    btfr = pd.read_csv(files["btfr"])
+    meta = pd.read_csv(DATA_DIR / "SPARC_Lelli2016c.mrt")
+    cdr = pd.read_csv(DATA_DIR / "CDR_Lelli2016b.mrt")
+    btfr = pd.read_csv(DATA_DIR / "BTFR_Lelli2019.mrt")
 
     for df in (meta, cdr, btfr):
         df["Galaxy"] = df["Galaxy"].astype(str).str.strip()

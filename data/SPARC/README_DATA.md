@@ -5,7 +5,7 @@ This directory contains the data products used by the SCM–Motor de Velos frame
 Source:
 http://astroweb.case.edu/SPARC/
 
-Included tables (used for the master catalog)
+Required metadata tables (place under `data/SPARC/metadata/`)
 
 SPARC_Lelli2016c.mrt
     Global galaxy properties.
@@ -16,11 +16,20 @@ CDR_Lelli2016b.mrt
 BTFR_Lelli2019.mrt
     Baryonic Tully-Fisher relation dataset.
 
-Additional tables available
-
 MassModels_Lelli2016c.mrt
     Baryonic mass models and rotation curve decomposition.
-    Used for radial analyses but not included in the master catalog merge.
+    Used for radial analyses; validated as part of SPARC metadata completeness.
+
+Expected local structure:
+
+data/
+└── SPARC
+    ├── metadata
+    │   ├── SPARC_Lelli2016c.mrt
+    │   ├── CDR_Lelli2016b.mrt
+    │   ├── BTFR_Lelli2019.mrt
+    │   └── MassModels_Lelli2016c.mrt
+    └── README_DATA.md
 
 These data are used within the framework to compute:
 
