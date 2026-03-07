@@ -212,6 +212,18 @@ python scripts/build_sparc_full_catalog.py
 python scripts/run_big_sparc_veil_test.py \
   --catalog data/SPARC/sparc_full.csv \
   --out results
+
+# Build the galaxy-level ΔF3 + HI master table
+python scripts/build_population_master_table.py \
+  --f3-catalog results/SPARC/f3_catalog.csv \
+  --full-catalog data/SPARC/sparc_full.csv \
+  --master-catalog results/SPARC/sparc_master_catalog.csv \
+  --out results/big_sparc_f3_hi.csv
+
+# Run full-sample ΔF3 vs HI analysis (scatter/correlation/regression/OOS 70/30)
+python scripts/run_deltaf3_hi_population_test.py \
+  --table results/big_sparc_f3_hi.csv \
+  --out results/big_sparc_f3_hi_analysis
 ```
 
 ### Recommended practical order for SPARC analysis
