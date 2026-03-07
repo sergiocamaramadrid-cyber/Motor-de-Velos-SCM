@@ -242,19 +242,13 @@ def run_pipeline(data_dir, out_dir, a0=1.2e-10, verbose=True):
         if verbose:
             print(f"  {name}: chi2={fit['chi2_reduced']:.2f}, ud={fit['upsilon_disk']:.2f}")
 
-    results_df = pd.DataFrame(
-        records,
-        columns=[
-            "galaxy", "upsilon_disk", "chi2_reduced",
-            "n_points", "Vflat_kms", "M_bar_BTFR_Msun",
-        ],
-    )
-
-    # Stable column order, sort, and explicit types to avoid machine-to-machine diffs
-    results_df = results_df[[
+    result_columns = [
         "galaxy", "upsilon_disk", "chi2_reduced",
         "n_points", "Vflat_kms", "M_bar_BTFR_Msun",
-    ]]
+    ]
+    results_df = pd.DataFrame(records, columns=result_columns)
+
+    # Stable column order, sort, and explicit types to avoid machine-to-machine diffs
     results_df["n_points"] = results_df["n_points"].astype(int)
     for col in ("upsilon_disk", "chi2_reduced", "Vflat_kms", "M_bar_BTFR_Msun"):
         results_df[col] = results_df[col].astype(float)
