@@ -214,6 +214,31 @@ python scripts/run_big_sparc_veil_test.py \
   --out results
 ```
 
+### Recommended order to review complete SPARC results
+
+When you run:
+
+```bash
+python scripts/build_sparc_full_catalog.py --data-root data/SPARC --out results/SPARC
+```
+
+and then the pipeline, review outputs in this order:
+
+1. `results/SPARC/sparc_full_catalog.csv`  
+   Verify sample size (~175 galaxies), anomalous NaN values, and galaxies with very few points.
+2. `results/SPARC/f3_catalog.csv`  
+   Check `F3_SCM` distribution (it should not collapse to a single value).
+3. `results/SPARC/beta_catalog.csv`  
+   Check dispersion of `beta` (without artificial collapse to a fixed value).
+4. `results/oos_validation/oos_generalization_results.csv`  
+   Compare models (`baseline` vs `SCM`) on `RMSE_out`, `MAE_out`, `delta_logL`.
+5. Wilcoxon test (from OOS logs/CSV)  
+   Interpret `p-value` as statistical evidence of improvement.
+6. `hist_delta_rmse_out.pdf`  
+   A shift toward negative ΔRMSE favors SCM.
+7. `results/executive_summary.txt`  
+   Final human-readable summary for report/PR (improvement, median ΔRMSE, p-value).
+
 ---
 
 ## Statistical Protocol
