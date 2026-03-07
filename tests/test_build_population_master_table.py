@@ -36,7 +36,7 @@ def test_build_population_master_table_merges_required_and_optional_columns(tmp_
     pd.DataFrame(
         [
             {"galaxy": "G1", "logSigmaHI_out": 0.12},
-            {"galaxy": "G1", "logSigmaHI_out": 0.12},
+            {"galaxy": "G1", "logSigmaHI_out": 0.15},
             {"galaxy": "G2", "logSigmaHI_out": -0.05},
         ]
     ).to_csv(full, index=False)

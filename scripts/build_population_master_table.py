@@ -47,6 +47,8 @@ def _load_f3_catalog(path: Path) -> pd.DataFrame:
 
     out = f3.copy()
     if "delta_f3" not in out.columns:
+        # Legacy F3 tables may not store delta_f3/expected_slope explicitly.
+        # Use the deep-regime reference slope 0.5 as project default.
         expected = out["expected_slope"] if "expected_slope" in out.columns else 0.5
         out["delta_f3"] = out["deep_slope"] - expected
     if "n_tail_points" not in out.columns:
@@ -106,6 +108,8 @@ def _extract_from_master_catalog(path: Path) -> pd.DataFrame:
     if mstar_col is not None:
         out = out.merge(_group_first_non_null(master, mstar_col).rename("logMstar"), left_on="galaxy_norm", right_index=True, how="left")
     elif "L_3.6" in master.columns:
+        # Consistent with existing SPARC utilities in this repo:
+        # Mstar_1e9 = 0.5 * L_3.6  ->  logMstar = log10(Mstar_1e9) + 9.
         l36 = pd.to_numeric(master["L_3.6"], errors="coerce")
         log_mstar = pd.Series(np.where(l36 > 0, np.log10(0.5 * l36) + 9.0, np.nan), index=master.index)
         tmp = pd.DataFrame({"galaxy_norm": master["galaxy_norm"], "logMstar": log_mstar})
