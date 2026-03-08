@@ -9,10 +9,11 @@ licencia.
 1. Visita la página oficial del catálogo SPARC:
    <http://astroweb.cwru.edu/SPARC/>
 
-2. Coloca en `data/SPARC/` las tablas:
-   - `SPARC_Lelli2016c.mrt` (o `SPARC_Lelli2016c.csv`)
-   - `SPARC_table2.mrt` (alias aceptado para la tabla principal)
-   - `MassModels_Lelli2016c.mrt` (opcional para el build, útil para análisis extendidos)
+2. Coloca en `data/SPARC/metadata/` las tablas:
+   - `SPARC_Lelli2016c.mrt`
+   - `CDR_Lelli2016b.mrt`
+   - `BTFR_Lelli2019.mrt`
+   - `MassModels_Lelli2016c.mrt`
 
 3. Descarga los archivos de curvas de rotación individuales (`*_rotmod.dat`)
    y colócalos en `data/SPARC/rotmod/` (ruta preferida). También se acepta
@@ -62,9 +63,11 @@ En ese caso, comparte una de estas tres opciones para desbloquear la revisión:
 
 ```
 data/SPARC/
-├── SPARC_Lelli2016c.mrt      ← tabla principal de galaxias (o .csv)
-├── SPARC_table2.mrt          ← alias alternativo para la tabla principal
-├── MassModels_Lelli2016c.mrt ← tabla de modelos de masa
+├── metadata/
+│   ├── SPARC_Lelli2016c.mrt
+│   ├── CDR_Lelli2016b.mrt
+│   ├── BTFR_Lelli2019.mrt
+│   └── MassModels_Lelli2016c.mrt
 └── rotmod/
     ├── NGC0300_rotmod.dat
     ├── NGC0891_rotmod.dat

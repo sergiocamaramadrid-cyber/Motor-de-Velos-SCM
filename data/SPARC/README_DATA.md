@@ -5,7 +5,9 @@ This directory contains the data products used by the SCM–Motor de Velos frame
 Source:
 http://astroweb.case.edu/SPARC/
 
-Required metadata tables (place under `data/SPARC/metadata/`)
+Required local inputs
+
+Metadata tables (place under `data/SPARC/metadata/`)
 
 SPARC_Lelli2016c.mrt
     Global galaxy properties.
@@ -20,6 +22,19 @@ MassModels_Lelli2016c.mrt
     Baryonic mass models and rotation curve decomposition.
     Used for radial analyses; validated as part of SPARC metadata completeness.
 
+Rotation curves (place under `data/SPARC/rotmod/`)
+
+*_rotmod.dat
+    One file per galaxy (e.g. NGC0300_rotmod.dat).
+
+Required paths:
+
+- data/SPARC/metadata/SPARC_Lelli2016c.mrt
+- data/SPARC/metadata/CDR_Lelli2016b.mrt
+- data/SPARC/metadata/BTFR_Lelli2019.mrt
+- data/SPARC/metadata/MassModels_Lelli2016c.mrt
+- data/SPARC/rotmod/*.dat
+
 Expected local structure:
 
 data/
@@ -29,6 +44,10 @@ data/
     │   ├── CDR_Lelli2016b.mrt
     │   ├── BTFR_Lelli2019.mrt
     │   └── MassModels_Lelli2016c.mrt
+    ├── rotmod
+    │   ├── NGC0300_rotmod.dat
+    │   ├── NGC0891_rotmod.dat
+    │   └── ...
     └── README_DATA.md
 
 These data are used within the framework to compute:
