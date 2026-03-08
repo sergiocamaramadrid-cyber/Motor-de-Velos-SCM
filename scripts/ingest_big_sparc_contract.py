@@ -24,11 +24,14 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.contract_utils import CONTRACT_COLUMNS, compute_vbar_kms as compute_vbar_kms_legacy, read_table, validate_contract
+from scripts.contract_utils import CONTRACT_COLUMNS
+from scripts.contract_utils import compute_vbar_kms as compute_vbar_kms_legacy
+from scripts.contract_utils import read_table, validate_contract
 
 A0_SI = 1.2e-10
 KPC_TO_M = 3.085677581491367e19
 KMS_TO_MS = 1.0e3
+DEFAULT_SANITY_FILENAME = "sparc_175_master_sanity.csv"
 
 
 # ---------------------------------------------------------------------
@@ -128,10 +131,10 @@ def read_rotmod_curve(path: Path) -> pd.DataFrame:
 # Observables
 # ---------------------------------------------------------------------
 def compute_vbar_kms(v_gas_kms: Iterable[float], v_disk_kms: Iterable[float], v_bulge_kms: Iterable[float]) -> np.ndarray:
-    vg = np.nan_to_num(np.asarray(v_gas_kms, dtype=float), nan=0.0)
-    vd = np.nan_to_num(np.asarray(v_disk_kms, dtype=float), nan=0.0)
-    vb = np.nan_to_num(np.asarray(v_bulge_kms, dtype=float), nan=0.0)
-    return np.sqrt(np.clip(vg**2 + vd**2 + vb**2, a_min=0.0, a_max=None))
+    v_gas = np.nan_to_num(np.asarray(v_gas_kms, dtype=float), nan=0.0)
+    v_disk = np.nan_to_num(np.asarray(v_disk_kms, dtype=float), nan=0.0)
+    v_bulge = np.nan_to_num(np.asarray(v_bulge_kms, dtype=float), nan=0.0)
+    return np.sqrt(np.clip(v_gas**2 + v_disk**2 + v_bulge**2, a_min=0.0, a_max=None))
 
 
 def weighted_linear_slope(x: np.ndarray, y: np.ndarray, w: np.ndarray | None = None) -> float:
@@ -158,6 +161,7 @@ def weighted_linear_slope(x: np.ndarray, y: np.ndarray, w: np.ndarray | None = N
 
 
 def compute_f3_scm(df: pd.DataFrame, tail_frac: float = 0.7, min_points_tail: int = 4, v_floor_kms: float = 5.0) -> tuple[float, int, float]:
+    """Compute F3_SCM as slope dlog10(V_obs)/dlog10(r) in the outer tail."""
     r = df["r_kpc"].to_numpy(dtype=float)
     v = df["v_obs_kms"].to_numpy(dtype=float)
     e = df["e_v_obs_kms"].to_numpy(dtype=float)
@@ -191,6 +195,7 @@ def acceleration_from_curve(r_kpc: np.ndarray, v_kms: np.ndarray) -> np.ndarray:
 
 
 def compute_beta_from_curve(df: pd.DataFrame, beta_gbar_max: float = 0.3, min_points_beta: int = 4, v_floor_kms: float = 5.0) -> tuple[float, int]:
+    """Compute beta as slope dlog10(g_obs)/dlog10(g_bar) in deep regime."""
     r = df["r_kpc"].to_numpy(dtype=float)
     v_obs = df["v_obs_kms"].to_numpy(dtype=float)
     v_bar = compute_vbar_kms(df["v_gas_kms"], df["v_disk_kms"], df["v_bulge_kms"])
@@ -220,6 +225,7 @@ def compute_beta_from_curve(df: pd.DataFrame, beta_gbar_max: float = 0.3, min_po
 
 
 def estimate_logsigma_hi_out(df: pd.DataFrame, tail_frac: float = 0.7) -> float:
+    """Return a reproducible proxy: median log10(v_gas^2 / r) in outer tail."""
     r = df["r_kpc"].to_numpy(dtype=float)
     vgas = np.nan_to_num(df["v_gas_kms"].to_numpy(dtype=float), nan=0.0)
 
@@ -344,7 +350,7 @@ def ingest_from_rotmod(data_root: Path, out: Path, sanity_out: Path | None = Non
     info(f"CSV maestro escrito en: {out}")
 
     sanity = build_sanity_summary(master)
-    final_sanity = sanity_out or out.with_name("sparc_175_master_sanity.csv")
+    final_sanity = sanity_out or out.with_name(DEFAULT_SANITY_FILENAME)
     final_sanity.parent.mkdir(parents=True, exist_ok=True)
     sanity.to_csv(final_sanity, index=False)
     info(f"Sanity summary escrito en: {final_sanity}")
@@ -381,7 +387,10 @@ def ingest(galaxies_path: Path, rc_points_path: Path, out_dir: Path) -> pd.DataF
     valid_galaxies = set(galaxies["galaxy"].unique())
     rc_filtered = rc[rc["galaxy"].isin(valid_galaxies)].copy()
     if rc_filtered.empty:
-        raise ValueError("After joining galaxies and rc_points tables the result is empty. Check that the 'galaxy' foreign key matches between both files.")
+        raise ValueError(
+            "After filtering rc_points by the galaxies table the result is empty. "
+            "Check that galaxy keys match between both files (including case and whitespace)."
+        )
 
     out_df = rc_filtered[CONTRACT_COLUMNS].copy()
     validate_contract(out_df, source=str(rc_points_path))
