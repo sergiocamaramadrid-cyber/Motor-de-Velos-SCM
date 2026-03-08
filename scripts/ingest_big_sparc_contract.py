@@ -275,6 +275,8 @@ def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict
         "delta_f3": float(delta_f3) if np.isfinite(delta_f3) else np.nan,
         "beta": float(beta) if np.isfinite(beta) else np.nan,
         "n_beta_points": int(n_beta),
+        # Keep both names for compatibility while migrating downstream scripts
+        # to the canonical `logSigmaHI_out`.
         "logSigmaHI_out": logsigma_value,
         "logSigmaHI_out_proxy": logsigma_value,
         "quality_flag_tail_ok": bool(np.isfinite(f3_scm) and n_tail >= 4),

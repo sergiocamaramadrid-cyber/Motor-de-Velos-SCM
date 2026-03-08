@@ -147,7 +147,11 @@ plt.savefig(fig_dir / "deltaf3_vs_logSigmaHI_out.png", dpi=150)
 plt.close()
 
 plt.figure(figsize=(6, 4))
-plt.hist(beta["beta"], bins=20, alpha=0.85)
+if len(beta) > 0:
+    plt.hist(beta["beta"], bins=20, alpha=0.85)
+else:
+    plt.text(0.5, 0.5, "No valid beta values", ha="center", va="center")
+    plt.axis("off")
 plt.xlabel("beta")
 plt.ylabel("count")
 plt.tight_layout()
