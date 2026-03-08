@@ -22,6 +22,9 @@ MassModels_Lelli2016c.mrt
     Baryonic mass models and rotation curve decomposition.
     Used for radial analyses; validated as part of SPARC metadata completeness.
 
+Bulges.mrt
+    Bulge structural parameters table used in extended SPARC metadata analyses.
+
 Rotation curves (place under `data/SPARC/rotmod/`)
 
 *_rotmod.dat
@@ -33,6 +36,7 @@ Required paths:
 - data/SPARC/metadata/CDR_Lelli2016b.mrt
 - data/SPARC/metadata/BTFR_Lelli2019.mrt
 - data/SPARC/metadata/MassModels_Lelli2016c.mrt
+- data/SPARC/metadata/Bulges.mrt
 - data/SPARC/rotmod/*.dat
 
 Expected local structure:
@@ -43,7 +47,8 @@ data/
     │   ├── SPARC_Lelli2016c.mrt
     │   ├── CDR_Lelli2016b.mrt
     │   ├── BTFR_Lelli2019.mrt
-    │   └── MassModels_Lelli2016c.mrt
+    │   ├── MassModels_Lelli2016c.mrt
+    │   └── Bulges.mrt
     ├── rotmod
     │   ├── NGC0300_rotmod.dat
     │   ├── NGC0891_rotmod.dat
