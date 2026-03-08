@@ -24,7 +24,6 @@ jobs:
           python -m pip install --upgrade pip
           test -f requirements.txt || { echo "Error: requirements.txt not found."; exit 1; }
           pip install -r requirements.txt
-          pip install scikit-learn joblib
 
       - name: Check local SPARC data
         id: check_local_data
