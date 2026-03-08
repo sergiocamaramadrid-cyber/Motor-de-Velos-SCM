@@ -381,6 +381,54 @@ cat results/executive_summary.txt
 
 Replace `<your_oos_validation_script>` with the OOS entrypoint available in your branch/pipeline.
 
+### Plan Cirujano (rápido y sin pasos inútiles)
+
+Objetivo operativo: pasar de *framework listo* a *resultado científico reproducible*.
+
+**Fase 1 — Cerrar infraestructura**
+
+```bash
+# 1) Cargar dataset SPARC completo (metadata + rotmod)
+git add data/SPARC/metadata/*.mrt
+git add data/SPARC/rotmod/*.dat
+git commit -m "Add SPARC dataset (metadata + rotmod)"
+git push
+
+# 2) Construir maestro reproducible
+python scripts/ingest_big_sparc_contract.py \
+  --data-root data/SPARC \
+  --out data/sparc_175_master.csv
+```
+
+Validar salida:
+
+- `data/sparc_175_master.csv`
+- `data/sparc_175_master_sanity.csv`
+
+**Fase 2 — Ejecutar pipeline científico**
+
+```bash
+./run_f3_pipeline.sh --input data/sparc_175_master.csv --out results/SPARC
+```
+
+Artefactos clave a inspeccionar:
+
+- `results/SPARC/f3_catalog.csv`
+- `results/SPARC/f3_summary.csv`
+
+**Fase 3 — Inspección científica mínima**
+
+Revisar, en este orden:
+
+1. Coeficiente ambiental (signo/magnitud y p-value)
+2. Métricas fuera de muestra (R² y RMSE frente a baseline)
+3. Estabilidad (IC95% bootstrap cuando corresponda)
+
+**Regla de oro**
+
+En la primera pasada con SPARC completo: **no toques el código**.  
+Primero observa el resultado y luego decide ajustes.
+
 ---
 
 ## Statistical Protocol
