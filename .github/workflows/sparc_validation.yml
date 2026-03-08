@@ -24,6 +24,7 @@ jobs:
           python -m pip install --upgrade pip
           test -f requirements.txt || { echo "Error: requirements.txt not found."; exit 1; }
           pip install -r requirements.txt
+          pip install scikit-learn joblib
 
       - name: Check local SPARC data
         id: check_local_data
@@ -95,6 +96,7 @@ jobs:
 
       - name: Run Framework Test
         run: |
+          mkdir -p results
           if [ -f scripts/run_big_sparc_veil_test.py ]; then
             python scripts/run_big_sparc_veil_test.py --catalog data/SPARC/sparc_full.csv --out results
           else
