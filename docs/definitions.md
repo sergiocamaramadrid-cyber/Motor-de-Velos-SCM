@@ -1,0 +1,3 @@
+- F3_SCM = dlogV/dlogr en r >= 0.7 Rmax
+- delta_f3 = F3_SCM - 0.5
+- beta = dlog(g_obs)/dlog(g_bar) para g_bar < 0.3 a0
