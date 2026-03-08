@@ -35,4 +35,5 @@ jobs:
 
       - name: Run tests
         run: |
+          bash -n scripts/run_all_sparc_veil_test.sh
           pytest -q

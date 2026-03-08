@@ -24,6 +24,12 @@ data/SPARC/processed/
 
 # Generated analysis outputs (created by running analysis scripts)
 results/littlethings_dust/
+results/delta_f3_regression.csv
+results/beta_regression.csv
+results/results_overview.json
+results/figures/
+data/sparc_175_master.csv
+data/sparc_175_master_sanity.csv
 
 # Editor / OS
 .DS_Store

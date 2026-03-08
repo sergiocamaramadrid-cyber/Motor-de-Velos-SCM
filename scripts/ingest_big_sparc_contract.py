@@ -261,6 +261,8 @@ def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict
     delta_f3 = float(f3_scm - 0.5) if np.isfinite(f3_scm) else np.nan
     logsigma_hi_out = estimate_logsigma_hi_out(df, tail_frac=tail_frac)
 
+    logsigma_value = float(logsigma_hi_out) if np.isfinite(logsigma_hi_out) else np.nan
+
     row = {
         "galaxy": galaxy,
         "source_file": str(path.name),
@@ -273,7 +275,8 @@ def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict
         "delta_f3": float(delta_f3) if np.isfinite(delta_f3) else np.nan,
         "beta": float(beta) if np.isfinite(beta) else np.nan,
         "n_beta_points": int(n_beta),
-        "logSigmaHI_out_proxy": float(logsigma_hi_out) if np.isfinite(logsigma_hi_out) else np.nan,
+        "logSigmaHI_out": logsigma_value,
+        "logSigmaHI_out_proxy": logsigma_value,
         "quality_flag_tail_ok": bool(np.isfinite(f3_scm) and n_tail >= 4),
         "quality_flag_beta_ok": bool(np.isfinite(beta) and n_beta >= 4),
         "contract_version": "SPARC_MASTER_v1.0",
@@ -298,6 +301,7 @@ def enforce_contract(df: pd.DataFrame) -> pd.DataFrame:
         "delta_f3",
         "beta",
         "n_beta_points",
+        "logSigmaHI_out",
         "logSigmaHI_out_proxy",
         "quality_flag_tail_ok",
         "quality_flag_beta_ok",
@@ -334,6 +338,7 @@ def build_sanity_summary(df: pd.DataFrame) -> pd.DataFrame:
             "median_F3_SCM": [float(df["F3_SCM"].median(skipna=True))],
             "median_delta_f3": [float(df["delta_f3"].median(skipna=True))],
             "median_beta": [float(df["beta"].median(skipna=True))],
+            "median_logSigmaHI_out": [float(df["logSigmaHI_out"].median(skipna=True))],
             "median_logSigmaHI_out_proxy": [float(df["logSigmaHI_out_proxy"].median(skipna=True))],
         }
     )
