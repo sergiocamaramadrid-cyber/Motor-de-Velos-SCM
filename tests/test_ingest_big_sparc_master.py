@@ -119,9 +119,12 @@ def test_run_all_pipeline_generates_expected_artifacts(tmp_path: Path) -> None:
     assert (results_dir / "delta_f3_regression.csv").exists()
     assert (results_dir / "beta_regression.csv").exists()
     assert (results_dir / "per_galaxy_delta_f3.csv").exists()
+    assert (results_dir / "per_galaxy_beta.csv").exists()
     assert (results_dir / "results_overview.json").exists()
     fig_path = results_dir / "fig_deltaF3_environment.png"
     assert fig_path.exists() or "[WARN] Se omite fig_deltaF3_environment" in result.stdout
+    beta_fig_path = results_dir / "fig_beta_environment.png"
+    assert beta_fig_path.exists() or "[WARN] Se omite fig_beta_environment" in result.stdout
     assert (results_dir / "figures" / "beta_vs_logSigmaHI_out.png").exists()
     assert (results_dir / "figures" / "deltaf3_vs_logSigmaHI_out.png").exists()
     assert (results_dir / "figures" / "beta_distribution.png").exists()
