@@ -17,12 +17,14 @@ if __package__ is None or __package__ == "":
     from scripts.contract_utils import (
         CONTRACT_COLUMNS,
         compute_vbar_kms,
+        read_table,
         validate_contract,
     )
 else:
     from .contract_utils import (
         CONTRACT_COLUMNS,
         compute_vbar_kms,
+        read_table,
         validate_contract,
     )
 
