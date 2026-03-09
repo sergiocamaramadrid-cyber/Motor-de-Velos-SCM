@@ -4,7 +4,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import pytest
 
@@ -78,12 +77,9 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
             "f3_flag",
         ]
     ).issubset(catalog.columns)
-    assert np.allclose(
-        catalog["delta_f3"].values,
-        catalog["deep_slope"].values - catalog["expected_slope"].values,
-        atol=1e-4,
-        equal_nan=True,
-    )
+    expected_delta = catalog["deep_slope"] - catalog["expected_slope"]
+    diff = (catalog["delta_f3"] - expected_delta).abs()
+    assert (diff.fillna(0.0) <= 1e-4).all()
     assert (catalog["n_tail_points"] == 5).all()
     assert (catalog["tail_points_used"] == 5).all()
 

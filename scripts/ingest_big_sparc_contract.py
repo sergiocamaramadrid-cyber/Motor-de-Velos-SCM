@@ -20,13 +20,18 @@ from typing import Iterable
 import numpy as np
 import pandas as pd
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
+_REPO_ROOT = Path(__file__).resolve().parents[1]
 
-from scripts.contract_utils import CONTRACT_COLUMNS
-from scripts.contract_utils import compute_vbar_kms as compute_vbar_kms_legacy
-from scripts.contract_utils import read_table, validate_contract
+if __package__ is None or __package__ == "":
+    if str(_REPO_ROOT) not in sys.path:
+        sys.path.insert(0, str(_REPO_ROOT))
+    from scripts.contract_utils import CONTRACT_COLUMNS
+    from scripts.contract_utils import compute_vbar_kms as compute_vbar_kms_legacy
+    from scripts.contract_utils import read_table, validate_contract
+else:
+    from .contract_utils import CONTRACT_COLUMNS
+    from .contract_utils import compute_vbar_kms as compute_vbar_kms_legacy
+    from .contract_utils import read_table, validate_contract
 
 A0_SI = 1.2e-10
 KPC_TO_M = 3.085677581491367e19

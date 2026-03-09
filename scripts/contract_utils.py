@@ -34,12 +34,11 @@ def compute_vbar_kms(
 ) -> np.ndarray:
     v_gas = np.asarray(v_gas, dtype=float)
     v_disk = np.asarray(v_disk, dtype=float)
-    v_bul = np.zeros_like(v_gas) if v_bul is None else np.asarray(v_bul, dtype=float)
+    if v_bul is None:
+        v_bul = 0.0
+    v_bul = np.asarray(v_bul, dtype=float)
 
-    vbar_sq = v_gas**2 + v_disk**2 + v_bul**2
-    sign = np.sign(v_disk)
-    sign = np.where(sign == 0.0, 1.0, sign)
-    return sign * np.sqrt(vbar_sq)
+    return np.asarray(np.sqrt(v_gas**2 + v_disk**2 + v_bul**2), dtype=float)
 
 
 def validate_contract(df: pd.DataFrame, source: str = "<unknown>") -> None:
