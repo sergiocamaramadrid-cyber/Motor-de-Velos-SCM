@@ -491,4 +491,18 @@ Refer to the LICENSE file.
 Author: Sergio Cámara Madrid  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
 
+## Physical Context
+
+Additional scientific background describing the intergalactic environment and large-scale structure is available in:
+
+docs/physical_context/
+
+This section contains:
+
+• Intergalactic medium composition  
+• Cosmic web dynamics  
+• Cosmological evolution diagrams  
+
+These materials provide context for the environmental tests implemented in the SCM Framework.
+
 EOF
