@@ -1,21 +1,10 @@
 #!/usr/bin/env python3
-"""
-ingest_big_sparc_contract.py
-
-Construye un CSV maestro limpio para el bloque BIG-SPARC / SCM-Motor de Velos
-usando curvas SPARC crudas (rotmod/*.dat).
-
-Además, mantiene un modo legado de ingesta de tablas BIG-SPARC (galaxies +
-rc_points) para compatibilidad con el pipeline previo.
-"""
-
 from __future__ import annotations
 
 import argparse
 import math
 import sys
 from pathlib import Path
-from typing import Iterable
 
 import numpy as np
 import pandas as pd
@@ -25,23 +14,23 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 if __package__ is None or __package__ == "":
     if str(_REPO_ROOT) not in sys.path:
         sys.path.insert(0, str(_REPO_ROOT))
-    from scripts.contract_utils import CONTRACT_COLUMNS
-    from scripts.contract_utils import compute_vbar_kms as compute_vbar_kms_legacy
-    from scripts.contract_utils import read_table, validate_contract
+    from scripts.contract_utils import (
+        CONTRACT_COLUMNS,
+        compute_vbar_kms,
+        validate_contract,
+    )
 else:
-    from .contract_utils import CONTRACT_COLUMNS
-    from .contract_utils import compute_vbar_kms as compute_vbar_kms_legacy
-    from .contract_utils import read_table, validate_contract
+    from .contract_utils import (
+        CONTRACT_COLUMNS,
+        compute_vbar_kms,
+        validate_contract,
+    )
 
 A0_SI = 1.2e-10
 KPC_TO_M = 3.085677581491367e19
 KMS_TO_MS = 1.0e3
-DEFAULT_SANITY_FILENAME = "sparc_175_master_sanity.csv"
 
 
-# ---------------------------------------------------------------------
-# Utilidades
-# ---------------------------------------------------------------------
 def fail(msg: str, code: int = 2) -> None:
     print(f"[ERROR] {msg}", file=sys.stderr)
     raise SystemExit(code)
@@ -55,9 +44,6 @@ def info(msg: str) -> None:
     print(f"[INFO] {msg}")
 
 
-# ---------------------------------------------------------------------
-# Lectura SPARC rotmod/*.dat
-# ---------------------------------------------------------------------
 def check_local_sparc_data(data_root: Path, rotmod_subdir: str = "rotmod") -> tuple[Path, list[Path]]:
     if not data_root.exists():
         fail(f"No existe data_root: {data_root}")
@@ -66,31 +52,32 @@ def check_local_sparc_data(data_root: Path, rotmod_subdir: str = "rotmod") -> tu
     if not rotmod_dir.exists():
         fail(
             f"No existe directorio de curvas: {rotmod_dir}\n"
-            f"Estructura esperada:\n  {data_root}/rotmod/*.dat"
+            f"Estructura esperada:\n"
+            f"  {data_root}/rotmod/*.dat"
         )
 
     dat_files = sorted(rotmod_dir.glob("*.dat"))
     if not dat_files:
-        fail(
-            f"No se encontraron archivos .dat en {rotmod_dir}\n"
-            "Asegúrate de haber descargado las curvas SPARC locales."
-        )
+        fail(f"No se encontraron archivos .dat en {rotmod_dir}")
 
     return rotmod_dir, dat_files
 
 
 def _read_numeric_lines(path: Path) -> np.ndarray:
     rows: list[list[float]] = []
+
     with path.open("r", encoding="utf-8", errors="ignore") as fh:
         for line in fh:
             s = line.strip()
             if not s or s.startswith("#"):
                 continue
+
             parts = s.split()
             try:
                 row = [float(x) for x in parts]
             except ValueError:
                 continue
+
             rows.append(row)
 
     if not rows:
@@ -103,6 +90,7 @@ def _read_numeric_lines(path: Path) -> np.ndarray:
     arr = np.asarray(rows, dtype=float)
     if arr.ndim != 2 or arr.shape[1] < 3:
         raise ValueError(f"Formato no soportado en {path}: shape={arr.shape}")
+
     return arr
 
 
@@ -132,20 +120,14 @@ def read_rotmod_curve(path: Path) -> pd.DataFrame:
     return df.reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------
-# Observables
-# ---------------------------------------------------------------------
-def compute_vbar_kms(v_gas_kms: Iterable[float], v_disk_kms: Iterable[float], v_bulge_kms: Iterable[float]) -> np.ndarray:
-    v_gas = np.nan_to_num(np.asarray(v_gas_kms, dtype=float), nan=0.0)
-    v_disk = np.nan_to_num(np.asarray(v_disk_kms, dtype=float), nan=0.0)
-    v_bulge = np.nan_to_num(np.asarray(v_bulge_kms, dtype=float), nan=0.0)
-    return np.sqrt(np.clip(v_gas**2 + v_disk**2 + v_bulge**2, a_min=0.0, a_max=None))
-
-
 def weighted_linear_slope(x: np.ndarray, y: np.ndarray, w: np.ndarray | None = None) -> float:
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
-    w = np.ones_like(x) if w is None else np.asarray(w, dtype=float)
+
+    if w is None:
+        w = np.ones_like(x)
+    else:
+        w = np.asarray(w, dtype=float)
 
     mask = np.isfinite(x) & np.isfinite(y) & np.isfinite(w) & (w > 0)
     x = x[mask]
@@ -162,21 +144,26 @@ def weighted_linear_slope(x: np.ndarray, y: np.ndarray, w: np.ndarray | None = N
 
     if not np.isfinite(var) or var <= 0:
         return np.nan
+
     return float(cov / var)
 
 
-def compute_f3_scm(df: pd.DataFrame, tail_frac: float = 0.7, min_points_tail: int = 4, v_floor_kms: float = 5.0) -> tuple[float, int, float]:
-    """Compute F3_SCM as slope dlog10(V_obs)/dlog10(r) in the outer tail."""
+def compute_f3_scm(
+    df: pd.DataFrame,
+    tail_frac: float = 0.7,
+    min_points_tail: int = 4,
+    v_floor_kms: float = 5.0,
+) -> tuple[float, int, float]:
     r = df["r_kpc"].to_numpy(dtype=float)
     v = df["v_obs_kms"].to_numpy(dtype=float)
     e = df["e_v_obs_kms"].to_numpy(dtype=float)
 
     rmax = np.nanmax(r)
-    tail_mask = (r >= tail_frac * rmax) & np.isfinite(r) & np.isfinite(v) & (v > v_floor_kms)
+    mask = (r >= tail_frac * rmax) & np.isfinite(r) & np.isfinite(v) & (v > v_floor_kms)
 
-    rt = r[tail_mask]
-    vt = v[tail_mask]
-    et = e[tail_mask]
+    rt = r[mask]
+    vt = v[mask]
+    et = e[mask]
 
     if rt.size < min_points_tail:
         return np.nan, int(rt.size), float(rmax)
@@ -195,12 +182,15 @@ def acceleration_from_curve(r_kpc: np.ndarray, v_kms: np.ndarray) -> np.ndarray:
     r_m = np.asarray(r_kpc, dtype=float) * KPC_TO_M
     v_ms = np.asarray(v_kms, dtype=float) * KMS_TO_MS
     with np.errstate(divide="ignore", invalid="ignore"):
-        g = (v_ms**2) / r_m
-    return g
+        return (v_ms**2) / r_m
 
 
-def compute_beta_from_curve(df: pd.DataFrame, beta_gbar_max: float = 0.3, min_points_beta: int = 4, v_floor_kms: float = 5.0) -> tuple[float, int]:
-    """Compute beta as slope dlog10(g_obs)/dlog10(g_bar) in deep regime."""
+def compute_beta_from_curve(
+    df: pd.DataFrame,
+    beta_gbar_max: float = 0.3,
+    min_points_beta: int = 4,
+    v_floor_kms: float = 5.0,
+) -> tuple[float, int]:
     r = df["r_kpc"].to_numpy(dtype=float)
     v_obs = df["v_obs_kms"].to_numpy(dtype=float)
     v_bar = compute_vbar_kms(df["v_gas_kms"], df["v_disk_kms"], df["v_bulge_kms"])
@@ -226,11 +216,12 @@ def compute_beta_from_curve(df: pd.DataFrame, beta_gbar_max: float = 0.3, min_po
 
     x = np.log10(g_bar[mask])
     y = np.log10(g_obs[mask])
-    return weighted_linear_slope(x, y, None), int(mask.sum())
+    slope = weighted_linear_slope(x, y)
+
+    return slope, int(mask.sum())
 
 
 def estimate_logsigma_hi_out(df: pd.DataFrame, tail_frac: float = 0.7) -> float:
-    """Return a reproducible proxy: median log10(v_gas^2 / r) in outer tail."""
     r = df["r_kpc"].to_numpy(dtype=float)
     vgas = np.nan_to_num(df["v_gas_kms"].to_numpy(dtype=float), nan=0.0)
 
@@ -239,6 +230,7 @@ def estimate_logsigma_hi_out(df: pd.DataFrame, tail_frac: float = 0.7) -> float:
 
     rmax = np.nanmax(r)
     mask = (r >= tail_frac * rmax) & np.isfinite(r) & np.isfinite(vgas) & (vgas > 0)
+
     if mask.sum() < 3:
         return np.nan
 
@@ -250,9 +242,6 @@ def estimate_logsigma_hi_out(df: pd.DataFrame, tail_frac: float = 0.7) -> float:
     return float(np.log10(np.median(proxy)))
 
 
-# ---------------------------------------------------------------------
-# Contrato maestro
-# ---------------------------------------------------------------------
 def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict:
     df = read_rotmod_curve(path)
 
@@ -261,16 +250,14 @@ def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict
     rmax_kpc = float(np.nanmax(df["r_kpc"].to_numpy(dtype=float)))
     vmax_obs_kms = float(np.nanmax(df["v_obs_kms"].to_numpy(dtype=float)))
 
-    f3_scm, n_tail, rmax_kpc_check = compute_f3_scm(df=df, tail_frac=tail_frac, min_points_tail=4, v_floor_kms=5.0)
-    beta, n_beta = compute_beta_from_curve(df=df, beta_gbar_max=beta_gbar_max, min_points_beta=4, v_floor_kms=5.0)
+    f3_scm, n_tail, rmax_kpc_check = compute_f3_scm(df, tail_frac=tail_frac)
+    beta, n_beta = compute_beta_from_curve(df, beta_gbar_max=beta_gbar_max)
     delta_f3 = float(f3_scm - 0.5) if np.isfinite(f3_scm) else np.nan
     logsigma_hi_out = estimate_logsigma_hi_out(df, tail_frac=tail_frac)
 
-    logsigma_value = float(logsigma_hi_out) if np.isfinite(logsigma_hi_out) else np.nan
-
     row = {
         "galaxy": galaxy,
-        "source_file": str(path.name),
+        "source_file": path.name,
         "n_points_curve": n_points,
         "rmax_kpc": rmax_kpc,
         "vmax_obs_kms": vmax_obs_kms,
@@ -280,10 +267,8 @@ def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict
         "delta_f3": float(delta_f3) if np.isfinite(delta_f3) else np.nan,
         "beta": float(beta) if np.isfinite(beta) else np.nan,
         "n_beta_points": int(n_beta),
-        # Keep both names for compatibility while migrating downstream scripts
-        # to the canonical `logSigmaHI_out`.
-        "logSigmaHI_out": logsigma_value,
-        "logSigmaHI_out_proxy": logsigma_value,
+        "logSigmaHI_out": float(logsigma_hi_out) if np.isfinite(logsigma_hi_out) else np.nan,
+        "logSigmaHI_out_proxy": float(logsigma_hi_out) if np.isfinite(logsigma_hi_out) else np.nan,
         "quality_flag_tail_ok": bool(np.isfinite(f3_scm) and n_tail >= 4),
         "quality_flag_beta_ok": bool(np.isfinite(beta) and n_beta >= 4),
         "contract_version": "SPARC_MASTER_v1.0",
@@ -295,33 +280,9 @@ def build_master_row(path: Path, tail_frac: float, beta_gbar_max: float) -> dict
     return row
 
 
-def enforce_contract(df: pd.DataFrame) -> pd.DataFrame:
-    ordered_cols = [
-        "galaxy",
-        "source_file",
-        "n_points_curve",
-        "rmax_kpc",
-        "vmax_obs_kms",
-        "tail_frac",
-        "n_tail_points",
-        "F3_SCM",
-        "delta_f3",
-        "beta",
-        "n_beta_points",
-        "logSigmaHI_out",
-        "logSigmaHI_out_proxy",
-        "quality_flag_tail_ok",
-        "quality_flag_beta_ok",
-        "contract_version",
-    ]
-    missing = [c for c in ordered_cols if c not in df.columns]
-    if missing:
-        fail(f"Contrato roto. Faltan columnas: {missing}")
-    return df.loc[:, ordered_cols].copy()
-
-
 def build_master_table(dat_files: list[Path], tail_frac: float, beta_gbar_max: float) -> pd.DataFrame:
     rows: list[dict] = []
+
     for i, path in enumerate(dat_files, start=1):
         try:
             rows.append(build_master_row(path, tail_frac=tail_frac, beta_gbar_max=beta_gbar_max))
@@ -331,9 +292,8 @@ def build_master_table(dat_files: list[Path], tail_frac: float, beta_gbar_max: f
     if not rows:
         fail("No se pudo construir ninguna fila del CSV maestro.")
 
-    df = pd.DataFrame(rows)
-    df = df.sort_values("galaxy").reset_index(drop=True)
-    return enforce_contract(df)
+    df = pd.DataFrame(rows).sort_values("galaxy").reset_index(drop=True)
+    return validate_contract(df)
 
 
 def build_sanity_summary(df: pd.DataFrame) -> pd.DataFrame:
@@ -351,131 +311,48 @@ def build_sanity_summary(df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
-def ingest_from_rotmod(data_root: Path, out: Path, sanity_out: Path | None = None, tail_frac: float = 0.7, beta_gbar_max: float = 0.3, rotmod_subdir: str = "rotmod") -> pd.DataFrame:
-    _, dat_files = check_local_sparc_data(data_root, rotmod_subdir=rotmod_subdir)
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Construye sparc_175_master.csv a partir de curvas SPARC locales.")
+    parser.add_argument("--data-root", type=Path, required=True, help="Raíz local de datos SPARC.")
+    parser.add_argument("--rotmod-subdir", type=str, default="rotmod", help="Subdirectorio con .dat.")
+    parser.add_argument("--out", type=Path, required=True, help="Ruta CSV maestro de salida.")
+    parser.add_argument("--sanity-out", type=Path, default=None, help="Ruta opcional de sanity summary.")
+    parser.add_argument("--tail-frac", type=float, default=0.7, help="Fracción de Rmax para definir cola externa.")
+    parser.add_argument("--beta-gbar-max", type=float, default=0.3, help="Umbral profundo: g_bar < x * a0.")
+    return parser.parse_args()
+
+
+def main() -> None:
+    args = parse_args()
+
+    if not (0.0 < args.tail_frac < 1.0):
+        fail("--tail-frac debe estar entre 0 y 1.")
+    if args.beta_gbar_max <= 0:
+        fail("--beta-gbar-max debe ser positivo.")
+
+    _, dat_files = check_local_sparc_data(args.data_root, rotmod_subdir=args.rotmod_subdir)
     info(f"Curvas detectadas: {len(dat_files)}")
 
-    master = build_master_table(dat_files=dat_files, tail_frac=tail_frac, beta_gbar_max=beta_gbar_max)
+    master = build_master_table(
+        dat_files=dat_files,
+        tail_frac=args.tail_frac,
+        beta_gbar_max=args.beta_gbar_max,
+    )
 
-    out.parent.mkdir(parents=True, exist_ok=True)
-    master.to_csv(out, index=False)
-    info(f"CSV maestro escrito en: {out}")
+    args.out.parent.mkdir(parents=True, exist_ok=True)
+    master.to_csv(args.out, index=False)
+    info(f"CSV maestro escrito en: {args.out}")
 
     sanity = build_sanity_summary(master)
-    final_sanity = sanity_out or out.with_name(DEFAULT_SANITY_FILENAME)
-    final_sanity.parent.mkdir(parents=True, exist_ok=True)
-    sanity.to_csv(final_sanity, index=False)
-    info(f"Sanity summary escrito en: {final_sanity}")
+    sanity_out = args.sanity_out or args.out.with_name("sparc_175_master_sanity.csv")
+    sanity.to_csv(sanity_out, index=False)
+    info(f"Sanity summary escrito en: {sanity_out}")
 
-    return master
-
-
-# ---------------------------------------------------------------------
-# Modo legado (compatibilidad con tests/pipeline previo)
-# ---------------------------------------------------------------------
-def _check_cols(df: pd.DataFrame, required: list[str], source: Path) -> None:
-    missing = [c for c in required if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing required columns in '{source}': {missing}")
-
-
-def ingest(galaxies_path: Path, rc_points_path: Path, out_dir: Path) -> pd.DataFrame:
-    galaxies = read_table(galaxies_path)
-    rc = read_table(rc_points_path)
-
-    _check_cols(galaxies, ["galaxy"], galaxies_path)
-    _check_cols(rc, ["galaxy", "r_kpc", "vobs_kms", "vobs_err_kms"], rc_points_path)
-
-    if "vbar_kms" not in rc.columns:
-        missing_comp = [c for c in ["v_gas", "v_disk"] if c not in rc.columns]
-        if missing_comp:
-            raise ValueError(
-                f"'vbar_kms' not found in {rc_points_path} and component columns {missing_comp} are also missing — cannot derive baryonic velocity."
-            )
-        v_bul = rc["v_bul"].values if "v_bul" in rc.columns else None
-        rc = rc.copy()
-        rc["vbar_kms"] = compute_vbar_kms_legacy(rc["v_gas"].values, rc["v_disk"].values, v_bul)
-
-    valid_galaxies = set(galaxies["galaxy"].unique())
-    rc_filtered = rc[rc["galaxy"].isin(valid_galaxies)].copy()
-    if rc_filtered.empty:
-        raise ValueError(
-            "After filtering rc_points by the galaxies table the result is empty. "
-            "Check that galaxy keys match between both files (including case and whitespace)."
-        )
-
-    out_df = rc_filtered[CONTRACT_COLUMNS].copy()
-    validate_contract(out_df, source=str(rc_points_path))
-    out_df = out_df.sort_values(["galaxy", "r_kpc"]).reset_index(drop=True)
-
-    out_dir.mkdir(parents=True, exist_ok=True)
-    out_path = out_dir / "big_sparc_contract.parquet"
-    out_df.to_parquet(out_path, index=False)
-    return out_df
-
-
-# ---------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------
-def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Ingestor BIG-SPARC/SPARC contract builder.")
-
-    # Nuevo modo (recomendado)
-    parser.add_argument("--data-root", type=Path, default=None, help="Raíz local de datos SPARC (debe contener rotmod/*.dat).")
-    parser.add_argument("--rotmod-subdir", type=str, default="rotmod", help="Subdirectorio dentro de data-root con archivos .dat.")
-    parser.add_argument("--out", type=Path, required=True, help="Salida principal: CSV maestro (modo nuevo) o directorio (modo legado).")
-    parser.add_argument("--sanity-out", type=Path, default=None, help="Ruta opcional para CSV de sanity summary (modo nuevo).")
-    parser.add_argument("--tail-frac", type=float, default=0.7, help="Fracción de Rmax para definir cola externa (modo nuevo).")
-    parser.add_argument("--beta-gbar-max", type=float, default=0.3, help="Umbral profundo: g_bar < beta_gbar_max * a0 (modo nuevo).")
-
-    # Modo legado
-    parser.add_argument("--galaxies", type=Path, default=None, help="Path a tabla galaxies (modo legado).")
-    parser.add_argument("--rc-points", dest="rc_points", type=Path, default=None, help="Path a tabla rc_points (modo legado).")
-
-    args = parser.parse_args(argv)
-
-    using_new = args.data_root is not None
-    using_legacy = args.galaxies is not None or args.rc_points is not None
-
-    if using_new and using_legacy:
-        fail("No mezclar modo nuevo (--data-root) con modo legado (--galaxies/--rc-points).")
-
-    if not using_new and not (args.galaxies and args.rc_points):
-        fail("Debes usar modo nuevo (--data-root) o modo legado (--galaxies y --rc-points).")
-
-    return args
-
-
-def main(argv: list[str] | None = None) -> None:
-    args = _parse_args(argv)
-
-    if args.data_root is not None:
-        if not (0.0 < args.tail_frac < 1.0):
-            fail("--tail-frac debe estar entre 0 y 1.")
-        if args.beta_gbar_max <= 0:
-            fail("--beta-gbar-max debe ser positivo.")
-
-        master = ingest_from_rotmod(
-            data_root=args.data_root,
-            out=args.out,
-            sanity_out=args.sanity_out,
-            tail_frac=args.tail_frac,
-            beta_gbar_max=args.beta_gbar_max,
-            rotmod_subdir=args.rotmod_subdir,
-        )
-        sanity = build_sanity_summary(master)
-
-        print("\n=== RESUMEN ===")
-        print(sanity.to_string(index=False))
-        print("\nColumnas del contrato:")
-        for col in master.columns:
-            print(f" - {col}")
-        return
-
-    out_df = ingest(args.galaxies, args.rc_points, args.out)
-    print(
-        f"Ingested {len(out_df['galaxy'].unique())} galaxies, {len(out_df)} rotation-curve points -> {args.out / 'big_sparc_contract.parquet'}"
-    )
+    print("\n=== RESUMEN ===")
+    print(sanity.to_string(index=False))
+    print("\nColumnas del contrato:")
+    for col in CONTRACT_COLUMNS:
+        print(f" - {col}")
 
 
 if __name__ == "__main__":
