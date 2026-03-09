@@ -35,6 +35,8 @@ LEGACY_CONTRACT_COLUMNS = [
 
 def read_table(path: str | Path) -> pd.DataFrame:
     path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(f"Data file not found: {path}")
     if path.suffix.lower() == ".parquet":
         return pd.read_parquet(path)
     return pd.read_csv(path)
