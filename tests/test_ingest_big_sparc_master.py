@@ -97,6 +97,7 @@ def test_run_all_pipeline_generates_expected_artifacts(tmp_path: Path) -> None:
     rotmod.mkdir(parents=True)
     _write_rotmod(rotmod / "GAL_A.dat", 100.0)
     _write_rotmod(rotmod / "GAL_B.dat", 120.0)
+    _write_rotmod(rotmod / "GAL_C.dat", 130.0)
 
     master_csv = tmp_path / "data" / "sparc_175_master.csv"
     results_dir = tmp_path / "results"
@@ -117,7 +118,10 @@ def test_run_all_pipeline_generates_expected_artifacts(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert (results_dir / "delta_f3_regression.csv").exists()
     assert (results_dir / "beta_regression.csv").exists()
+    assert (results_dir / "per_galaxy_delta_f3.csv").exists()
     assert (results_dir / "results_overview.json").exists()
+    fig_path = results_dir / "fig_deltaF3_environment.png"
+    assert fig_path.exists() or "[WARN] Se omite fig_deltaF3_environment" in result.stdout
     assert (results_dir / "figures" / "beta_vs_logSigmaHI_out.png").exists()
     assert (results_dir / "figures" / "deltaf3_vs_logSigmaHI_out.png").exists()
     assert (results_dir / "figures" / "beta_distribution.png").exists()

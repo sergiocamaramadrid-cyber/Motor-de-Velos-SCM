@@ -63,6 +63,10 @@ delta_out = pd.DataFrame([{"model": "delta_f3 ~ logSigmaHI_out", **delta_fit, "n
 beta_out = pd.DataFrame([{"model": "beta ~ logSigmaHI_out", **beta_fit, "n_samples": int(len(beta))}])
 delta_out.to_csv(results_dir / "delta_f3_regression.csv", index=False)
 beta_out.to_csv(results_dir / "beta_regression.csv", index=False)
+df[["galaxy", "logSigmaHI_out", "delta_f3"]].to_csv(
+    results_dir / "per_galaxy_delta_f3.csv",
+    index=False,
+)
 
 rng = np.random.default_rng(42)
 
@@ -158,5 +162,30 @@ plt.tight_layout()
 plt.savefig(fig_dir / "beta_distribution.png", dpi=150)
 plt.close()
 PY
+
+VALID_DELTA_POINTS=$(
+  RESULTS_DIR="${RESULTS_DIR}" python - <<'PY'
+import os
+from pathlib import Path
+import pandas as pd
+
+results_dir = Path(os.environ["RESULTS_DIR"])
+csv_path = results_dir / "per_galaxy_delta_f3.csv"
+if not csv_path.exists():
+    print(0)
+else:
+    df = pd.read_csv(csv_path)
+    if {"logSigmaHI_out", "delta_f3"}.issubset(df.columns):
+        print(int(df[["logSigmaHI_out", "delta_f3"]].dropna().shape[0]))
+    else:
+        print(0)
+PY
+)
+
+if [ "${VALID_DELTA_POINTS}" -ge 3 ]; then
+  RESULTS_DIR="${RESULTS_DIR}" python "${ROOT_DIR}/scripts/plot_deltaF3_vs_environment.py"
+else
+  echo "[WARN] Se omite fig_deltaF3_environment: puntos válidos insuficientes (${VALID_DELTA_POINTS} < 3)."
+fi
 
 echo "[OK] Pipeline completed."
