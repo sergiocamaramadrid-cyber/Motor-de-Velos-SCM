@@ -108,12 +108,12 @@ log R_d
 
 ### Intergalactic Medium Composition
 
-<img>
+![Intergalactic Medium Composition](igm_composition.png)
 
 ### Cosmic Web Flow
 
-<img>
+![Cosmic Web Flow](cosmic_web_flow.png)
 
 ### Cosmological Evolution
 
-<img>
+![Cosmological Evolution](cosmic_evolution.png)
