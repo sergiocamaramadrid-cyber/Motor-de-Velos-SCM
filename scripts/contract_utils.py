@@ -39,7 +39,7 @@ def compute_vbar_kms(
     vd = np.asarray(v_disk, dtype=float)
     vb = np.asarray(v_bul, dtype=float)
     out = np.sqrt(np.clip(vg**2 + vd**2 + vb**2, a_min=0.0, a_max=None))
-    return np.asarray(out, dtype=float)
+    return out
 
 
 def validate_contract(df: pd.DataFrame, source: str = "<unknown>") -> None:
