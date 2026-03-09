@@ -78,8 +78,11 @@ def test_ingest_and_f3_e2e(fixture_dir, tmp_path):
         ]
     ).issubset(catalog.columns)
     expected_delta = catalog["deep_slope"] - catalog["expected_slope"]
-    diff = (catalog["delta_f3"] - expected_delta).abs()
-    assert (diff.fillna(0.0) <= 1e-4).all()
+    actual_delta = catalog["delta_f3"]
+    assert (
+        ((actual_delta.isna()) & (expected_delta.isna()))
+        | ((actual_delta - expected_delta).abs() <= 1e-4)
+    ).all()
     assert (catalog["n_tail_points"] == 5).all()
     assert (catalog["tail_points_used"] == 5).all()
 
