@@ -9,6 +9,7 @@ from scripts.build_sparc_full_catalog import (
     MRT_URL,
     ZIP_URL,
     KPC_TO_M,
+    MASS_MODEL_COLUMNS,
     UPSILON_BULGE,
     UPSILON_DISK,
     check_local_sparc_data,
@@ -103,6 +104,18 @@ def test_process_rotmod_prefers_hi_density_from_rotmod_when_available(tmp_path):
     assert np.allclose(out["logSigmaHI_out"], np.log10(2.0))
 
 
+def test_process_rotmod_detects_shi_column_when_not_last(tmp_path):
+    rotmod_path = tmp_path / "ngc2403_rotmod.dat"
+    with rotmod_path.open("w", encoding="utf-8") as handle:
+        handle.write("# Columns: r Vobs eVobs Vgas SHI Vdisk Vbul\n")
+        handle.write("1.0 100.0 2.0 40.0 1.5 60.0 10.0\n")
+        handle.write("2.0 120.0 3.0 45.0 2.0 70.0 12.0\n")
+
+    params = {"NGC2403": {"logMbar": 10.2, "logSigmaHI_out": -0.5}}
+    out = process_rotmod(rotmod_path, params)
+    assert np.allclose(out["logSigmaHI_out"], np.log10(2.0))
+
+
 def test_parse_mass_models_reads_blocked_mrt(tmp_path):
     mrt_path = tmp_path / "MassModels_Lelli2016c.mrt"
     with mrt_path.open("w", encoding="utf-8") as handle:
@@ -114,7 +127,7 @@ def test_parse_mass_models_reads_blocked_mrt(tmp_path):
 
     parsed = parse_mass_models(mrt_path)
     assert set(parsed.keys()) == {"NGC0300", "NGC0891"}
-    assert list(parsed["NGC0300"].columns) == ["r_kpc", "Vobs_kms", "Vgas_kms", "Vdisk_kms", "Vbul_kms"]
+    assert list(parsed["NGC0300"].columns) == MASS_MODEL_COLUMNS
     assert len(parsed["NGC0300"]) == 2
     assert parsed["NGC0891"].iloc[0]["Vobs_kms"] == pytest.approx(200.0)
 
