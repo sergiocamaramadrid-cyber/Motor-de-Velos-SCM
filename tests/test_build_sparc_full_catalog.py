@@ -18,6 +18,7 @@ from scripts.build_sparc_full_catalog import (
     add_master_derived_columns,
     load_master_table,
     norm_name,
+    parse_mass_models,
     process_rotmod,
 )
 
@@ -88,6 +89,34 @@ def test_process_rotmod_converts_to_si_and_joins_master_values(tmp_path):
     assert np.isclose(out.loc[0, "g_bar"], expected_g_bar)
     assert np.all(out["logMbar"] == 10.2)
     assert np.all(out["logSigmaHI_out"] == 0.1)
+
+
+def test_process_rotmod_prefers_hi_density_from_rotmod_when_available(tmp_path):
+    rotmod_path = tmp_path / "ngc2403_rotmod.dat"
+    with rotmod_path.open("w", encoding="utf-8") as handle:
+        handle.write("# Columns: r Vobs eVobs Vgas Vdisk Vbul SHI\n")
+        handle.write("1.0 100.0 2.0 40.0 60.0 10.0 1.5\n")
+        handle.write("2.0 120.0 3.0 45.0 70.0 12.0 2.0\n")
+
+    params = {"NGC2403": {"logMbar": 10.2, "logSigmaHI_out": -0.5}}
+    out = process_rotmod(rotmod_path, params)
+    assert np.allclose(out["logSigmaHI_out"], np.log10(2.0))
+
+
+def test_parse_mass_models_reads_blocked_mrt(tmp_path):
+    mrt_path = tmp_path / "MassModels_Lelli2016c.mrt"
+    with mrt_path.open("w", encoding="utf-8") as handle:
+        handle.write("# Galaxy: NGC0300\n")
+        handle.write("1.0 100.0 40.0 60.0 10.0\n")
+        handle.write("2.0 110.0 45.0 65.0 11.0\n")
+        handle.write("# Galaxy: NGC0891\n")
+        handle.write("1.5 200.0 80.0 90.0 20.0\n")
+
+    parsed = parse_mass_models(mrt_path)
+    assert set(parsed.keys()) == {"NGC0300", "NGC0891"}
+    assert list(parsed["NGC0300"].columns) == ["r_kpc", "Vobs_kms", "Vgas_kms", "Vdisk_kms", "Vbul_kms"]
+    assert len(parsed["NGC0300"]) == 2
+    assert parsed["NGC0891"].iloc[0]["Vobs_kms"] == pytest.approx(200.0)
 
 
 def test_parse_args_defaults_match_sparc_paths():

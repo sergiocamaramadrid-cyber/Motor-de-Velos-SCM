@@ -27,10 +27,70 @@ UPSILON_DISK = 0.5
 UPSILON_BULGE = 0.7
 MRT_HEADER_LINES = 60
 MIN_ROTMOD_COLUMNS = 5
+MASS_MODEL_COLUMNS = ["r_kpc", "Vobs_kms", "Vgas_kms", "Vdisk_kms", "Vbul_kms"]
 
 
 def norm_name(value: str) -> str:
     return str(value).strip().upper().replace(" ", "")
+
+
+def parse_mass_models(path: Path) -> dict[str, pd.DataFrame]:
+    """Parse a SPARC mass-model ``.mrt`` file organized in per-galaxy blocks."""
+    galaxies: dict[str, pd.DataFrame] = {}
+    current_galaxy: str | None = None
+    rows: list[list[float]] = []
+
+    def _flush() -> None:
+        nonlocal rows, current_galaxy
+        if current_galaxy is None or not rows:
+            rows = []
+            return
+        galaxies[current_galaxy] = pd.DataFrame(rows, columns=MASS_MODEL_COLUMNS)
+        rows = []
+
+    with path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for raw_line in handle:
+            line = raw_line.strip()
+            if not line:
+                continue
+
+            if line.startswith("#"):
+                upper = line.upper()
+                if "GALAXY" in upper and ":" in line:
+                    _flush()
+                    current_galaxy = line.split(":", 1)[1].strip()
+                continue
+
+            parts = line.split()
+            if len(parts) < 5:
+                continue
+            try:
+                rows.append([float(value) for value in parts[:5]])
+            except ValueError:
+                continue
+
+    _flush()
+    return galaxies
+
+
+def _detect_hi_surface_density_column(rotmod_path: Path, ncols: int) -> int | None:
+    with rotmod_path.open("r", encoding="utf-8", errors="ignore") as handle:
+        for _ in range(30):
+            line = handle.readline()
+            if not line:
+                break
+            if not line.lstrip().startswith("#"):
+                continue
+            upper = line.upper().replace(",", " ")
+            if "SHI" not in upper and "SIGMAHI" not in upper and "SIGMA_HI" not in upper:
+                continue
+            tokens = [token for token in upper.replace(":", " ").split() if token]
+            for idx, token in enumerate(tokens):
+                if token in {"SHI", "SIGMAHI", "SIGMA_HI"}:
+                    # Common rotmod ordering: r, vobs, evobs, vgas, vdisk, vbul, ... , SHI
+                    # Here we only trust explicit header detection and map to the last column.
+                    return ncols - 1
+    return None
 
 
 def check_local_sparc_data(data_root: Path) -> tuple[Path, list[Path]]:
@@ -241,6 +301,14 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
         vdisk = data[:, 3]
         vbul = data[:, 4]
 
+    hi_col_idx = _detect_hi_surface_density_column(file_path, data.shape[1])
+    hi_logsigma_out = np.nan
+    if hi_col_idx is not None:
+        sigma_values = data[:, hi_col_idx]
+        sigma_values = sigma_values[np.isfinite(sigma_values) & (sigma_values > 0)]
+        if sigma_values.size:
+            hi_logsigma_out = float(np.log10(sigma_values[-1]))
+
     vdisk = vdisk * np.sqrt(UPSILON_DISK)
     vbul = vbul * np.sqrt(UPSILON_BULGE)
 
@@ -268,10 +336,10 @@ def process_rotmod(file_path: Path, galaxy_params: dict[str, dict[str, float]]) 
     out = pd.DataFrame({"galaxy": galaxy, "r_kpc": r, "g_obs": g_obs, "g_bar": g_bar})
     if galaxy_norm in galaxy_params:
         out["logMbar"] = galaxy_params[galaxy_norm]["logMbar"]
-        out["logSigmaHI_out"] = galaxy_params[galaxy_norm]["logSigmaHI_out"]
+        out["logSigmaHI_out"] = hi_logsigma_out if np.isfinite(hi_logsigma_out) else galaxy_params[galaxy_norm]["logSigmaHI_out"]
     else:
         out["logMbar"] = np.nan
-        out["logSigmaHI_out"] = np.nan
+        out["logSigmaHI_out"] = hi_logsigma_out if np.isfinite(hi_logsigma_out) else np.nan
         print(f"[WARN] Galaxy not found in master table: {galaxy} (normalized: {galaxy_norm})")
     return out
 
