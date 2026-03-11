@@ -98,7 +98,30 @@ def test_cli_accepts_missing_raw_sparc_metadata_path(tmp_path: Path) -> None:
         text=True,
     )
 
-    assert result.returncode == 0, result.stderr + result.stdout
-    assert "dataset sintético" in result.stdout
-    assert "coeficientes:" in result.stdout
-    assert "intercepto:" in result.stdout
+    assert result.returncode != 0
+    assert "[ERROR]" in result.stdout
+    assert "catálogo maestro" in result.stdout
+    assert "sparc_175_master.csv" in result.stdout
+
+
+def test_cli_rejects_raw_sparc_metadata_without_f3_columns(tmp_path: Path) -> None:
+    raw_csv = tmp_path / "SPARC_Lelli2016c.csv"
+    pd.DataFrame(
+        {
+            "galaxy": ["G1"],
+            "distance": [10.0],
+            "inclination": [45.0],
+        }
+    ).to_csv(raw_csv, index=False)
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--input", str(raw_csv)],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "[ERROR]" in result.stdout
+    assert "no contiene columnas para esta regresión" in result.stdout
+    assert "sparc_175_master.csv" in result.stdout

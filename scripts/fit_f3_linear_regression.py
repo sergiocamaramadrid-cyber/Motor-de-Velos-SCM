@@ -49,12 +49,19 @@ def _load_training_df(csv_path: Path) -> pd.DataFrame:
         if csv_path.name in RAW_SPARC_METADATA_FILES:
             required = {TARGET_COLUMN, *FEATURE_COLUMNS}
             if not required.issubset(df.columns):
-                return _fallback_master_or_synthetic(csv_path)
+                raise ValueError(
+                    "El archivo de metadatos SPARC no contiene columnas para esta regresión "
+                    f"({', '.join(sorted(required))}). Usa el catálogo maestro, por ejemplo: "
+                    f"{DEFAULT_INPUT}."
+                )
         return df
 
     if csv_path.name != DEFAULT_INPUT:
         if csv_path.name in RAW_SPARC_METADATA_FILES:
-            return _fallback_master_or_synthetic(csv_path)
+            raise FileNotFoundError(
+                f"No existe el archivo de metadatos SPARC: {csv_path}. "
+                f"Para ajustar F3, usa el catálogo maestro (ej.: {DEFAULT_INPUT})."
+            )
         raise FileNotFoundError(f"No existe el CSV de entrada: {csv_path}")
 
     return _fallback_master_or_synthetic(csv_path)
@@ -89,7 +96,11 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
-    model = fit_f3_model(Path(args.input))
+    try:
+        model = fit_f3_model(Path(args.input))
+    except (FileNotFoundError, ValueError) as exc:
+        print(f"[ERROR] {exc}")
+        return 1
     print("coeficientes:", model.coef_)
     print("intercepto:", model.intercept_)
     return 0
