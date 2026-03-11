@@ -11,6 +11,7 @@ from sklearn.linear_model import LinearRegression
 FEATURE_COLUMNS = ["logSigmaHI_out", "logMbar", "logRd"]
 TARGET_COLUMN = "F3"
 DEFAULT_INPUT = "sparc_175_master.csv"
+RAW_SPARC_METADATA_FILES = {"SPARC_Lelli2016c.csv", "SPARC_Lelli2016c.mrt"}
 
 
 def _synthetic_fallback_df() -> pd.DataFrame:
@@ -28,24 +29,35 @@ def _synthetic_fallback_df() -> pd.DataFrame:
     )
 
 
-def _load_training_df(csv_path: Path) -> pd.DataFrame:
-    if csv_path.exists():
-        return pd.read_csv(csv_path)
-
-    if csv_path.name != DEFAULT_INPUT:
-        raise FileNotFoundError(f"No existe el CSV de entrada: {csv_path}")
-
+def _fallback_master_or_synthetic(origin_path: Path) -> pd.DataFrame:
     fallback_candidates = [
         Path("data") / DEFAULT_INPUT,
         Path("results") / "SPARC" / DEFAULT_INPUT,
     ]
     for candidate in fallback_candidates:
         if candidate.exists():
-            print(f"[INFO] CSV no encontrado en {csv_path}; usando {candidate}")
+            print(f"[INFO] CSV no encontrado o no compatible en {origin_path}; usando {candidate}")
             return pd.read_csv(candidate)
 
-    print("[INFO] CSV por defecto no encontrado; usando dataset sintético de demostración.")
+    print("[INFO] CSV de entrenamiento no disponible; usando dataset sintético de demostración.")
     return _synthetic_fallback_df()
+
+
+def _load_training_df(csv_path: Path) -> pd.DataFrame:
+    if csv_path.exists():
+        df = pd.read_csv(csv_path)
+        if csv_path.name in RAW_SPARC_METADATA_FILES:
+            required = {TARGET_COLUMN, *FEATURE_COLUMNS}
+            if not required.issubset(df.columns):
+                return _fallback_master_or_synthetic(csv_path)
+        return df
+
+    if csv_path.name != DEFAULT_INPUT:
+        if csv_path.name in RAW_SPARC_METADATA_FILES:
+            return _fallback_master_or_synthetic(csv_path)
+        raise FileNotFoundError(f"No existe el CSV de entrada: {csv_path}")
+
+    return _fallback_master_or_synthetic(csv_path)
 
 
 def fit_f3_model(csv_path: Path) -> LinearRegression:

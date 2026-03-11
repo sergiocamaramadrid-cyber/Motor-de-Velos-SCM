@@ -87,3 +87,18 @@ def test_cli_falls_back_to_synthetic_if_default_is_missing(tmp_path: Path) -> No
     assert "intercepto:" in result.stdout
     assert "1.5" in result.stdout
     assert "-0.75" in result.stdout
+
+
+def test_cli_accepts_missing_raw_sparc_metadata_path(tmp_path: Path) -> None:
+    missing_raw = tmp_path / "SPARC_Lelli2016c.csv"
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), "--input", str(missing_raw)],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "dataset sintético" in result.stdout
+    assert "coeficientes:" in result.stdout
+    assert "intercepto:" in result.stdout
