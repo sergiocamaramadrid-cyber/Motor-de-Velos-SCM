@@ -41,12 +41,14 @@ def test_build_sparc_175_master_writes_required_contract_and_formulas(tmp_path):
     assert out_path.exists()
     assert list(out.columns) == [
         "galaxy",
+        "F3",
         "deep_slope",
         "delta_f3",
         "n_tail_points",
         "tail_r_min",
         "tail_r_max",
         "logSigmaHI_out",
+        "logMbar",
         "logMstar",
         "logRd",
         "inclination",
@@ -55,6 +57,7 @@ def test_build_sparc_175_master_writes_required_contract_and_formulas(tmp_path):
 
     g1 = out.loc[out["galaxy"] == "G1"].iloc[0]
     assert g1["deep_slope"] == pytest.approx(-0.2, abs=1e-10)
+    assert g1["F3"] == pytest.approx(-0.2, abs=1e-10)
     assert g1["delta_f3"] == pytest.approx(0.3, abs=1e-10)
     assert int(g1["n_tail_points"]) == 5
     assert g1["tail_r_min"] == pytest.approx(2.0)
@@ -62,6 +65,7 @@ def test_build_sparc_175_master_writes_required_contract_and_formulas(tmp_path):
     expected_sigma = (1.0 * 1e9) / (np.pi * (10.0**2) * 1e6)
     assert g1["logSigmaHI_out"] == pytest.approx(np.log10(expected_sigma))
     assert g1["logMstar"] == pytest.approx(np.log10(0.5 * 2.0) + 9.0)
+    assert g1["logMbar"] == pytest.approx(np.log10((0.5 * 2.0) + (1.33 * 1.0)) + 9.0)
     assert g1["logRd"] == pytest.approx(np.log10(2.5))
     assert g1["inclination"] == pytest.approx(60.0)
 

@@ -10,12 +10,14 @@ from scipy.stats import linregress
 
 REQUIRED_COLUMNS = [
     "galaxy",
+    "F3",
     "deep_slope",
     "delta_f3",
     "n_tail_points",
     "tail_r_min",
     "tail_r_max",
     "logSigmaHI_out",
+    "logMbar",
     "logMstar",
     "logRd",
     "inclination",
@@ -118,9 +120,13 @@ def _load_metadata(path: Path) -> pd.DataFrame:
         np.log10(STELLAR_MASS_TO_LIGHT_36 * out["L_3.6"]) + LOG10_TO_SOLAR_MASS_OFFSET,
         np.nan,
     )
+    mbar = (STELLAR_MASS_TO_LIGHT_36 * out["L_3.6"]) + (1.33 * out["MHI"])
+    out["logMbar"] = np.where(mbar > 0, np.log10(mbar) + LOG10_TO_SOLAR_MASS_OFFSET, np.nan)
     out["logRd"] = np.where(out["Rdisk"] > 0, np.log10(out["Rdisk"]), np.nan)
 
-    return out[["galaxy_norm", "logSigmaHI_out", "logMstar", "logRd", "inclination"]].drop_duplicates("galaxy_norm")
+    return out[
+        ["galaxy_norm", "logSigmaHI_out", "logMbar", "logMstar", "logRd", "inclination"]
+    ].drop_duplicates("galaxy_norm")
 
 
 def _iter_rotmod_files(rotmod_dir: Path) -> list[Path]:
@@ -196,8 +202,10 @@ def build_sparc_175_master(
         props = meta_map.get(_norm_galaxy(galaxy), {})
         row = {
             "galaxy": galaxy,
+            "F3": slope_data["deep_slope"],
             **slope_data,
             "logSigmaHI_out": props.get("logSigmaHI_out", np.nan),
+            "logMbar": props.get("logMbar", np.nan),
             "logMstar": props.get("logMstar", np.nan),
             "logRd": props.get("logRd", np.nan),
             "inclination": props.get("inclination", np.nan),
@@ -226,7 +234,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--out",
-        default="data/sparc_175_master.csv",
+        default="sparc_175_master.csv",
         help="Output CSV path.",
     )
     parser.add_argument(
