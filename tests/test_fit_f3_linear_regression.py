@@ -85,3 +85,5 @@ def test_cli_falls_back_to_synthetic_if_default_is_missing(tmp_path: Path) -> No
     assert "dataset sintético" in result.stdout
     assert "coeficientes:" in result.stdout
     assert "intercepto:" in result.stdout
+    assert "1.5" in result.stdout
+    assert "-0.75" in result.stdout
