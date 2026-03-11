@@ -49,12 +49,13 @@ def test_build_sparc_master_alias_generates_full_catalog(tmp_path):
         str(repo_root / "scripts" / "build_sparc_master.py"),
         "--data-root",
         str(sparc_dir),
+        "--out",
+        str(tmp_path / "sparc_175_master.csv"),
     ]
     result = subprocess.run(cmd, capture_output=True, text=True, check=False)
 
     assert result.returncode == 0, result.stderr or result.stdout
-    out_csv = repo_root / "sparc_175_master.csv"
+    out_csv = tmp_path / "sparc_175_master.csv"
     assert out_csv.exists()
     out_df = pd.read_csv(out_csv)
     assert {"galaxy", "F3", "logSigmaHI_out", "logMbar", "logRd"}.issubset(out_df.columns)
-    out_csv.unlink()
