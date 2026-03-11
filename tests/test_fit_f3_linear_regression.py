@@ -55,3 +55,19 @@ def test_cli_prints_coefficients_and_intercept(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert "coeficientes:" in result.stdout
     assert "intercepto:" in result.stdout
+
+
+def test_cli_uses_default_input_name_in_cwd(tmp_path: Path) -> None:
+    csv_path = tmp_path / "sparc_175_master.csv"
+    _make_master(csv_path)
+
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT)],
+        cwd=str(tmp_path),
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr + result.stdout
+    assert "coeficientes:" in result.stdout
+    assert "intercepto:" in result.stdout

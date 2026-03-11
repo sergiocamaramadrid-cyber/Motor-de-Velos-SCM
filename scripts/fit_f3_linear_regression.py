@@ -32,8 +32,8 @@ def _parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--input",
-        default="data/sparc_175_master.csv",
-        help="Ruta al CSV de entrada (default: data/sparc_175_master.csv).",
+        default="sparc_175_master.csv",
+        help="Ruta al CSV de entrada (default: sparc_175_master.csv).",
     )
     return parser.parse_args()
 
