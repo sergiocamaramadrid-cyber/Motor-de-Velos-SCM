@@ -103,6 +103,13 @@ def main() -> int:
         return 1
     print("coeficientes:", model.coef_)
     print("intercepto:", model.intercept_)
+    print(
+        "F_3 = "
+        f"{model.intercept_:.6g} + "
+        f"({model.coef_[0]:.6g})logSigmaHI_out + "
+        f"({model.coef_[1]:.6g})logMbar + "
+        f"({model.coef_[2]:.6g})logRd"
+    )
     return 0
 
 

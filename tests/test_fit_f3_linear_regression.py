@@ -55,6 +55,10 @@ def test_cli_prints_coefficients_and_intercept(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert "coeficientes:" in result.stdout
     assert "intercepto:" in result.stdout
+    assert "F_3 =" in result.stdout
+    assert "logSigmaHI_out" in result.stdout
+    assert "logMbar" in result.stdout
+    assert "logRd" in result.stdout
 
 
 def test_cli_uses_default_input_name_in_cwd(tmp_path: Path) -> None:
@@ -71,6 +75,7 @@ def test_cli_uses_default_input_name_in_cwd(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr + result.stdout
     assert "coeficientes:" in result.stdout
     assert "intercepto:" in result.stdout
+    assert "F_3 =" in result.stdout
 
 
 def test_cli_falls_back_to_synthetic_if_default_is_missing(tmp_path: Path) -> None:
