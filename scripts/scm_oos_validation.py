@@ -40,6 +40,8 @@ def _gaussian_log_likelihood(errors: np.ndarray) -> float:
     errors = np.asarray(errors, dtype=float)
     if errors.size == 0:
         return float("nan")
+    # Use the MLE variance (divide by n), which is the consistent choice
+    # for Gaussian log-likelihood evaluation.
     sigma2 = float(np.mean(errors**2))
     if not np.isfinite(sigma2) or sigma2 <= 0.0:
         return float("nan")
@@ -135,9 +137,9 @@ def run_oos_validation(
         median_delta_logl,
         linestyle="--",
         color="tab:purple",
-        label="Median ΔlogL_out = logL_SCM - logL_baseline",
+        label="Median ΔlogL_out = logL_scm - logL_baseline",
     )
-    plt.xlabel("ΔlogL_out = logL_SCM - logL_baseline")
+    plt.xlabel("ΔlogL_out = logL_scm - logL_baseline")
     plt.ylabel("Count")
     plt.title("OOS ΔlogL distribution")
     plt.legend()
