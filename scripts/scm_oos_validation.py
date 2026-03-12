@@ -4,6 +4,7 @@ Out-of-sample (OOS) validation for SCM vs a baseline RAR model.
 This script produces the branch-documented artifacts:
   - results/oos_validation/oos_generalization_results.csv
   - results/oos_validation/hist_delta_rmse_out.pdf
+  - results/oos_validation/hist_delta_logL_out.pdf
   - results/oos_validation/oos_terminal_log.txt
 """
 
@@ -35,6 +36,17 @@ def _split_out_indices(n: int) -> np.ndarray:
     return out
 
 
+def _gaussian_log_likelihood(errors: np.ndarray) -> float:
+    errors = np.asarray(errors, dtype=float)
+    if errors.size == 0:
+        return float("nan")
+    sigma2 = float(np.mean(errors**2))
+    if not np.isfinite(sigma2) or sigma2 <= 0.0:
+        return float("nan")
+    n = errors.size
+    return float(-0.5 * n * (np.log(2.0 * np.pi * sigma2) + 1.0))
+
+
 def run_oos_validation(
     comparison_csv: Path,
     out_dir: Path,
@@ -62,6 +74,10 @@ def run_oos_validation(
 
         rmse_baseline = float(np.sqrt(np.mean((gobs - gpred_baseline) ** 2)))
         rmse_scm = float(np.sqrt(np.mean((gobs - gpred_scm) ** 2)))
+        err_baseline = gobs - gpred_baseline
+        err_scm = gobs - gpred_scm
+        logl_baseline = _gaussian_log_likelihood(err_baseline)
+        logl_scm = _gaussian_log_likelihood(err_scm)
         rows.append(
             {
                 "galaxy": str(galaxy),
@@ -69,6 +85,9 @@ def run_oos_validation(
                 "rmse_out_baseline": rmse_baseline,
                 "rmse_out_scm": rmse_scm,
                 "delta_rmse_out": rmse_scm - rmse_baseline,
+                "logL_out_baseline": logl_baseline,
+                "logL_out_scm": logl_scm,
+                "delta_logL_out": logl_scm - logl_baseline,
             }
         )
 
@@ -109,9 +128,27 @@ def run_oos_validation(
     plt.savefig(out_dir / "hist_delta_rmse_out.pdf")
     plt.close()
 
+    plt.figure(figsize=(6.5, 4.0))
+    plt.hist(out_df["delta_logL_out"], bins=20)
+    median_delta_logl = float(out_df["delta_logL_out"].median()) if len(out_df) else float("nan")
+    plt.axvline(
+        median_delta_logl,
+        linestyle="--",
+        color="tab:purple",
+        label="Median ΔlogL_out = logL_SCM - logL_baseline",
+    )
+    plt.xlabel("ΔlogL_out = logL_SCM - logL_baseline")
+    plt.ylabel("Count")
+    plt.title("OOS ΔlogL distribution")
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(out_dir / "hist_delta_logL_out.pdf")
+    plt.close()
+
     lines = [
         f"n_galaxies = {len(out_df)}",
         f"median ΔRMSE_out = {median_delta}",
+        f"median ΔlogL_out = {median_delta_logl}",
         f"p-value Wilcoxon = {p_value}",
     ]
     (out_dir / "oos_terminal_log.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")

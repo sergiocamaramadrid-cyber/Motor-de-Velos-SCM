@@ -330,6 +330,7 @@ Use this sequence to "walk" the full SPARC sample with reproducible checks, from
    Open:
 
    - `hist_delta_rmse_out.pdf`
+   - `hist_delta_logL_out.pdf`
 
    with:
 
