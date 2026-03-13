@@ -15,6 +15,9 @@ from pathlib import Path
 import pandas as pd
 import numpy as np
 
+TAIL_THRESHOLD_R_SCALED = 0.7
+F3_REFERENCE_SLOPE = 0.5
+
 
 def compute_tail_slope(r, v):
     r = np.asarray(r)
@@ -26,7 +29,8 @@ def compute_tail_slope(r, v):
     log_r = np.log10(r)
     log_v = np.log10(v)
 
-    slope, _ = np.polyfit(log_r, log_v, 1)
+    slope, intercept = np.polyfit(log_r, log_v, 1)
+    _ = intercept
 
     return slope
 
@@ -35,7 +39,7 @@ def compute_f3_from_rotcurve(df):
     r = df["r_scaled"].values
     v = df["v_scaled"].values
 
-    tail_mask = r >= 0.7
+    tail_mask = r >= TAIL_THRESHOLD_R_SCALED
 
     r_tail = r[tail_mask]
     v_tail = v[tail_mask]
@@ -80,7 +84,7 @@ def main():
 
         slope, n_tail = compute_f3_from_rotcurve(sub)
 
-        delta_f3 = slope - 0.5 if not np.isnan(slope) else np.nan
+        delta_f3 = slope - F3_REFERENCE_SLOPE if not np.isnan(slope) else np.nan
 
         rows.append(
             {
