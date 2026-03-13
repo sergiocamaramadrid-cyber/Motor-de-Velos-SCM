@@ -22,21 +22,15 @@ import numpy as np
 import pandas as pd
 
 try:
-    from scripts.blind_test_little_things import (
-        A0_DEFAULT,
-        GAS_FRACTION_DEFAULT,
-        REQUIRED_COLS,
-        predict_logv_btfr,
-        predict_logv_interp,
-    )
+    from scripts import blind_test_little_things as _blind_lt
 except ModuleNotFoundError:  # pragma: no cover - runtime path fallback
-    from blind_test_little_things import (
-        A0_DEFAULT,
-        GAS_FRACTION_DEFAULT,
-        REQUIRED_COLS,
-        predict_logv_btfr,
-        predict_logv_interp,
-    )
+    import blind_test_little_things as _blind_lt
+
+A0_DEFAULT = _blind_lt.A0_DEFAULT
+GAS_FRACTION_DEFAULT = _blind_lt.GAS_FRACTION_DEFAULT
+REQUIRED_COLS = _blind_lt.REQUIRED_COLS
+predict_logv_btfr = _blind_lt.predict_logv_btfr
+predict_logv_interp = _blind_lt.predict_logv_interp
 
 DEFAULT_CATALOG = Path("data/little_things_global.csv")
 SCRIPT_VERSION = "pilot-v0.1"
@@ -89,8 +83,8 @@ def run_pilot(
     a0: float = A0_DEFAULT,
 ) -> tuple[Path, Path, Path]:
     """Run pilot and write outputs; returns (predictions, summary, metadata)."""
+    catalog_path = Path(catalog_path)
     rng = random.Random(seed)
-    np.random.seed(seed)
 
     catalog = load_catalog(catalog_path)
     sample_n = min(n, len(catalog))
@@ -146,7 +140,7 @@ def run_pilot(
 
     metadata = {
         "git_commit": get_git_hash(),
-        "catalog_file": str(Path(catalog_path)),
+        "catalog_file": str(catalog_path),
         "catalog_hash": compute_file_hash(catalog_path),
         "seed": seed,
         "n_requested": n,
@@ -156,7 +150,7 @@ def run_pilot(
         "a0": a0,
         "script_version": SCRIPT_VERSION,
     }
-    metadata_path = outdir / f"pilot_metadata_n{sample_n}_seed{seed}.json"
+    metadata_path = outdir / f"pilot_metadata_n{sample_n}_seed{seed}-{SCRIPT_VERSION}.json"
     with metadata_path.open("w", encoding="utf-8") as fh:
         json.dump(metadata, fh, indent=2, ensure_ascii=False)
 

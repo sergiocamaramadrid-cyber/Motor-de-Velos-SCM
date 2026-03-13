@@ -59,7 +59,7 @@ def test_run_pilot_writes_outputs_and_metadata(tmp_path: Path) -> None:
 
     pred = pd.read_csv(pred_path)
     assert len(pred) == 3
-    assert set(["pred_logV_btfr", "pred_logV_interp", "best_model"]).issubset(pred.columns)
+    assert {"pred_logV_btfr", "pred_logV_interp", "best_model"}.issubset(pred.columns)
 
     summary = pd.read_csv(summary_path)
     assert set(summary["model"]) == {"btfr", "interp"}
