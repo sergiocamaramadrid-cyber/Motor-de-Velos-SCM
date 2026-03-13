@@ -3,14 +3,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+DELTA_F3_ABS_MAX = 2
+
 
 def test_f3_catalog_exists() -> None:
     path = Path("results/combined/f3_combined_catalog.csv")
 
     if not path.exists():
         pytest.skip("Artifact not present: f3_combined_catalog.csv")
-
-    assert path.exists()
 
 
 def test_f3_columns() -> None:
@@ -44,6 +44,6 @@ def test_delta_f3_range() -> None:
 
     valid = df["delta_f3"].dropna()
     if len(valid) == 0:
-        pytest.skip("No valid ΔF3 values")
+        pytest.skip("No valid delta_f3 values")
 
-    assert valid.abs().max() < 2
+    assert valid.abs().max() < DELTA_F3_ABS_MAX
