@@ -42,6 +42,37 @@ def read_table(path: str | Path) -> pd.DataFrame:
     return pd.read_csv(path)
 
 
+def check_required_columns(df: pd.DataFrame, required: list[str]) -> None:
+    missing = [c for c in required if c not in df.columns]
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+
+def load_csv_checked(
+    path: str | Path, required_columns: list[str] | None = None
+) -> pd.DataFrame:
+    path = Path(path)
+    if not path.exists():
+        raise FileNotFoundError(path)
+
+    df = pd.read_csv(path)
+    if required_columns:
+        check_required_columns(df, required_columns)
+    return df
+
+
+def summarize_column(df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in df.columns:
+        raise ValueError(f"Column not found: {column}")
+    return df[column].describe()
+
+
+def count_flags(df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in df.columns:
+        raise ValueError(f"Column not found: {column}")
+    return df[column].value_counts()
+
+
 def validate_contract(df: pd.DataFrame, source: str = "<unknown>") -> pd.DataFrame:
     missing_master = [c for c in CONTRACT_COLUMNS if c not in df.columns]
     if not missing_master:
