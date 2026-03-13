@@ -3,9 +3,8 @@
 """
 Construye el catálogo maestro del Framework SCM.
 
-Combina:
+Por ahora incluye:
 
-SPARC
 LITTLE THINGS
 
 Salida:
