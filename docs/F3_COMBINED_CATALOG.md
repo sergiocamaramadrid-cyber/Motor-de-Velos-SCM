@@ -8,19 +8,19 @@ Calcula observables del Framework SCM sobre el catálogo combinado.
 python scripts/compute_f3_combined_catalog.py
 ```
 
-Entradas
+## Entradas
 
 results/combined/framework_master_catalog.csv
 
 results/LITTLE_THINGS_Oh2015/little_things_rotcurves.csv
 
 
-Salida
+## Salida
 
 results/combined/f3_combined_catalog.csv
 
 
-Columnas clave
+## Columnas clave
 
 f3_scm
 
@@ -41,7 +41,7 @@ fit_ok_reason
 quality_flag
 
 
-Definición actual
+## Definición actual
 
 delta_f3 = f3_scm - 0.5
 

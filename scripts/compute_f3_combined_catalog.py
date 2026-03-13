@@ -28,6 +28,7 @@ F3_REFERENCE_SLOPE = 0.5
 DEFAULT_TAIL_RMIN = 0.7
 DEFAULT_MIN_TAIL_POINTS = 3
 FIT_METHOD = "polyfit_log10"
+QUALITY_RESTRICTED_TAIL_THRESHOLD = 0.7
 
 
 def compute_tail_slope(r: np.ndarray, v: np.ndarray) -> float:
@@ -48,12 +49,17 @@ def compute_tail_slope(r: np.ndarray, v: np.ndarray) -> float:
     return float(slope)
 
 
-def classify_quality(fit_ok: bool, n_tail_points: int, tail_rmin: float) -> str:
+def classify_quality(
+    fit_ok: bool,
+    n_tail_points: int,
+    tail_rmin: float,
+    min_tail_points: int,
+) -> str:
     if not fit_ok:
         return "no_valid_tail_fit"
-    if n_tail_points < 4:
+    if n_tail_points == min_tail_points:
         return "minimal_tail"
-    if tail_rmin > 0.7:
+    if tail_rmin > QUALITY_RESTRICTED_TAIL_THRESHOLD:
         return "restricted_tail"
     return "ok"
 
@@ -107,6 +113,7 @@ def compute_f3_from_rotcurve(
         fit_ok=fit_ok,
         n_tail_points=int(len(r_tail)),
         tail_rmin=float(tail_rmin),
+        min_tail_points=min_tail_points,
     )
 
     return {
