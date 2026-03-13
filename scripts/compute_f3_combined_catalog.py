@@ -17,13 +17,14 @@ import numpy as np
 
 TAIL_THRESHOLD_R_SCALED = 0.7
 F3_REFERENCE_SLOPE = 0.5
+MIN_POINTS_FOR_FIT = 3
 
 
 def compute_tail_slope(r, v):
     r = np.asarray(r)
     v = np.asarray(v)
 
-    if len(r) < 3:
+    if len(r) < MIN_POINTS_FOR_FIT:
         return np.nan
 
     log_r = np.log10(r)
@@ -43,7 +44,7 @@ def compute_f3_from_rotcurve(df):
     r_tail = r[tail_mask]
     v_tail = v[tail_mask]
 
-    if len(r_tail) < 3:
+    if len(r_tail) < MIN_POINTS_FOR_FIT:
         return np.nan, 0
 
     slope = compute_tail_slope(r_tail, v_tail)
