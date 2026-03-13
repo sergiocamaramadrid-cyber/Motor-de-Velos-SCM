@@ -9,106 +9,228 @@ Entradas:
 
 Salida:
 - results/combined/f3_combined_catalog.csv
+
+Definiciones oficiales de esta versión:
+- f3_scm := pendiente dlog(V)/dlog(R) ajustada en la cola externa
+- delta_f3 := f3_scm - 0.5
+- cola externa := puntos con r_scaled >= tail_rmin
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-import pandas as pd
+import argparse
 import numpy as np
+import pandas as pd
 
-TAIL_THRESHOLD_R_SCALED = 0.7
+
 F3_REFERENCE_SLOPE = 0.5
-MIN_POINTS_FOR_FIT = 3
+DEFAULT_TAIL_RMIN = 0.7
+DEFAULT_MIN_TAIL_POINTS = 3
+FIT_METHOD = "polyfit_log10"
 
 
-def compute_tail_slope(r, v):
-    r = np.asarray(r)
-    v = np.asarray(v)
+def compute_tail_slope(r: np.ndarray, v: np.ndarray) -> float:
+    r = np.asarray(r, dtype=float)
+    v = np.asarray(v, dtype=float)
 
-    if len(r) < MIN_POINTS_FOR_FIT:
+    mask = np.isfinite(r) & np.isfinite(v) & (r > 0) & (v > 0)
+    r = r[mask]
+    v = v[mask]
+
+    if len(r) < 2:
         return np.nan
 
     log_r = np.log10(r)
     log_v = np.log10(v)
 
     slope, _ = np.polyfit(log_r, log_v, 1)
+    return float(slope)
 
-    return slope
+
+def classify_quality(fit_ok: bool, n_tail_points: int, tail_rmin: float) -> str:
+    if not fit_ok:
+        return "no_valid_tail_fit"
+    if n_tail_points < 4:
+        return "minimal_tail"
+    if tail_rmin > 0.7:
+        return "restricted_tail"
+    return "ok"
 
 
-def compute_f3_from_rotcurve(df):
-    r = df["r_scaled"].values
-    v = df["v_scaled"].values
+def compute_f3_from_rotcurve(
+    df: pd.DataFrame,
+    tail_rmin: float = DEFAULT_TAIL_RMIN,
+    min_tail_points: int = DEFAULT_MIN_TAIL_POINTS,
+) -> dict:
+    r = df["r_scaled"].to_numpy(dtype=float)
+    v = df["v_scaled"].to_numpy(dtype=float)
 
-    tail_mask = r >= TAIL_THRESHOLD_R_SCALED
+    finite_mask = np.isfinite(r) & np.isfinite(v) & (r > 0) & (v > 0)
+    r = r[finite_mask]
+    v = v[finite_mask]
 
+    tail_mask = r >= tail_rmin
     r_tail = r[tail_mask]
     v_tail = v[tail_mask]
 
-    if len(r_tail) < MIN_POINTS_FOR_FIT:
-        return np.nan, 0
+    if len(r_tail) < min_tail_points:
+        return {
+            "f3_scm": np.nan,
+            "delta_f3": np.nan,
+            "tail_slope": np.nan,
+            "n_tail_points": int(len(r_tail)),
+            "tail_rmin": float(tail_rmin),
+            "fit_method": FIT_METHOD,
+            "fit_ok": False,
+            "fit_ok_reason": "insufficient_tail_points",
+            "quality_flag": "no_valid_tail_fit",
+        }
 
     slope = compute_tail_slope(r_tail, v_tail)
 
-    return slope, len(r_tail)
+    if not np.isfinite(slope):
+        return {
+            "f3_scm": np.nan,
+            "delta_f3": np.nan,
+            "tail_slope": np.nan,
+            "n_tail_points": int(len(r_tail)),
+            "tail_rmin": float(tail_rmin),
+            "fit_method": FIT_METHOD,
+            "fit_ok": False,
+            "fit_ok_reason": "invalid_polyfit",
+            "quality_flag": "no_valid_tail_fit",
+        }
+
+    fit_ok = True
+    quality_flag = classify_quality(
+        fit_ok=fit_ok,
+        n_tail_points=int(len(r_tail)),
+        tail_rmin=float(tail_rmin),
+    )
+
+    return {
+        "f3_scm": float(slope),
+        "delta_f3": float(slope - F3_REFERENCE_SLOPE),
+        "tail_slope": float(slope),
+        "n_tail_points": int(len(r_tail)),
+        "tail_rmin": float(tail_rmin),
+        "fit_method": FIT_METHOD,
+        "fit_ok": True,
+        "fit_ok_reason": "ok",
+        "quality_flag": quality_flag,
+    }
 
 
-def main():
-    master_path = Path("results/combined/framework_master_catalog.csv")
-    rot_path = Path("results/LITTLE_THINGS_Oh2015/little_things_rotcurves.csv")
-
-    if not master_path.exists():
-        raise FileNotFoundError(master_path)
-
-    if not rot_path.exists():
-        raise FileNotFoundError(rot_path)
-
-    master = pd.read_csv(master_path)
-    rot = pd.read_csv(rot_path)
-
+def build_f3_catalog(
+    master: pd.DataFrame,
+    rot: pd.DataFrame,
+    tail_rmin: float = DEFAULT_TAIL_RMIN,
+    min_tail_points: int = DEFAULT_MIN_TAIL_POINTS,
+) -> pd.DataFrame:
     rows = []
 
-    for galaxy in master["galaxy"]:
-        sub = rot[rot["galaxy"] == galaxy]
+    for _, row in master.iterrows():
+        galaxy = row["galaxy"]
+        source_catalog = row.get("source_catalog", "UNKNOWN")
+        rotcurve_available = bool(row.get("rotcurve_available", False))
 
-        if len(sub) == 0:
+        sub = rot[rot["galaxy"] == galaxy].copy()
+
+        if (not rotcurve_available) or len(sub) == 0:
             rows.append(
                 {
                     "galaxy": galaxy,
+                    "source_catalog": source_catalog,
                     "f3_scm": np.nan,
                     "delta_f3": np.nan,
+                    "tail_slope": np.nan,
                     "n_tail_points": 0,
+                    "tail_rmin": float(tail_rmin),
+                    "fit_method": FIT_METHOD,
                     "fit_ok": False,
+                    "fit_ok_reason": "no_rotcurve_data",
+                    "quality_flag": "no_rotcurve_data",
                 }
             )
             continue
 
-        slope, n_tail = compute_f3_from_rotcurve(sub)
-
-        delta_f3 = slope - F3_REFERENCE_SLOPE if not np.isnan(slope) else np.nan
+        metrics = compute_f3_from_rotcurve(
+            sub,
+            tail_rmin=tail_rmin,
+            min_tail_points=min_tail_points,
+        )
 
         rows.append(
             {
                 "galaxy": galaxy,
-                "f3_scm": slope,
-                "delta_f3": delta_f3,
-                "n_tail_points": n_tail,
-                "fit_ok": not np.isnan(slope),
+                "source_catalog": source_catalog,
+                **metrics,
             }
         )
 
     f3 = pd.DataFrame(rows)
+    combined = master.merge(
+        f3.drop(columns=["source_catalog"], errors="ignore"),
+        on="galaxy",
+        how="left",
+        validate="one_to_one",
+    )
+    return combined
 
-    combined = master.merge(f3, on="galaxy", how="left")
 
-    outdir = Path("results/combined")
-    outdir.mkdir(parents=True, exist_ok=True)
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--master-path",
+        type=Path,
+        default=Path("results/combined/framework_master_catalog.csv"),
+    )
+    parser.add_argument(
+        "--rot-path",
+        type=Path,
+        default=Path("results/LITTLE_THINGS_Oh2015/little_things_rotcurves.csv"),
+    )
+    parser.add_argument(
+        "--out-path",
+        type=Path,
+        default=Path("results/combined/f3_combined_catalog.csv"),
+    )
+    parser.add_argument(
+        "--tail-rmin",
+        type=float,
+        default=DEFAULT_TAIL_RMIN,
+    )
+    parser.add_argument(
+        "--min-tail-points",
+        type=int,
+        default=DEFAULT_MIN_TAIL_POINTS,
+    )
+    args = parser.parse_args()
 
-    out = outdir / "f3_combined_catalog.csv"
+    if not args.master_path.exists():
+        raise FileNotFoundError(args.master_path)
 
-    combined.to_csv(out, index=False)
+    if not args.rot_path.exists():
+        raise FileNotFoundError(args.rot_path)
 
-    print("F3 catalog creado:")
-    print(out)
+    master = pd.read_csv(args.master_path)
+    rot = pd.read_csv(args.rot_path)
+
+    combined = build_f3_catalog(
+        master=master,
+        rot=rot,
+        tail_rmin=args.tail_rmin,
+        min_tail_points=args.min_tail_points,
+    )
+
+    args.out_path.parent.mkdir(parents=True, exist_ok=True)
+    combined.to_csv(args.out_path, index=False)
+
+    print("F3 combined catalog creado:")
+    print(args.out_path)
+    print(f"N galaxias: {len(combined)}")
+    print(f"Fit OK: {int(combined['fit_ok'].fillna(False).sum())}")
 
 
 if __name__ == "__main__":
