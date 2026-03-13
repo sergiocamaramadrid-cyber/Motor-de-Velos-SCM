@@ -1,13 +1,14 @@
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 
 def test_master_catalog_columns():
     path = Path("results/combined/framework_master_catalog.csv")
 
     if not path.exists():
-        return
+        pytest.skip("framework_master_catalog.csv not generated in this environment")
 
     df = pd.read_csv(path)
 
