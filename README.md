@@ -161,6 +161,24 @@ Main outputs under `results/SPARC/scm_run/`:
 - `top10_universal.tex`
 - `scm_summary.json`
 
+### LITTLE THINGS pilot (real dataset smoke test)
+
+Run a reproducible pilot on a random subset of the shipped
+`data/little_things_global.csv` table:
+
+```bash
+python scripts/pilot_little_things.py \
+  --n 10 \
+  --seed 42 \
+  --catalog data/little_things_global.csv \
+  --outdir results/pilot
+```
+
+Outputs under `results/pilot/`:
+- `pilot_predictions_n<N>_seed<S>-pilot-v0.1.csv`
+- `pilot_summary_n<N>_seed<S>-pilot-v0.1.csv`
+- `pilot_metadata_n<N>_seed<S>.json`
+
 Also supported (compatibility alias):
 
 ```bash
