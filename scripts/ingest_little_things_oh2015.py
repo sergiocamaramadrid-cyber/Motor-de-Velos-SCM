@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Ingesta reproducible de LITTLE THINGS (Oh+2015, J/AJ/149/180)
+Ingestión reproducible de LITTLE THINGS (Oh+2015, J/AJ/149/180)
 para el Framework SCM-Motor de Velos.
 
 Entradas esperadas:
@@ -16,10 +16,13 @@ Salidas:
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+
+MIN_VALID_FIELDS_FOR_FIXED_WIDTH = 3
 
 
 def _parse_float(x: str) -> float:
@@ -42,7 +45,7 @@ def _read_slice(line: str, start: int, end: int) -> str:
 
 def _likely_fixed_width(values: dict[str, float]) -> bool:
     finite_count = sum(np.isfinite(v) for v in values.values())
-    return finite_count >= 3
+    return finite_count >= MIN_VALID_FIELDS_FOR_FIXED_WIDTH
 
 
 def _fallback_galaxy_from_tokens(tokens: list[str]) -> str:
@@ -153,6 +156,7 @@ def read_rotdmbar(path: Path) -> pd.DataFrame:
                 continue
 
             galaxy = _parse_str(_read_slice(line, 0, 8))
+            # rotdmbar follows CDS fixed-width format where data_type is at columns 10-14.
             data_type = _parse_str(_read_slice(line, 9, 14))
             r03_kpc = _parse_float(_read_slice(line, 15, 23))
             v03_kms = _parse_float(_read_slice(line, 24, 34))
@@ -224,7 +228,8 @@ def build_outputs(data_root: Path, out_root: Path) -> None:
         "n_rotcurve_galaxies": int(rot["galaxy"].nunique()),
         "output_dir": str(out_root),
     }
-    pd.Series(summary).to_json(out_root / "ingest_summary.json", indent=2)
+    with (out_root / "ingest_summary.json").open("w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
 
 
 def main() -> None:
