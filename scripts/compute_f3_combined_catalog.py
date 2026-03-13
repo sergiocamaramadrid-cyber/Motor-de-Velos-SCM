@@ -29,8 +29,7 @@ def compute_tail_slope(r, v):
     log_r = np.log10(r)
     log_v = np.log10(v)
 
-    slope, intercept = np.polyfit(log_r, log_v, 1)
-    _ = intercept
+    slope, _ = np.polyfit(log_r, log_v, 1)
 
     return slope
 
