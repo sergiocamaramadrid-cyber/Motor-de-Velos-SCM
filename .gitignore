@@ -21,7 +21,6 @@ env/
 data/SPARC/*.mrt
 data/SPARC/raw/
 data/SPARC/processed/
-data/SPARC/
 data/LITTLE_THINGS_Oh2015/*.dat
 
 # Generated analysis outputs (created by running analysis scripts)
@@ -30,7 +29,6 @@ results/delta_f3_regression.csv
 results/beta_regression.csv
 results/results_overview.json
 results/figures/
-results/
 data/sparc_175_master.csv
 data/sparc_175_master_sanity.csv
 
