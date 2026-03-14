@@ -57,6 +57,12 @@ def test_generates_and_validates_catalog(tmp_path: Path) -> None:
     cp = _run("--input", str(input_csv), "--out", str(out_dir))
 
     assert cp.returncode == 0, cp.stdout + "\n" + cp.stderr
-    assert (out_dir / "f3_catalog.csv").exists()
+    out_csv = out_dir / "f3_catalog.csv"
+    assert out_csv.exists()
+    out_df = pd.read_csv(out_csv)
+    canonical = {"f3_scm", "delta_f3", "fit_ok", "quality_flag"}
+    legacy = {"beta", "beta_err", "reliable", "friction_slope", "velo_inerte_flag"}
+    assert canonical.issubset(out_df.columns)
+    assert legacy.issubset(out_df.columns)
     assert "[VALIDACIÓN SCM]" in cp.stdout
     assert "min=" in cp.stdout and "max=" in cp.stdout and "std=" in cp.stdout

@@ -15,7 +15,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 INPUT_CSV="${SCRIPT_DIR}/data/big_sparc/contract/big_sparc_contract.parquet"
 OUTPUT_DIR="${SCRIPT_DIR}/results/SPARC"
 OUTPUT_CSV="${OUTPUT_DIR}/f3_catalog.csv"
-VALIDATION_COL="F3_SCM"
+VALIDATION_COL="f3_scm"
 ANALYSIS_SCRIPT="${SCRIPT_DIR}/scripts/run_big_sparc_veil_test.py"
 ANALYSIS_CATALOG=""
 FULL_ANALYSIS=0
@@ -86,10 +86,16 @@ if df.empty:
 
 if preferred_col in df.columns:
     col = preferred_col
+elif "friction_slope" in df.columns:
+    col = "friction_slope"
+elif "beta" in df.columns:
+    col = "beta"
+elif "F3_SCM" in df.columns:
+    col = "F3_SCM"
 elif "deep_slope" in df.columns:
     col = "deep_slope"
 else:
-    print("❌ Error: no se encontró columna de pendiente (F3_SCM o deep_slope).")
+    print("❌ Error: no se encontró columna de pendiente (f3_scm/friction_slope/beta/F3_SCM/deep_slope).")
     print("Columnas disponibles:", list(df.columns))
     raise SystemExit(1)
 

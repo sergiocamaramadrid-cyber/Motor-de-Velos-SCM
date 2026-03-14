@@ -57,6 +57,8 @@ def _compute_galaxy_stats(
     tail_r_max = float("nan")
 
     deep_slope: float = float("nan")
+    fit_ok = False
+    quality_flag = "insufficient_deep_points"
     if deep_n >= min_deep:
         tail_pts = deep_pts.sort_values("r_kpc").tail(tail_points)
         tail_n = int(len(tail_pts))
@@ -70,8 +72,14 @@ def _compute_galaxy_stats(
                 warnings.simplefilter("ignore")
                 coeffs = np.polyfit(log_vbar, log_vobs, 1)
             deep_slope = float(coeffs[0])
+            fit_ok = True
+            quality_flag = "ok"
+        else:
+            quality_flag = "invalid_polyfit"
 
     delta_f3 = float("nan") if np.isnan(deep_slope) else float(deep_slope - expected_slope)
+    f3_scm = round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan")
+    delta_f3_rounded = round(delta_f3, 4) if not np.isnan(delta_f3) else float("nan")
 
     return {
         "galaxy": galaxy,
@@ -83,10 +91,18 @@ def _compute_galaxy_stats(
         "tail_points_used": int(tail_points),
         "tail_r_min": round(tail_r_min, 4) if not np.isnan(tail_r_min) else float("nan"),
         "tail_r_max": round(tail_r_max, 4) if not np.isnan(tail_r_max) else float("nan"),
-        "deep_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
-        "F3_slope": round(deep_slope, 4) if not np.isnan(deep_slope) else float("nan"),
+        "f3_scm": f3_scm,
+        "deep_slope": f3_scm,
+        "F3_slope": f3_scm,
         "expected_slope": expected_slope,
-        "delta_f3": round(delta_f3, 4) if not np.isnan(delta_f3) else float("nan"),
+        "delta_f3": delta_f3_rounded,
+        "fit_ok": bool(fit_ok),
+        "quality_flag": quality_flag,
+        "beta": f3_scm,
+        "beta_err": float("nan"),
+        "reliable": bool(fit_ok),
+        "friction_slope": f3_scm,
+        "velo_inerte_flag": bool(fit_ok),
     }
 
 
