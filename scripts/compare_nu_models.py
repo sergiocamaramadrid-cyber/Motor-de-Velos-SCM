@@ -29,8 +29,8 @@ Deep-slope diagnostic (Option C): for deep-regime points the script fits
   log10(g_obs) = slope × log10(g_bar) + intercept
 The expected MOND value is slope = 0.5.  Deviations signal structural failure.
 
-Deep-collapse flag: the deep-regime median normalised residual exceeds 2.0,
-i.e., the model systematically fails in the sub-Newtonian regime.
+Deep-collapse flag: the deep-regime median normalised residual is more than
+2.0× the shallow-regime median residual, i.e., systematic sub-Newtonian collapse.
 
 Outputs written to --out:
   compare_nu_models.csv   — per-model statistics table
@@ -61,7 +61,6 @@ With a pre-computed per-galaxy CSV (limited comparison)::
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from typing import Callable
 
@@ -73,7 +72,7 @@ from scipy.optimize import minimize_scalar
 # Physics constants
 # ---------------------------------------------------------------------------
 
-KPC_TO_M = 3.085677581e16  # metres per kiloparsec (IAU 2012)
+KPC_TO_M = 3.085677581e19  # metres per kiloparsec (IAU 2012)
 # Convert (km/s)²/kpc → m/s²
 _CONV = 1e6 / KPC_TO_M  # ≈ 3.241e-14  m s⁻² / [(km/s)² kpc⁻¹]
 
@@ -87,6 +86,14 @@ DEEP_THRESHOLD_DEFAULT = 0.3
 # Default LSB surface-brightness threshold (Option B)
 # Galaxies with median SBdisk < LSB_THRESHOLD_DEFAULT L_sun/pc² are flagged LSB.
 LSB_THRESHOLD_DEFAULT = 1.0  # L_sun/pc²
+
+# Minimum median deep-point fraction to consider deep-regime diagnostics meaningful.
+# 5% avoids treating a few incidental deep points as a robust deep-regime sample.
+DEEP_REGIME_MIN_FRAC = 0.05
+
+# Numerical guard for near-zero variance in log10(g_bar) during deep-slope OLS.
+# Prevents unstable/div-by-near-zero slope estimates when deep points cluster at one x.
+SLOPE_VAR_EPS = 1e-14
 
 # ---------------------------------------------------------------------------
 # ν interpolation functions  (all accept array_like x = g_bar/a0 ≥ 0)
@@ -345,14 +352,14 @@ def deep_regime_stats(rc: pd.DataFrame, upsilon_disk: float,
             lg_bar = np.log10(g_bar_deep[valid])
             # OLS: slope = cov(x,y)/var(x)
             lg_bar_c = lg_bar - lg_bar.mean()
-            slope = float(np.dot(lg_bar_c, lg_obs - lg_obs.mean()) /
-                          np.dot(lg_bar_c, lg_bar_c))
-            deep_slope = slope
-            if valid.sum() >= 3:
-                y_pred_ols = slope * lg_bar + (lg_obs.mean() - slope * lg_bar.mean())
-                sse = float(np.sum((lg_obs - y_pred_ols) ** 2))
-                ssx = float(np.dot(lg_bar_c, lg_bar_c))
-                deep_slope_err = float(np.sqrt(sse / (valid.sum() - 2) / ssx))
+            ssx = float(np.dot(lg_bar_c, lg_bar_c))
+            if ssx > SLOPE_VAR_EPS:
+                slope = float(np.dot(lg_bar_c, lg_obs - lg_obs.mean()) / ssx)
+                deep_slope = slope
+                if valid.sum() >= 3:
+                    y_pred_ols = slope * lg_bar + (lg_obs.mean() - slope * lg_bar.mean())
+                    sse = float(np.sum((lg_obs - y_pred_ols) ** 2))
+                    deep_slope_err = float(np.sqrt(sse / (valid.sum() - 2) / ssx))
 
     return {
         "deep_frac": deep_frac,
@@ -444,7 +451,17 @@ def run_data_dir_comparison(
             log_lines.append(msg)
 
     galaxy_table = _load_galaxy_table(data_dir)
-    galaxy_names = galaxy_table["Galaxy"].tolist()
+    galaxy_col = None
+    for candidate in ("Galaxy", "galaxy", "Name", "name"):
+        if candidate in galaxy_table.columns:
+            galaxy_col = candidate
+            break
+    if galaxy_col is None:
+        raise ValueError(
+            "Galaxy-name column not found in SPARC table. Expected one of: "
+            "Galaxy, galaxy, Name, name"
+        )
+    galaxy_names = galaxy_table[galaxy_col].tolist()
 
     # Build predictors for each model
     _PredFn = Callable[[np.ndarray, np.ndarray, np.ndarray, np.ndarray, float], np.ndarray]
@@ -533,7 +550,7 @@ def run_data_dir_comparison(
                            if rms_dex_lsb_all[mname] else float("nan"))
         med_deep_slope = (float(np.median(deep_slope_all[mname]))
                           if deep_slope_all[mname] else float("nan"))
-        deep_regime = med_deep_frac > 0.0
+        deep_regime = med_deep_frac >= DEEP_REGIME_MIN_FRAC
         deep_collapse = (not np.isnan(med_deep_res)
                          and not np.isnan(med_shallow_res)
                          and med_shallow_res > 0
@@ -556,6 +573,8 @@ def run_data_dir_comparison(
             "shallow_res_median": med_shallow_res,
             "deep_regime": deep_regime,
             "deep_collapse": deep_collapse,
+            "comparison_mode": "data_dir_refit",
+            "refit_available": True,
         })
 
     df = pd.DataFrame(records)
@@ -630,6 +649,8 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
         "shallow_res_median": float("nan"),
         "deep_regime": True,
         "deep_collapse": False,
+        "comparison_mode": "limited_csv",
+        "refit_available": False,
         "note": "measured chi2_reduced from CSV",
     })
 
@@ -653,6 +674,8 @@ def run_csv_comparison(csv_path: Path, out_dir: Path,
             "shallow_res_median": float("nan"),
             "deep_regime": True,
             "deep_collapse": False,
+            "comparison_mode": "limited_csv",
+            "refit_available": False,
             "note": "requires --data-dir for refitting",
         })
 
