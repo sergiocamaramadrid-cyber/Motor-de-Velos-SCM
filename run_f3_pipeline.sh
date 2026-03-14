@@ -84,18 +84,11 @@ if df.empty:
     print("❌ Error: el catálogo está vacío.")
     raise SystemExit(1)
 
-if preferred_col in df.columns:
-    col = preferred_col
-elif "friction_slope" in df.columns:
-    col = "friction_slope"
-elif "beta" in df.columns:
-    col = "beta"
-elif "F3_SCM" in df.columns:
-    col = "F3_SCM"
-elif "deep_slope" in df.columns:
-    col = "deep_slope"
-else:
-    print("❌ Error: no se encontró columna de pendiente (f3_scm/friction_slope/beta/F3_SCM/deep_slope).")
+# Keep "F3_SCM" and "deep_slope" for transitional compatibility with older artifacts.
+candidate_cols = [preferred_col, "friction_slope", "beta", "F3_SCM", "deep_slope"]
+col = next((c for c in candidate_cols if c in df.columns), None)
+if col is None:
+    print(f"❌ Error: no se encontró columna de pendiente ({'/'.join(candidate_cols)}).")
     print("Columnas disponibles:", list(df.columns))
     raise SystemExit(1)
 
