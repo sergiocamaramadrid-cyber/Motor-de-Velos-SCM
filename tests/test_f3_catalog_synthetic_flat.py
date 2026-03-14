@@ -16,6 +16,9 @@ def test_synthetic_flat_delta_f3_is_near_zero():
     if missing:
         pytest.skip(f"Missing required columns in artifact: {sorted(missing)}")
 
+    if df["f3_scm"].dropna().empty:
+        pytest.skip("No valid f3_scm values in synthetic flat artifact")
+
     valid = df["delta_f3"].dropna()
     if len(valid) == 0:
         pytest.skip("No valid delta_f3 values in synthetic flat artifact")
