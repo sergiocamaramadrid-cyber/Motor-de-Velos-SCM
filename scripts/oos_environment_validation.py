@@ -133,7 +133,7 @@ def save_outputs(
     plt.figure(figsize=(6.5, 4.0))
     plt.hist(per_repeat["delta_rmse_out"], bins=20)
     plt.axvline(float(np.median(per_repeat["delta_rmse_out"])), linestyle="--", color="tab:red")
-    plt.xlabel("ΔRMSE_out = RMSE_full - RMSE_baseline")
+    plt.xlabel("delta_RMSE_out = RMSE_full - RMSE_baseline")
     plt.ylabel("Count")
     plt.title("OOS ΔRMSE_out distribution")
     plt.tight_layout()

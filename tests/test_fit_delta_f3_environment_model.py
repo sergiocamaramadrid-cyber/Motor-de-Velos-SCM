@@ -35,6 +35,7 @@ def test_synthetic_signal_recovery():
     x2 = np.random.uniform(9.0, 11.0, n)  # logMbar
     x3 = np.random.uniform(0.2, 1.2, n)  # logRd
     x4 = np.random.uniform(30.0, 80.0, n)  # inclination
+    # True generating coefficients used for exact recovery in noiseless OLS.
     y = 0.5 + 1.5 * x1 + 0.1 * x2 - 0.7 * x3 + 0.02 * x4
     df = pd.DataFrame(
         {

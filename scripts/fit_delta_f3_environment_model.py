@@ -47,7 +47,12 @@ def _ols_stats(x: np.ndarray, y: np.ndarray) -> tuple[np.ndarray, np.ndarray, fl
     yhat = x @ beta
     resid = y - yhat
     n, p = x.shape
-    dof = max(n - p, 1)
+    if n <= p:
+        raise ValueError(
+            f"Insufficient rows for stable OLS uncertainty estimates: n={n}, parameters={p}. "
+            f"Need more than p={p} rows (n > p)."
+        )
+    dof = n - p
     sigma2 = float(np.sum(resid**2) / dof)
     xtx_inv = np.linalg.pinv(x.T @ x)
     stderr = np.sqrt(np.diag(sigma2 * xtx_inv))
