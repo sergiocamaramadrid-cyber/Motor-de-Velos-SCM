@@ -244,6 +244,75 @@ python scripts/deep_slope_test.py \
   --out results/diagnostics/deep_slope_test
 ```
 
+### `scripts/test_paired_environment.py`
+
+**Propósito**
+
+Implementa el test de pares emparejados del Framework SCM. Evalúa si, a igualdad de masa bariónica y tamaño de disco (`logMbar`, `logRd`), la diferencia en la densidad superficial de HI externo (`logSigmaHI_out`) se correlaciona con la diferencia en la anomalía dinámica externa (`delta_f3`).
+
+**Requisitos de entrada**
+
+El script espera un archivo CSV con al menos las siguientes columnas:
+
+- `galaxy`, `delta_f3`, `F3`, `logSigmaHI_out`, `logMbar`, `logRd`
+- Opcionalmente: `fit_ok`, `quality_flag`, `n_tail_points`, `inclination` (para filtros de calidad)
+
+**Cómo ejecutarlo**
+
+```bash
+python scripts/test_paired_environment.py --in data/sparc_175_master.csv
+```
+
+Si usas otro archivo:
+
+```bash
+python scripts/test_paired_environment.py --in my_catalog.csv
+```
+
+**Dependencias**
+
+El script utiliza:
+
+- `numpy`
+- `pandas`
+- `scipy`
+- `matplotlib`
+
+Instalación rápida:
+
+```bash
+pip install -r requirements.txt
+```
+
+**Archivos de salida** (en `results/paired_environment/`)
+
+| Archivo | Contenido |
+| --- | --- |
+| `paired_sample.csv` | Pares generados para el caliper y corte radial por defecto. |
+| `paired_stats_summary.csv` | Resultados de los tests para cada combinación de caliper y corte radial. |
+| `paired_bootstrap.csv` | Distribuciones bootstrap (1000 remuestreos) de p-valor Wilcoxon y pendiente. |
+| `placebo_tests.csv` | Resultados de 1000 permutaciones aleatorias del predictor (control negativo). |
+| `delta_f3_vs_delta_logSigmaHI.png` | Gráfico de dispersión con recta de regresión. |
+| `run_metadata.json` | Parámetros de la ejecución para reproducibilidad. |
+
+**Interpretación rápida**
+
+- `paired_stats_summary.csv`: busca filas con `p_wilcoxon < 0.05` y `p_slope < 0.05`. El signo de `slope` indica la dirección de la relación.
+- Bootstrap: si la mediana de `p_wilcoxon` es baja y el intervalo de `slope` no cruza cero, la señal es estable.
+- Placebo: idealmente, no debe mostrar señal (distribución uniforme de p-valores, pendiente centrada en cero).
+
+**Criterio de éxito (protocolo SCM)**
+
+- ✅ `p < 0.05` en Wilcoxon y en regresión de diferencias.
+- ✅ Signo consistente en todos los tests principales.
+- ✅ Efecto estable en al menos 2 calipers.
+- ✅ Bootstrap confirma la señal.
+- ✅ Placebo no reproduce el efecto.
+
+**Limitaciones**
+
+Este test detecta correlaciones entre entorno externo y dinámica de la región externa de las galaxias. No constituye por sí solo una demostración física del modelo SCM; su función es identificar una señal observacional robusta que posteriormente debe ser interpretada dentro de un marco dinámico.
+
 ### BIG-SPARC veil test pipeline
 
 ```bash
