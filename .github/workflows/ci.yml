@@ -44,7 +44,7 @@ jobs:
 
       - name: Dataset validation
         run: |
-          python scripts/validate_sparc_catalog.py --input data/sparc_175_master_sample.csv --out results/validation/sparc_catalog_validation_report.csv || true
+          python scripts/validate_sparc_catalog.py --input data/sparc_175_master_sample.csv --out results/validation/sparc_catalog_validation_report.csv
           test -f results/validation/sparc_catalog_validation_report.csv
 
       - name: Regression smoke test

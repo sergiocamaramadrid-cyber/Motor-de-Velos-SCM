@@ -8,6 +8,11 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+FALLBACK_COMPARISON_CSV = (
+    "galaxy,r_kpc,g_bar,g_obs,log_g_bar,log_g_obs\n"
+    "G1,1,1e-11,1.1e-11,-11,-10.958607315\n"
+    "G1,2,2e-11,2.2e-11,-10.698970004,-10.657577319\n"
+)
 
 
 def _run(cmd: list[str]) -> dict[str, object]:
@@ -26,6 +31,14 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def _ensure_fallback_comparison_csv() -> None:
+    comp = REPO_ROOT / "results/reproducibility/universal_term_comparison_full.csv"
+    if comp.exists():
+        return
+    comp.parent.mkdir(parents=True, exist_ok=True)
+    comp.write_text(FALLBACK_COMPARISON_CSV, encoding="utf-8")
+
+
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     commands = [
@@ -38,15 +51,7 @@ def main(argv: list[str] | None = None) -> int:
     ]
 
     # Ensure synthetic deep-slope input exists if full file is unavailable
-    comp = REPO_ROOT / "results/reproducibility/universal_term_comparison_full.csv"
-    if not comp.exists():
-        comp.parent.mkdir(parents=True, exist_ok=True)
-        comp.write_text(
-            "galaxy,r_kpc,g_bar,g_obs,log_g_bar,log_g_obs\n"
-            "G1,1,1e-11,1.1e-11,-11,-10.958607315\n"
-            "G1,2,2e-11,2.2e-11,-10.698970004,-10.657577319\n",
-            encoding="utf-8",
-        )
+    _ensure_fallback_comparison_csv()
 
     results = [_run(cmd) for cmd in commands]
     status = "ok" if all(r["returncode"] == 0 for r in results) else "failed"

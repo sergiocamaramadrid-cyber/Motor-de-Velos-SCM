@@ -43,10 +43,11 @@ def test_fit_f3_model_recovers_coefficients(tmp_path: Path) -> None:
 
 def test_cli_prints_coefficients_and_intercept(tmp_path: Path) -> None:
     csv_path = tmp_path / "sparc_175_master.csv"
+    summary_out = tmp_path / "regression_summary.csv"
     _make_master(csv_path)
 
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--input", str(csv_path)],
+        [sys.executable, str(SCRIPT), "--input", str(csv_path), "--summary-out", str(summary_out)],
         cwd=str(REPO_ROOT),
         capture_output=True,
         text=True,
@@ -63,10 +64,11 @@ def test_cli_prints_coefficients_and_intercept(tmp_path: Path) -> None:
 
 def test_cli_uses_default_input_name_in_cwd(tmp_path: Path) -> None:
     csv_path = tmp_path / "sparc_175_master.csv"
+    summary_out = tmp_path / "regression_summary.csv"
     _make_master(csv_path)
 
     result = subprocess.run(
-        [sys.executable, str(SCRIPT)],
+        [sys.executable, str(SCRIPT), "--summary-out", str(summary_out)],
         cwd=str(tmp_path),
         capture_output=True,
         text=True,
@@ -79,8 +81,9 @@ def test_cli_uses_default_input_name_in_cwd(tmp_path: Path) -> None:
 
 
 def test_cli_falls_back_to_synthetic_if_default_is_missing(tmp_path: Path) -> None:
+    summary_out = tmp_path / "regression_summary.csv"
     result = subprocess.run(
-        [sys.executable, str(SCRIPT)],
+        [sys.executable, str(SCRIPT), "--summary-out", str(summary_out)],
         cwd=str(tmp_path),
         capture_output=True,
         text=True,

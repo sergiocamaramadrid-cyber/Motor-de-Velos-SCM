@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+MIN_STD_FOR_ZSCORE = 1e-10
+
 
 def _default_input() -> Path:
     for p in [Path("data/sparc_175_master.csv"), Path("data/sparc_175_master_sample.csv")]:
@@ -32,10 +34,12 @@ def main(argv: list[str] | None = None) -> int:
     issues: list[dict[str, object]] = []
 
     if "F3" in df.columns:
-        z = (df["F3"] - df["F3"].mean()) / (df["F3"].std(ddof=0) or 1.0)
-        outliers = z.abs() > 3.0
-        for idx in df.index[outliers]:
-            issues.append({"issue_type": "outlier", "row_index": int(idx), "details": f"F3 z-score={z.loc[idx]:.3f}"})
+        std = float(df["F3"].std(ddof=0))
+        if np.isfinite(std) and std > MIN_STD_FOR_ZSCORE:
+            z = (df["F3"] - df["F3"].mean()) / std
+            outliers = z.abs() > 3.0
+            for idx in df.index[outliers]:
+                issues.append({"issue_type": "outlier", "row_index": int(idx), "details": f"F3 z-score={z.loc[idx]:.3f}"})
 
     if {"fit_ok"}.issubset(df.columns):
         failed = ~df["fit_ok"].astype(bool)

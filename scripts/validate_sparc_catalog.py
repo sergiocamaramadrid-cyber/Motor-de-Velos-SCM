@@ -33,6 +33,7 @@ RANGE_RULES = {
     "beta_err": (0.0, 5.0),
     "friction_slope": (-5.0, 5.0),
 }
+BETA_FRICTION_MATCH_TOLERANCE = 1e-6
 
 
 def _default_input() -> Path:
@@ -123,7 +124,8 @@ def validate_catalog(df: pd.DataFrame) -> pd.DataFrame:
             )
 
     if {"fit_ok", "quality_flag"}.issubset(df.columns):
-        bad = (~df["fit_ok"].astype(bool)) & (df["quality_flag"].astype(str).str.lower() == "ok")
+        quality_ok = df["quality_flag"].fillna("").astype(str).str.lower() == "ok"
+        bad = (~df["fit_ok"].astype(bool)) & quality_ok
         for idx in df.index[bad]:
             issues.append(
                 {
@@ -138,7 +140,7 @@ def validate_catalog(df: pd.DataFrame) -> pd.DataFrame:
     if {"beta", "friction_slope"}.issubset(df.columns):
         beta = pd.to_numeric(df["beta"], errors="coerce")
         fr = pd.to_numeric(df["friction_slope"], errors="coerce")
-        bad = (beta.notna() & fr.notna() & (np.abs(beta - fr) > 1e-6))
+        bad = (beta.notna() & fr.notna() & (np.abs(beta - fr) > BETA_FRICTION_MATCH_TOLERANCE))
         for idx in df.index[bad]:
             issues.append(
                 {

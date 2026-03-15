@@ -13,6 +13,7 @@ TARGET_COLUMN = "F3"
 DEFAULT_INPUT = "sparc_175_master.csv"
 DEFAULT_SUMMARY_OUT = "results/regression/f3_regression_summary.csv"
 RAW_SPARC_METADATA_FILES = {"SPARC_Lelli2016c.csv", "SPARC_Lelli2016c.mrt"}
+MIN_RSS_FOR_IC = 1e-30
 
 
 def _synthetic_fallback_df() -> pd.DataFrame:
@@ -99,7 +100,7 @@ def _compute_metrics(df: pd.DataFrame, model: LinearRegression) -> dict[str, flo
     rmse = float(np.sqrt(np.mean(resid ** 2)))
     mae = float(np.mean(np.abs(resid)))
 
-    safe_rss = max(rss, 1e-30)
+    safe_rss = max(rss, MIN_RSS_FOR_IC)
     aic = float(n * np.log(safe_rss / n) + 2 * k)
     bic = float(n * np.log(safe_rss / n) + k * np.log(n))
 
@@ -134,10 +135,7 @@ def main() -> int:
     try:
         input_path = Path(args.input)
         df = _load_training_df(input_path)
-        missing = [c for c in [*FEATURE_COLUMNS, TARGET_COLUMN] if c not in df.columns]
-        if missing:
-            raise ValueError(f"Faltan columnas requeridas en el CSV: {', '.join(missing)}")
-        model = LinearRegression().fit(df[FEATURE_COLUMNS], df[TARGET_COLUMN])
+        model = fit_f3_model(input_path)
     except (FileNotFoundError, ValueError) as exc:
         print(f"[ERROR] {exc}")
         return 1

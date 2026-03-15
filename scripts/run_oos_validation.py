@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+MIN_VARIANCE_FLOOR = 1e-30
+
 
 def _default_input() -> Path:
     for candidate in [
@@ -49,7 +51,7 @@ def run_oos(df: pd.DataFrame, seed: int, n_bootstrap: int, a0: float) -> pd.Data
 
     rows: list[dict[str, float | int]] = []
     for b in range(n_bootstrap):
-        test_gal = rng.choice(galaxies, size=n_test, replace=True)
+        test_gal = rng.choice(galaxies, size=n_test, replace=False)
         test_df = df[df["galaxy"].isin(test_gal)]
         if test_df.empty:
             continue
@@ -65,7 +67,7 @@ def run_oos(df: pd.DataFrame, seed: int, n_bootstrap: int, a0: float) -> pd.Data
 
         def _logl(err: np.ndarray) -> float:
             sigma2 = float(np.mean(err ** 2))
-            sigma2 = max(sigma2, 1e-30)
+            sigma2 = max(sigma2, MIN_VARIANCE_FLOOR)
             n = len(err)
             return float(-0.5 * n * (np.log(2 * np.pi * sigma2) + 1.0))
 
