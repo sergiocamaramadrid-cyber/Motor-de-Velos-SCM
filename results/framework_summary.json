@@ -1,0 +1,42 @@
+{
+  "status": "ok",
+  "generated_at": "2026-03-15T19:20:36.430163+00:00",
+  "steps": [
+    {
+      "command": "/usr/bin/python scripts/build_sparc_master_catalog.py",
+      "returncode": 0,
+      "stdout_tail": "Master catalog written to data/sparc_175_master.csv",
+      "stderr_tail": ""
+    },
+    {
+      "command": "/usr/bin/python scripts/validate_sparc_catalog.py",
+      "returncode": 0,
+      "stdout_tail": "Validation report written to results/validation/sparc_catalog_validation_report.csv",
+      "stderr_tail": ""
+    },
+    {
+      "command": "/usr/bin/python scripts/deep_slope_test.py --csv results/reproducibility/universal_term_comparison_full.csv --out results",
+      "returncode": 0,
+      "stdout_tail": "  Min deep pts : 10\n\n  Total radial points  : 2\n  Deep-regime points   : 2\n  Deep fraction        : 1.000\n\n  Slope β              : 1.0000\n  Expected (MOND)      : 0.5000\n  Std err              : 0.0000\n  Δ from 0.5           : +0.5000\n  Pearson r            : 1.0000\n  p-value              : 0.00e+00\n  Intercept            : 0.0414\n  Implied log10(g0)    : 0.0828\n  Implied g0 (m/s²)  : 1.210e+00\n\n  Verdict: ⚠️  Only 2 deep points — result may not be reliable (need ≥10).\n================================================================\n\n  Results written to results",
+      "stderr_tail": ""
+    },
+    {
+      "command": "/usr/bin/python scripts/fit_f3_linear_regression.py --input data/sparc_175_master.csv",
+      "returncode": 0,
+      "stdout_tail": "coeficientes: [0.03921569 0.06862745 0.10784314]\nintercepto: -0.26666666666669936\nF_3 = -0.266667 + (0.0392157)logSigmaHI_out + (0.0686275)logMbar + (0.107843)logRd\nmetrics: R2=0.94528 RMSE=0.00433861 MAE=0.00388235 AIC=-46.402 BIC=-47.9643\nsummary_csv: results/regression/f3_regression_summary.csv",
+      "stderr_tail": "/home/runner/.local/lib/python3.12/site-packages/sklearn/utils/validation.py:2691: UserWarning: X does not have valid feature names, but LinearRegression was fitted with feature names\n  warnings.warn("
+    },
+    {
+      "command": "/usr/bin/python scripts/run_oos_validation.py",
+      "returncode": 0,
+      "stdout_tail": "OOS validation report written to results/oos_validation/oos_generalization_results.csv",
+      "stderr_tail": ""
+    },
+    {
+      "command": "/usr/bin/python scripts/plot_f3_analysis.py",
+      "returncode": 0,
+      "stdout_tail": "Figures written to figures",
+      "stderr_tail": ""
+    }
+  ]
+}

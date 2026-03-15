@@ -11,6 +11,7 @@ from sklearn.linear_model import LinearRegression
 FEATURE_COLUMNS = ["logSigmaHI_out", "logMbar", "logRd"]
 TARGET_COLUMN = "F3"
 DEFAULT_INPUT = "sparc_175_master.csv"
+DEFAULT_SUMMARY_OUT = "results/regression/f3_regression_summary.csv"
 RAW_SPARC_METADATA_FILES = {"SPARC_Lelli2016c.csv", "SPARC_Lelli2016c.mrt"}
 
 
@@ -82,6 +83,35 @@ def fit_f3_model(csv_path: Path) -> LinearRegression:
     return model
 
 
+def _compute_metrics(df: pd.DataFrame, model: LinearRegression) -> dict[str, float]:
+    x = df[FEATURE_COLUMNS].to_numpy(dtype=float)
+    y = df[TARGET_COLUMN].to_numpy(dtype=float)
+    y_pred = model.predict(x)
+
+    resid = y - y_pred
+    n = len(y)
+    p = len(FEATURE_COLUMNS)
+    k = p + 1
+
+    rss = float(np.sum(resid ** 2))
+    tss = float(np.sum((y - y.mean()) ** 2))
+    r2 = float(1.0 - (rss / tss)) if tss > 0 else float("nan")
+    rmse = float(np.sqrt(np.mean(resid ** 2)))
+    mae = float(np.mean(np.abs(resid)))
+
+    safe_rss = max(rss, 1e-30)
+    aic = float(n * np.log(safe_rss / n) + 2 * k)
+    bic = float(n * np.log(safe_rss / n) + k * np.log(n))
+
+    return {
+        "R2": r2,
+        "RMSE": rmse,
+        "MAE": mae,
+        "AIC": aic,
+        "BIC": bic,
+    }
+
+
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Ajusta una regresión lineal para F3 usando columnas del master SPARC."
@@ -91,16 +121,29 @@ def _parse_args() -> argparse.Namespace:
         default=DEFAULT_INPUT,
         help=f"Ruta al CSV de entrada (default: {DEFAULT_INPUT}).",
     )
+    parser.add_argument(
+        "--summary-out",
+        default=DEFAULT_SUMMARY_OUT,
+        help=f"Ruta para el resumen de regresión (default: {DEFAULT_SUMMARY_OUT}).",
+    )
     return parser.parse_args()
 
 
 def main() -> int:
     args = _parse_args()
     try:
-        model = fit_f3_model(Path(args.input))
+        input_path = Path(args.input)
+        df = _load_training_df(input_path)
+        missing = [c for c in [*FEATURE_COLUMNS, TARGET_COLUMN] if c not in df.columns]
+        if missing:
+            raise ValueError(f"Faltan columnas requeridas en el CSV: {', '.join(missing)}")
+        model = LinearRegression().fit(df[FEATURE_COLUMNS], df[TARGET_COLUMN])
     except (FileNotFoundError, ValueError) as exc:
         print(f"[ERROR] {exc}")
         return 1
+
+    metrics = _compute_metrics(df, model)
+
     print("coeficientes:", model.coef_)
     print("intercepto:", model.intercept_)
     print(
@@ -110,6 +153,33 @@ def main() -> int:
         f"({model.coef_[1]:.6g})logMbar + "
         f"({model.coef_[2]:.6g})logRd"
     )
+    print(
+        "metrics:",
+        f"R2={metrics['R2']:.6g}",
+        f"RMSE={metrics['RMSE']:.6g}",
+        f"MAE={metrics['MAE']:.6g}",
+        f"AIC={metrics['AIC']:.6g}",
+        f"BIC={metrics['BIC']:.6g}",
+    )
+
+    summary_df = pd.DataFrame(
+        [
+            {
+                "model": "linear_regression",
+                "n_samples": len(df),
+                "n_features": len(FEATURE_COLUMNS),
+                "intercept": float(model.intercept_),
+                "coef_logSigmaHI_out": float(model.coef_[0]),
+                "coef_logMbar": float(model.coef_[1]),
+                "coef_logRd": float(model.coef_[2]),
+                **metrics,
+            }
+        ]
+    )
+    summary_path = Path(args.summary_out)
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    summary_df.to_csv(summary_path, index=False)
+    print(f"summary_csv: {summary_path}")
     return 0
 
 

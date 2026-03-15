@@ -99,6 +99,44 @@ Generated results are **not versioned**.
 Download and preprocessing scripts are provided for reproducibility.  
 See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
 
+## Scientific Overview
+
+El framework evalúa curvas de rotación con foco en el observable `F3` y su
+comportamiento en régimen profundo, manteniendo trazabilidad de artefactos y
+reproducibilidad operacional.
+
+## Observable Definition
+
+- Definición operativa: ver `docs/F3_OBSERVABLE.md`.
+- Test estructural de régimen profundo: ver `docs/DEEP_REGIME_TEST.md`.
+
+## Dataset Description
+
+- Contrato de datos SPARC: `docs/DATA_CONTRACT_SPARC.md`.
+- Descripción de muestra/maestro: `data/README.md`.
+
+## Reproducibility
+
+- Chequeo reproducible de scripts clave:
+
+```bash
+python scripts/run_framework_reproducibility_check.py
+```
+
+Salida:
+
+- `results/reproducibility/repro_report.json`
+
+## How to Run the Full Pipeline
+
+```bash
+python scripts/run_full_framework_pipeline.py
+```
+
+Salida final:
+
+- `results/framework_summary.json`
+
 ## Quick data check
 
 Before downloading SPARC or LITTLE THINGS again, check whether the data already

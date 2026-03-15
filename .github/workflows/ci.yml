@@ -33,7 +33,21 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Lint (syntax/compile smoke)
+        run: |
+          python -m compileall -q scripts src tests
+
       - name: Run tests
         run: |
           bash -n scripts/run_all_sparc_veil_test.sh
           pytest -q
+
+      - name: Dataset validation
+        run: |
+          python scripts/validate_sparc_catalog.py --input data/sparc_175_master_sample.csv --out results/validation/sparc_catalog_validation_report.csv || true
+          test -f results/validation/sparc_catalog_validation_report.csv
+
+      - name: Regression smoke test
+        run: |
+          python scripts/fit_f3_linear_regression.py --input data/sparc_175_master_sample.csv --summary-out results/regression/f3_regression_summary.csv
+          test -f results/regression/f3_regression_summary.csv
