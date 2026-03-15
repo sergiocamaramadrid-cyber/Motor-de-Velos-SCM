@@ -1,0 +1,8 @@
+{
+  "model": "F3 ~ logSigmaHI_out + logMbar + logRd",
+  "intercept": -0.2666666666667961,
+  "R2": 0.9452804377564977,
+  "n_initial": 5,
+  "n_used": 5,
+  "n_removed_nan": 0
+}
