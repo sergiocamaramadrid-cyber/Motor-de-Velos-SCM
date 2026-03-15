@@ -1,2 +1,0 @@
-n_total,n_deep,deep_frac,slope,intercept,stderr,r_value,p_value,delta_from_mond,verdict,log_g0_pred
-2,2,1.0,1.0,0.04139268499999993,0.0,1.0,0.0,0.5,⚠️  Only 2 deep points — result may not be reliable (need ≥10).,0.08278536999999986

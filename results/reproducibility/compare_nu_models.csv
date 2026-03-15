@@ -1,5 +1,0 @@
-model,LL,AICc,N_galaxies,N_lsb,N_points,k,deep_threshold,rms_dex,rms_dex_deep,rms_dex_lsb,deep_slope,deep_frac_median,deep_res_median,shallow_res_median,deep_regime,deep_collapse,comparison_mode,refit_available,note,delta_AICc
-velos,-29.1,64.62857142857143,3,0,60,3,0.3,,,,,,,,True,False,limited_csv,False,measured chi2_reduced from CSV,0.0
-simple,,,3,0,60,3,0.3,,,,,,,,True,False,limited_csv,False,requires --data-dir for refitting,
-standard,,,3,0,60,3,0.3,,,,,,,,True,False,limited_csv,False,requires --data-dir for refitting,
-exp_linear,,,3,0,60,3,0.3,,,,,,,,True,False,limited_csv,False,requires --data-dir for refitting,
