@@ -34,6 +34,9 @@ def test_build_catalog_renames_and_filters_columns(tmp_path: Path) -> None:
         "logSFR",
         "inclination",
         "Rd",
+        "logSigmaHI_out",
+        "F3_SCM",
+        "delta_F3",
         "morphology",
         "log_mhi",
         "log_sfr_ha",
@@ -77,7 +80,17 @@ def test_build_catalog_merges_with_pipeline(tmp_path: Path) -> None:
     assert pipeline_output.exists()
 
     merged = pd.read_csv(pipeline_output)
-    assert {"galaxy", "distance_mpc", "MHI", "logSFR", "inclination", "Rd"}.issubset(merged.columns)
+    assert {
+        "galaxy",
+        "distance_mpc",
+        "MHI",
+        "logSFR",
+        "inclination",
+        "Rd",
+        "logSigmaHI_out",
+        "F3_SCM",
+        "delta_F3",
+    }.issubset(merged.columns)
     ddo43 = merged.loc[merged["galaxy_id"] == "DDO43"].iloc[0]
     assert ddo43["galaxy"] == "DDO43"
     assert pd.notna(ddo43["distance_mpc"])

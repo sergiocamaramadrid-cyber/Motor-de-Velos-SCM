@@ -56,6 +56,21 @@ def _with_requested_columns(df: pd.DataFrame) -> pd.DataFrame:
         out["inclination_deg"] if "inclination_deg" in out.columns else pd.Series(pd.NA, index=out.index)
     )
     out["Rd"] = out["disk_scale_kpc"] if "disk_scale_kpc" in out.columns else pd.Series(pd.NA, index=out.index)
+    out["logSigmaHI_out"] = (
+        out["logSigmaHI_out"] if "logSigmaHI_out" in out.columns else pd.Series(pd.NA, index=out.index)
+    )
+    if "logsigmahi_out" in out.columns:
+        out["logSigmaHI_out"] = out["logSigmaHI_out"].fillna(out["logsigmahi_out"])
+    if "log_sigmahi_out" in out.columns:
+        out["logSigmaHI_out"] = out["logSigmaHI_out"].fillna(out["log_sigmahi_out"])
+    out["F3_SCM"] = out["F3_SCM"] if "F3_SCM" in out.columns else pd.Series(pd.NA, index=out.index)
+    if "f3_scm" in out.columns:
+        out["F3_SCM"] = out["F3_SCM"].fillna(out["f3_scm"])
+    if "F3" in out.columns:
+        out["F3_SCM"] = out["F3_SCM"].fillna(out["F3"])
+    out["delta_F3"] = out["delta_F3"] if "delta_F3" in out.columns else pd.Series(pd.NA, index=out.index)
+    if "delta_f3" in out.columns:
+        out["delta_F3"] = out["delta_F3"].fillna(out["delta_f3"])
     return out
 
 
@@ -65,7 +80,17 @@ def _merge_with_pipeline(df_clean: pd.DataFrame, pipeline_csv: Path, pipeline_ou
     pipeline_df = pd.read_csv(pipeline_csv)
     if "galaxy_id" not in pipeline_df.columns:
         return None
-    enrich_cols = ["galaxy", "distance_mpc", "MHI", "logSFR", "inclination", "Rd"]
+    enrich_cols = [
+        "galaxy",
+        "distance_mpc",
+        "MHI",
+        "logSFR",
+        "inclination",
+        "Rd",
+        "logSigmaHI_out",
+        "F3_SCM",
+        "delta_F3",
+    ]
     merged = pipeline_df.merge(
         df_clean[enrich_cols].drop_duplicates(subset=["galaxy"]),
         left_on="galaxy_id",
