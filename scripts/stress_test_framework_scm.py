@@ -16,6 +16,8 @@ import pandas as pd
 STATUS_OUT_OF_DOMAIN = "OUT_OF_DOMAIN"
 STATUS_FUTURE_EXTENSION = "FUTURE_EXTENSION_CANDIDATE"
 STATUS_FRAMEWORK_READY = "FRAMEWORK_READY"
+MAX_REDSHIFT_FOR_READY = 1.0
+MIN_QUALITY_FOR_READY = 0.60
 
 
 def build_stress_test_data() -> pd.DataFrame:
@@ -56,7 +58,7 @@ def build_stress_test_data() -> pd.DataFrame:
 def clasificar_framework(row: pd.Series) -> str:
     if (not bool(row["rotation_supported"])) or (not bool(row["resolved_rotation_curve"])):
         return STATUS_OUT_OF_DOMAIN
-    if float(row["redshift"]) > 1.0 or float(row["quality_score"]) < 0.60:
+    if float(row["redshift"]) > MAX_REDSHIFT_FOR_READY or float(row["quality_score"]) < MIN_QUALITY_FOR_READY:
         return STATUS_FUTURE_EXTENSION
     return STATUS_FRAMEWORK_READY
 
@@ -77,7 +79,7 @@ def export_results(df: pd.DataFrame, output_csv: Path) -> None:
         "redshift",
         "quality_score",
     ]
-    df.loc[:, export_cols].to_csv(output_csv, index=False)
+    df[export_cols].to_csv(output_csv, index=False)
 
 
 def main() -> None:

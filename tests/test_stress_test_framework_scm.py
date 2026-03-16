@@ -7,7 +7,10 @@ from scripts.stress_test_framework_scm import (
 
 
 def _status_for(df, name: str) -> str:
-    row = df.loc[df["object"] == name].iloc[0]
+    matched = df.loc[df["object"] == name]
+    if matched.empty:
+        raise AssertionError(f"Object not found in stress-test output: {name}")
+    row = matched.iloc[0]
     return str(row["framework_status"])
 
 
