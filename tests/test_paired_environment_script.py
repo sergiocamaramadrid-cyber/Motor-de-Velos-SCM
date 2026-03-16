@@ -12,16 +12,17 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / "scripts" / "test_paired_environment.py"
 
 
-def _make_catalog(path: Path) -> None:
+def _make_catalog(path: Path, use_f3_scm_alias: bool = False) -> None:
     rows = []
     for i in range(6):
         base_m = 9.5 + 0.1 * i
         base_r = 0.5 + 0.03 * i
+        f3_key = "F3_SCM" if use_f3_scm_alias else "F3"
         rows.append(
             {
                 "galaxy": f"G{i:02d}A",
                 "delta_f3": 0.1 + 0.02 * i,
-                "F3": 0.8 + 0.02 * i,
+                f3_key: 0.8 + 0.02 * i,
                 "logSigmaHI_out": 0.6 + 0.05 * i,
                 "logMbar": base_m,
                 "logRd": base_r,
@@ -35,7 +36,7 @@ def _make_catalog(path: Path) -> None:
             {
                 "galaxy": f"G{i:02d}B",
                 "delta_f3": 0.06 + 0.02 * i,
-                "F3": 0.76 + 0.02 * i,
+                f3_key: 0.76 + 0.02 * i,
                 "logSigmaHI_out": 0.3 + 0.05 * i,
                 "logMbar": base_m,
                 "logRd": base_r,
@@ -98,3 +99,32 @@ def test_paired_environment_script_generates_expected_outputs(tmp_path: Path) ->
     metadata = json.loads((out_dir / "run_metadata.json").read_text(encoding="utf-8"))
     assert metadata["script"] == "scripts/test_paired_environment.py"
     assert metadata["best_pair_selection"]["radial_cut"] == 0.7
+
+
+def test_paired_environment_script_accepts_f3_scm_alias(tmp_path: Path) -> None:
+    input_csv = tmp_path / "sparc_175_master_alias.csv"
+    out_dir = tmp_path / "paired_environment_alias"
+    _make_catalog(input_csv, use_f3_scm_alias=True)
+
+    cmd = [
+        sys.executable,
+        str(SCRIPT),
+        "--in",
+        str(input_csv),
+        "--out",
+        str(out_dir),
+        "--calipers",
+        "0.5",
+        "--radial-cuts",
+        "0.7",
+        "--main-radial-cut",
+        "0.7",
+        "--bootstrap-n",
+        "10",
+        "--placebo-n",
+        "10",
+    ]
+    result = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+    sample = pd.read_csv(out_dir / "paired_sample.csv")
+    assert not sample.empty
