@@ -1,0 +1,5 @@
+object,framework_status,rotation_supported,resolved_rotation_curve,redshift,quality_score
+Cloud-9,OUT_OF_DOMAIN,False,False,0.0,0.3
+Aquarius III,OUT_OF_DOMAIN,False,False,0.0,0.25
+Platypus,FUTURE_EXTENSION_CANDIDATE,True,True,1.8,0.7
+NGC 2403,FRAMEWORK_READY,True,True,0.0,0.95

@@ -75,3 +75,30 @@ Physical interpretation
 If matched pairs with similar logMbar and logRd show a systematic positive association
 between ΔlogSigmaHI_out and Δdelta_f3, this supports a robust environmental contribution
 to the F3 residual structure beyond mass-size matching alone.
+
+
+# stress_test_framework_scm.py
+
+Purpose
+-------
+Stress-test the observational applicability domain of the SCM framework.
+
+Usage
+-----
+
+python scripts/stress_test_framework_scm.py
+
+Output
+------
+
+scripts/stress_test_results.csv
+
+Framework states
+----------------
+- OUT_OF_DOMAIN
+- FUTURE_EXTENSION_CANDIDATE
+- FRAMEWORK_READY
+
+Paper-ready phrasing
+--------------------
+> This stress test does not validate the framework universally; it defines its observational domain of applicability and identifies physically motivated out-of-domain systems.
