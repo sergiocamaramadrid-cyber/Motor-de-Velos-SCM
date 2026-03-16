@@ -48,12 +48,14 @@ KEEP_COLS = [
 
 def _with_requested_columns(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
-    out["MHI"] = out.get("log_mhi")
-    out["logSFR"] = out.get("log_sfr_ha")
-    if "logSFR" in out.columns and "log_sfr_uv" in out.columns:
+    out["MHI"] = out["log_mhi"] if "log_mhi" in out.columns else pd.Series(pd.NA, index=out.index)
+    out["logSFR"] = out["log_sfr_ha"] if "log_sfr_ha" in out.columns else pd.Series(pd.NA, index=out.index)
+    if "log_sfr_uv" in out.columns:
         out["logSFR"] = out["logSFR"].fillna(out["log_sfr_uv"])
-    out["inclination"] = out.get("inclination_deg")
-    out["Rd"] = out.get("disk_scale_kpc")
+    out["inclination"] = (
+        out["inclination_deg"] if "inclination_deg" in out.columns else pd.Series(pd.NA, index=out.index)
+    )
+    out["Rd"] = out["disk_scale_kpc"] if "disk_scale_kpc" in out.columns else pd.Series(pd.NA, index=out.index)
     return out
 
 

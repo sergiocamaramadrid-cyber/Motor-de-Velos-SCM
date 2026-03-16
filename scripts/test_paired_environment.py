@@ -86,11 +86,14 @@ def apply_quality_filters(
     min_inclination: float,
     quality_good_values: Tuple[str, ...],
 ) -> pd.DataFrame:
-    if "F3" not in df.columns and "F3_SCM" in df.columns:
+    needs_alias = ("F3" not in df.columns and "F3_SCM" in df.columns) or (
+        "delta_f3" not in df.columns and "delta_F3" in df.columns
+    )
+    if needs_alias:
         df = df.copy()
+    if "F3" not in df.columns and "F3_SCM" in df.columns:
         df["F3"] = df["F3_SCM"]
     if "delta_f3" not in df.columns and "delta_F3" in df.columns:
-        df = df.copy()
         df["delta_f3"] = df["delta_F3"]
 
     required = ["galaxy", "delta_f3", "F3", "logSigmaHI_out", "logMbar", "logRd", "fit_ok"]
