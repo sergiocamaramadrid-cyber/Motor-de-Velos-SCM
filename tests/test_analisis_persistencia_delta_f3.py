@@ -57,6 +57,30 @@ def test_build_inter_galaxy_pairs_uses_global_ordering() -> None:
     assert out["delta_f3_j"].tolist() == pytest.approx([-0.2, 0.4, 0.2])
 
 
+def test_build_inter_galaxy_pairs_accepts_precomputed_delta_column_without_zero_fill() -> None:
+    df = pd.DataFrame(
+        {
+            "galaxy": ["A", "B", "C", "D", "E"],
+            "logMbar": [8.8, 9.0, 9.1, 9.2, 9.3],
+            # First value undefined (as diff output), plus a real zero to filter
+            "delta_f3": [float("nan"), 0.5, 0.0, 0.4, 0.2],
+            "F3": [1.0, 1.5, 1.5, 1.9, 2.1],
+        }
+    )
+
+    out = build_inter_galaxy_pairs(
+        df.dropna(subset=["delta_f3"]),
+        galaxy_col="galaxy",
+        f3_col="F3",
+        order_col="logMbar",
+        delta_col="delta_f3",
+    )
+
+    assert len(out) == 1
+    assert out["delta_f3_i"].tolist() == pytest.approx([0.4])
+    assert out["delta_f3_j"].tolist() == pytest.approx([0.2])
+
+
 def test_cli_generates_pairs_models_summary_and_figure(tmp_path: Path) -> None:
     input_csv = tmp_path / "input.csv"
     out_dir = tmp_path / "out"
@@ -95,8 +119,9 @@ def test_cli_generates_pairs_models_summary_and_figure(tmp_path: Path) -> None:
     models_csv = out_dir / "delta_f3_model_comparison.csv"
     summary_txt = out_dir / "delta_f3_summary.txt"
     fig_png = out_dir / "delta_f3_persistence_fit.png"
+    boot_csv = out_dir / "delta_f3_bootstrap_quadratic.csv"
 
-    for path in [pairs_csv, models_csv, summary_txt, fig_png]:
+    for path in [pairs_csv, models_csv, summary_txt, fig_png, boot_csv]:
         assert path.exists(), f"Missing output: {path}"
 
     models = pd.read_csv(models_csv)

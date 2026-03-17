@@ -34,6 +34,7 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.optimize import least_squares
 
 EPS = 1e-12
 
@@ -73,41 +74,78 @@ def finite_clean(df: pd.DataFrame, cols: list[str]) -> pd.DataFrame:
     return out
 
 
-def fit_null(x: np.ndarray, y: np.ndarray) -> dict:
-    c = float(np.mean(y))
-    yhat = np.full_like(y, c, dtype=float)
+def is_valid_delta_pair(delta_i: float, delta_j: float) -> bool:
+    return (
+        np.isfinite(delta_i)
+        and np.isfinite(delta_j)
+        and abs(float(delta_i)) > EPS
+        and abs(float(delta_j)) > EPS
+    )
+
+
+def model_null(x: np.ndarray, p: np.ndarray) -> np.ndarray:
+    c = p[0]
+    return np.full_like(x, c, dtype=float)
+
+
+def model_linear(x: np.ndarray, p: np.ndarray) -> np.ndarray:
+    a, c = p
+    return a * x + c
+
+
+def model_quadratic(x: np.ndarray, p: np.ndarray) -> np.ndarray:
+    a, b, c = p
+    return a * x + b * x**2 + c
+
+
+MODEL_FUNCS = {
+    "nulo": model_null,
+    "linear": model_linear,
+    "quadratic": model_quadratic,
+}
+
+
+MODEL_K = {
+    "nulo": 1,
+    "linear": 2,
+    "quadratic": 3,
+}
+
+
+MODEL_P0 = {
+    "nulo": np.array([0.0], dtype=float),
+    "linear": np.array([0.8, 0.0], dtype=float),
+    "quadratic": np.array([0.8, 0.1, 0.0], dtype=float),
+}
+
+
+def fit_model(name: str, x: np.ndarray, y: np.ndarray, robust: bool = True) -> dict:
+    func = MODEL_FUNCS[name]
+    p0 = MODEL_P0[name]
+
+    def residuals(p: np.ndarray) -> np.ndarray:
+        return y - func(x, p)
+
+    loss = "soft_l1" if robust and name != "nulo" else "linear"
+    res = least_squares(residuals, p0, loss=loss)
+    p = res.x
+    yhat = func(x, p)
     rss = float(np.sum((y - yhat) ** 2))
+    aicc = compute_aicc(len(x), rss, MODEL_K[name])
+
+    if name == "nulo":
+        params = {"c": float(p[0])}
+    elif name == "linear":
+        params = {"a": float(p[0]), "c": float(p[1])}
+    else:
+        params = {"a": float(p[0]), "b": float(p[1]), "c": float(p[2])}
+
     return {
-        "model": "nulo",
-        "params": {"c": c},
-        "k": 1,
+        "model": name,
+        "params": params,
+        "k": MODEL_K[name],
         "rss": rss,
-        "yhat": yhat,
-    }
-
-
-def fit_linear(x: np.ndarray, y: np.ndarray) -> dict:
-    a, c = np.linalg.lstsq(np.vstack([x, np.ones_like(x)]).T, y, rcond=None)[0]
-    yhat = a * x + c
-    rss = float(np.sum((y - yhat) ** 2))
-    return {
-        "model": "linear",
-        "params": {"a": float(a), "c": float(c)},
-        "k": 2,
-        "rss": rss,
-        "yhat": yhat,
-    }
-
-
-def fit_quadratic(x: np.ndarray, y: np.ndarray) -> dict:
-    b, a, c = np.linalg.lstsq(np.vstack([x**2, x, np.ones_like(x)]).T, y, rcond=None)[0]
-    yhat = b * x**2 + a * x + c
-    rss = float(np.sum((y - yhat) ** 2))
-    return {
-        "model": "quadratic",
-        "params": {"b": float(b), "a": float(a), "c": float(c)},
-        "k": 3,
-        "rss": rss,
+        "aicc": aicc,
         "yhat": yhat,
     }
 
@@ -136,6 +174,8 @@ def build_intra_galaxy_pairs(
             continue
 
         for idx in range(len(delta) - 1):
+            if not is_valid_delta_pair(float(delta[idx]), float(delta[idx + 1])):
+                continue
             pairs.append(
                 {
                     "mode": "intra-galaxy",
@@ -155,34 +195,85 @@ def build_inter_galaxy_pairs(
     galaxy_col: str,
     f3_col: str,
     order_col: str,
+    delta_col: str | None = None,
 ) -> pd.DataFrame:
-    work = df[[galaxy_col, order_col, f3_col]].copy().sort_values(order_col).reset_index(drop=True)
+    cols = [galaxy_col, order_col]
+    if delta_col is None:
+        cols.append(f3_col)
+    else:
+        cols.append(delta_col)
+    work = df[cols].copy().sort_values(order_col).reset_index(drop=True)
     if len(work) < 4:
         raise ValueError("No hay suficientes filas para construir pares inter-galaxy.")
 
-    f3 = work[f3_col].to_numpy(dtype=float)
     order = work[order_col].to_numpy(dtype=float)
     galaxy = work[galaxy_col].astype(str).to_numpy()
-
-    delta = np.diff(f3)
-    order_mid = 0.5 * (order[:-1] + order[1:])
+    if delta_col is None:
+        f3 = work[f3_col].to_numpy(dtype=float)
+        delta = np.diff(f3)
+        order_i = 0.5 * (order[:-2] + order[1:-1])
+        order_j = 0.5 * (order[1:-1] + order[2:])
+        galaxy_i = galaxy[:-2]
+        galaxy_j = galaxy[1:-1]
+    else:
+        delta = work[delta_col].to_numpy(dtype=float)
+        order_i = order[:-1]
+        order_j = order[1:]
+        galaxy_i = galaxy[:-1]
+        galaxy_j = galaxy[1:]
     if len(delta) < 2:
         raise ValueError("No hay suficientes ΔF3 para construir pares inter-galaxy.")
 
     rows: list[dict[str, float | str]] = []
     for idx in range(len(delta) - 1):
+        if not is_valid_delta_pair(float(delta[idx]), float(delta[idx + 1])):
+            continue
         rows.append(
             {
                 "mode": "inter-galaxy",
-                "galaxy_i": galaxy[idx],
-                "galaxy_j": galaxy[idx + 1],
-                "order_i": float(order_mid[idx]),
-                "order_j": float(order_mid[idx + 1]),
+                "galaxy_i": galaxy_i[idx],
+                "galaxy_j": galaxy_j[idx],
+                "order_i": float(order_i[idx]),
+                "order_j": float(order_j[idx]),
                 "delta_f3_i": float(delta[idx]),
                 "delta_f3_j": float(delta[idx + 1]),
             }
         )
     return pd.DataFrame(rows)
+
+
+def bootstrap_quadratic(
+    x: np.ndarray,
+    y: np.ndarray,
+    n_boot: int = 1000,
+    seed: int = 42,
+    robust: bool = True,
+) -> pd.DataFrame:
+    rng = np.random.default_rng(seed)
+    rows: list[dict[str, float]] = []
+    n = len(x)
+    failures = 0
+    for _ in range(n_boot):
+        idx = rng.integers(0, n, n)
+        xb = x[idx]
+        yb = y[idx]
+        try:
+            fit = fit_model("quadratic", xb, yb, robust=robust)
+        except (ValueError, RuntimeError, FloatingPointError):
+            failures += 1
+            continue
+        rows.append(
+            {
+                "a": fit["params"]["a"],
+                "b": fit["params"]["b"],
+                "c": fit["params"]["c"],
+                "rss": fit["rss"],
+                "aicc": fit["aicc"],
+            }
+        )
+    out = pd.DataFrame(rows)
+    out.attrs["failed_fits"] = failures
+    return out
 
 
 def make_figure(
@@ -237,6 +328,7 @@ def main() -> None:
     parser.add_argument("--galaxy-col", default=None)
     parser.add_argument("--f3-col", default=None)
     parser.add_argument("--order-col", default=None)
+    parser.add_argument("--delta-col", default=None)
     parser.add_argument("--filter-fit-ok", action="store_true", help="Filtra fit_ok == True si existe.")
     parser.add_argument(
         "--filter-reliable",
@@ -249,6 +341,13 @@ def main() -> None:
         default=4,
         help="Mínimo de puntos por galaxia para modo intra-galaxy.",
     )
+    parser.add_argument("--n-boot", type=int, default=1000, help="Número de remuestreos bootstrap.")
+    parser.add_argument("--seed", type=int, default=42, help="Semilla para bootstrap.")
+    parser.add_argument(
+        "--no-robust",
+        action="store_true",
+        help="Desactiva ajuste robusto (usa pérdida cuadrática estándar).",
+    )
     args = parser.parse_args()
 
     ensure_dir(args.outdir)
@@ -259,7 +358,16 @@ def main() -> None:
         df = safe_bool_filter(df, "reliable")
 
     galaxy_col = args.galaxy_col or pick_first_existing(df, ["galaxy", "galaxy_id", "name"], "galaxy")
-    f3_col = args.f3_col or pick_first_existing(df, ["F3", "f3_scm", "f3"], "F3")
+    if args.f3_col:
+        f3_col = args.f3_col
+    else:
+        try:
+            f3_col = pick_first_existing(df, ["F3", "f3_scm", "f3"], "F3")
+        except ValueError:
+            if args.delta_col:
+                f3_col = args.delta_col
+            else:
+                raise
 
     if args.mode == "intra-galaxy":
         order_col = args.order_col or pick_first_existing(
@@ -270,7 +378,10 @@ def main() -> None:
             df, ["logMbar", "r_kpc", "radius_kpc", "bin_mass_log"], "order_col (inter-galaxy)"
         )
 
-    df = finite_clean(df, [galaxy_col, f3_col, order_col])
+    clean_cols = [galaxy_col, order_col, f3_col]
+    if args.delta_col:
+        clean_cols.append(args.delta_col)
+    df = finite_clean(df, clean_cols)
 
     if args.mode == "intra-galaxy":
         pairs_df = build_intra_galaxy_pairs(
@@ -286,6 +397,7 @@ def main() -> None:
             galaxy_col=galaxy_col,
             f3_col=f3_col,
             order_col=order_col,
+            delta_col=args.delta_col,
         )
 
     if pairs_df.empty or len(pairs_df) < 5:
@@ -296,14 +408,19 @@ def main() -> None:
 
     x = pairs_df["delta_f3_i"].to_numpy(dtype=float)
     y = pairs_df["delta_f3_j"].to_numpy(dtype=float)
-    fits = [fit_null(x, y), fit_linear(x, y), fit_quadratic(x, y)]
+    robust = not args.no_robust
+    fits = [
+        fit_model("nulo", x, y, robust=robust),
+        fit_model("linear", x, y, robust=robust),
+        fit_model("quadratic", x, y, robust=robust),
+    ]
 
     model_rows = []
     for fit in fits:
         row = {
             "model": fit["model"],
             "rss": fit["rss"],
-            "aicc": compute_aicc(len(x), fit["rss"], fit["k"]),
+            "aicc": fit["aicc"],
         }
         row.update(fit["params"])
         model_rows.append(row)
@@ -316,10 +433,19 @@ def main() -> None:
     models_csv = os.path.join(args.outdir, "delta_f3_model_comparison.csv")
     summary_txt = os.path.join(args.outdir, "delta_f3_summary.txt")
     fig_png = os.path.join(args.outdir, "delta_f3_persistence_fit.png")
+    boot_csv = os.path.join(args.outdir, "delta_f3_bootstrap_quadratic.csv")
 
     pairs_df.to_csv(pairs_csv, index=False)
     models_df.to_csv(models_csv, index=False)
+    boot_df = bootstrap_quadratic(x, y, n_boot=args.n_boot, seed=args.seed, robust=robust)
+    boot_df.to_csv(boot_csv, index=False)
     make_figure(pairs_df=pairs_df, best_fit=best_fit, out_png=fig_png, title=f"Persistencia en ΔF3 ({args.mode})")
+
+    fit_null = next(f for f in fits if f["model"] == "nulo")
+    fit_linear = next(f for f in fits if f["model"] == "linear")
+    fit_quadratic = next(f for f in fits if f["model"] == "quadratic")
+    delta_aicc_quadratic_vs_null = fit_quadratic["aicc"] - fit_null["aicc"]
+    delta_aicc_linear_vs_null = fit_linear["aicc"] - fit_null["aicc"]
 
     with open(summary_txt, "w", encoding="utf-8") as fout:
         fout.write("ANÁLISIS DE PERSISTENCIA EN ΔF3\n")
@@ -329,11 +455,27 @@ def main() -> None:
         fout.write(f"Columna galaxia: {galaxy_col}\n")
         fout.write(f"Columna F3: {f3_col}\n")
         fout.write(f"Columna orden: {order_col}\n")
+        fout.write(
+            "Interpretación: secuencia global inter-galaxy ordenada por masa/escala; "
+            "no es dinámica radial interna.\n"
+        )
         fout.write(f"Número de pares: {len(pairs_df)}\n\n")
         fout.write("Comparación de modelos (ordenado por AICc):\n")
         fout.write(models_df.to_string(index=False))
         fout.write("\n\n")
         fout.write(f"Mejor modelo: {best_model_name}\n")
+        fout.write(f"ΔAICc (quadratic - nulo): {delta_aicc_quadratic_vs_null:.6f}\n")
+        fout.write(f"ΔAICc (linear - nulo): {delta_aicc_linear_vs_null:.6f}\n")
+        if not boot_df.empty:
+            fout.write("\nBootstrap 95% (2.5 | 50 | 97.5):\n")
+            for par in ["a", "b", "c"]:
+                vals = boot_df[par].to_numpy(dtype=float)
+                lo, med, hi = (
+                    float(np.nanpercentile(vals, 2.5)),
+                    float(np.nanpercentile(vals, 50)),
+                    float(np.nanpercentile(vals, 97.5)),
+                )
+                fout.write(f"{par}: {lo:.6g} | {med:.6g} | {hi:.6g}\n")
 
     print("\n=== Persistencia en ΔF3 ===")
     print(f"Archivo de entrada : {args.input}")
@@ -345,11 +487,17 @@ def main() -> None:
     print("\nComparación de modelos:")
     print(models_df.to_string(index=False))
     print(f"\nMejor modelo       : {best_model_name}")
+    print(f"ΔAICc quadratic-nulo: {delta_aicc_quadratic_vs_null:.6f}")
+    print(f"ΔAICc linear-nulo   : {delta_aicc_linear_vs_null:.6f}")
     print("\nSalidas:")
     print(f"- Pares            : {pairs_csv}")
     print(f"- Modelos          : {models_csv}")
+    print(f"- Bootstrap        : {boot_csv}")
     print(f"- Resumen          : {summary_txt}")
     print(f"- Figura           : {fig_png}")
+    failed_boot = int(boot_df.attrs.get("failed_fits", 0))
+    if failed_boot:
+        print(f"- Bootstrap fallidos: {failed_boot}")
 
 
 if __name__ == "__main__":
