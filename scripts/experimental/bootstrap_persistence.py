@@ -8,6 +8,9 @@ import pandas as pd
 
 from scripts.experimental.persistence_law import build_bins, fit_parameters
 
+# Numerical floor to avoid unstable sigma = lambda / beta when beta ~ 0.
+EPS = 1e-10
+
 
 def bootstrap(df: pd.DataFrame, n_boot: int = 1000, n_bins: int = 5) -> np.ndarray:
     results = []
@@ -17,7 +20,7 @@ def bootstrap(df: pd.DataFrame, n_boot: int = 1000, n_bins: int = 5) -> np.ndarr
         r_obs = build_bins(sample, n_bins=n_bins)
 
         lam, beta, _ = fit_parameters(r_obs)
-        sigma = lam / beta if beta != 0 else np.nan
+        sigma = lam / beta if abs(beta) > EPS else np.nan
 
         results.append((lam, beta, sigma))
 
@@ -26,7 +29,7 @@ def bootstrap(df: pd.DataFrame, n_boot: int = 1000, n_bins: int = 5) -> np.ndarr
 
 def summarize(arr: np.ndarray) -> np.ndarray:
     percentiles = [2.5, 16, 50, 84, 97.5]
-    return np.percentile(arr, percentiles)
+    return np.nanpercentile(arr, percentiles)
 
 
 def main(input_csv: str, n_boot: int = 1000, n_bins: int = 5) -> None:

@@ -7,10 +7,13 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+# Characteristic acceleration scale used in SCM/RAR workflows.
 A0 = 1.2e-10
+# Default deep-regime cut for baryonic acceleration (g_bar < 0.3 * A0).
+DEFAULT_MAX_GBAR = 0.3 * A0
 
 
-def build_persistence_input(df: pd.DataFrame, max_gbar: float = 0.3 * A0) -> pd.DataFrame:
+def build_persistence_input(df: pd.DataFrame, max_gbar: float = DEFAULT_MAX_GBAR) -> pd.DataFrame:
     required = {"g_obs", "g_bar"}
     missing = required - set(df.columns)
     if missing:
@@ -34,7 +37,7 @@ def build_persistence_input(df: pd.DataFrame, max_gbar: float = 0.3 * A0) -> pd.
     return out[cols + remainder].reset_index(drop=True)
 
 
-def main(input_csv: str, output_csv: str, max_gbar: float = 0.3 * A0) -> None:
+def main(input_csv: str, output_csv: str, max_gbar: float = DEFAULT_MAX_GBAR) -> None:
     df = pd.read_csv(input_csv)
     out = build_persistence_input(df, max_gbar=max_gbar)
     Path(output_csv).parent.mkdir(parents=True, exist_ok=True)
@@ -46,6 +49,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", required=True)
     parser.add_argument("--output", required=True)
-    parser.add_argument("--max-gbar", type=float, default=0.3 * A0)
+    parser.add_argument("--max-gbar", type=float, default=DEFAULT_MAX_GBAR)
     args = parser.parse_args()
     main(args.input, args.output, args.max_gbar)

@@ -605,7 +605,7 @@ We introduce a dynamical persistence law for the ratio:
 
 across mass bins:
 
-`r_{i+1} = (1 − λ) r_i + β r_i (1 − r_i)`
+`r_{i+1} = (1 - λ) r_i + β r_i (1 - r_i)`
 
 This equation captures the balance between:
 
