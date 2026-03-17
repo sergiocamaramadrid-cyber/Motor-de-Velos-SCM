@@ -50,3 +50,5 @@ Thumbs.db
 *.log
 # Generated pipeline artifacts
 results/
+*.png
+*.csv
