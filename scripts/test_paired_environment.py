@@ -35,6 +35,40 @@ from scipy import stats
 DEFAULT_INPUT = "data/sparc_175_master.csv"
 DEFAULT_OUTPUT_DIR = "results/paired_environment"
 DEFAULT_SEED = 42
+MIN_REQUIRED_SAMPLES = 6
+
+
+def _save_insufficient_sample_status(
+    outdir: Path,
+    reason: str,
+    input_csv: Path,
+    n_input: int,
+    n_after_filters: int,
+    required: int,
+) -> None:
+    summary = pd.DataFrame(
+        [
+            {
+                "status": "insufficient_sample",
+                "reason": reason,
+                "n_samples": int(n_after_filters),
+                "required": int(required),
+            }
+        ]
+    )
+    summary.to_csv(outdir / "paired_stats_summary.csv", index=False)
+    metadata = {
+        "script": "scripts/test_paired_environment.py",
+        "status": "insufficient_sample",
+        "reason": reason,
+        "n_samples": int(n_after_filters),
+        "required": int(required),
+        "input_csv": str(input_csv),
+        "n_input_rows": int(n_input),
+        "n_rows_after_filters": int(n_after_filters),
+    }
+    with (outdir / "run_metadata.json").open("w", encoding="utf-8") as f:
+        json.dump(metadata, f, indent=2, ensure_ascii=False)
 
 
 @dataclass
@@ -535,8 +569,17 @@ def main() -> None:
     )
     n_after_filters = len(dfq)
 
-    if n_after_filters < 6:
-        raise RuntimeError(f"Muestra demasiado pequeña tras filtros: {n_after_filters}")
+    if n_after_filters < MIN_REQUIRED_SAMPLES:
+        _save_insufficient_sample_status(
+            outdir=outdir,
+            reason="too_few_samples_after_quality_filters",
+            input_csv=input_csv,
+            n_input=n_input,
+            n_after_filters=n_after_filters,
+            required=MIN_REQUIRED_SAMPLES,
+        )
+        print(f"Insufficient sample after quality filters: {n_after_filters} < {MIN_REQUIRED_SAMPLES}")
+        return
 
     match_cols = ["logMbar", "logRd"]
     dfm, means, stds = add_normalized_matching_columns(dfq, match_cols)
@@ -584,7 +627,16 @@ def main() -> None:
     if best_pairs is None:
         ok_rows = summary.loc[summary["status"] == "ok"].copy()
         if ok_rows.empty:
-            raise RuntimeError("No se pudieron construir pares válidos para ningún caliper.")
+            _save_insufficient_sample_status(
+                outdir=outdir,
+                reason="no_valid_pairs_for_any_caliper",
+                input_csv=input_csv,
+                n_input=n_input,
+                n_after_filters=n_after_filters,
+                required=MIN_REQUIRED_SAMPLES,
+            )
+            print("No valid pairs could be built for any caliper/radial_cut.")
+            return
         pick = ok_rows.iloc[0]
         cal = float(pick["caliper"])
         rcut = float(pick["radial_cut"])

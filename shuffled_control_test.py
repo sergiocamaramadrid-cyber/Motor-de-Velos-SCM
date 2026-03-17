@@ -7,12 +7,11 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-KPC_TO_M = 3.085677581e19
-CONV = 1e6 / KPC_TO_M
+MIN_SAFE_X = 1e-12
 
 
 def _nu_simple(x: np.ndarray) -> np.ndarray:
-    safe = np.maximum(x, 1e-12)
+    safe = np.maximum(x, MIN_SAFE_X)
     return 1.0 / (1.0 - np.exp(-np.sqrt(safe)))
 
 
@@ -44,25 +43,21 @@ def run_shuffled_control(
     delta_real = _delta_rmse(g_bar, g_obs, a0=a0)
     rng = np.random.default_rng(seed)
     shuffled_deltas: list[float] = []
-    scm_wins = 0
+    preference_flags: list[float] = []
     for _ in range(int(n_shuffles)):
         shuffled_obs = rng.permutation(g_obs)
         delta = _delta_rmse(g_bar, shuffled_obs, a0=a0)
         shuffled_deltas.append(delta)
-        if delta < 0:
-            scm_wins += 1
+        preference_flags.append(1.0 if delta < 0 else 0.0)
 
-    shuffled_arr = np.asarray(shuffled_deltas, dtype=float)
+    pref_arr = np.asarray(preference_flags, dtype=float)
     summary = pd.DataFrame(
         [
             {
-                "n_rows": int(len(df)),
+                "preference_mean": float(np.mean(pref_arr)),
+                "preference_std": float(np.std(pref_arr, ddof=1)) if pref_arr.size > 1 else 0.0,
                 "n_shuffles": int(n_shuffles),
-                "delta_rmse_real": float(delta_real),
-                "delta_rmse_shuffled_mean": float(np.mean(shuffled_arr)),
-                "delta_rmse_shuffled_std": float(np.std(shuffled_arr, ddof=1)) if len(shuffled_arr) > 1 else 0.0,
-                "scm_preference_ratio_shuffled": float(scm_wins / max(int(n_shuffles), 1)),
-                "scm_preference_ratio_expected": 0.5,
+                "status": "ok",
             }
         ]
     )
@@ -99,8 +94,7 @@ def main(argv: list[str] | None = None) -> int:
         a0=float(args.a0),
     )
     row = summary.iloc[0]
-    print(f"delta_rmse_real={row['delta_rmse_real']}")
-    print(f"scm_preference_ratio_shuffled={row['scm_preference_ratio_shuffled']}")
+    print(f"preference_mean={row['preference_mean']}")
     return 0
 
 

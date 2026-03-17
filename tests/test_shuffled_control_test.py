@@ -24,5 +24,6 @@ def test_shuffled_control_generates_summary(tmp_path: Path):
 
     assert out_csv.exists()
     assert len(summary) == 1
-    assert "scm_preference_ratio_shuffled" in summary.columns
-    assert 0.0 <= float(summary.loc[0, "scm_preference_ratio_shuffled"]) <= 1.0
+    assert {"preference_mean", "preference_std", "n_shuffles", "status"}.issubset(summary.columns)
+    assert 0.0 <= float(summary.loc[0, "preference_mean"]) <= 1.0
+    assert summary.loc[0, "status"] == "ok"

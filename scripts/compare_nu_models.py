@@ -61,6 +61,7 @@ With a pre-computed per-galaxy CSV (limited comparison)::
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 from typing import Callable
 
@@ -94,6 +95,7 @@ DEEP_REGIME_MIN_FRAC = 0.05
 # Numerical guard for near-zero variance in log10(g_bar) during deep-slope OLS.
 # Prevents unstable/div-by-near-zero slope estimates when deep points cluster at one x.
 SLOPE_VAR_EPS = 1e-14
+MIN_REQUIRED_SAMPLES = 10
 
 # ---------------------------------------------------------------------------
 # ν interpolation functions  (all accept array_like x = g_bar/a0 ≥ 0)
@@ -795,6 +797,17 @@ def main(argv: list[str] | None = None) -> None:
             Path(args.csv), out_dir, log_lines=log_lines
         )
 
+    n_samples = int(df["N_galaxies"].iloc[0]) if not df.empty else 0
+    # Post-analysis run metadata (kept explicit in table and sidecar JSON)
+    status_payload = {
+        "status": "ok" if n_samples >= MIN_REQUIRED_SAMPLES else "insufficient_sample",
+        "n_samples": n_samples,
+        "required": MIN_REQUIRED_SAMPLES,
+    }
+    df["status"] = status_payload["status"]
+    df["n_samples"] = n_samples
+    df["required_samples"] = MIN_REQUIRED_SAMPLES
+
     # Format and print report
     report_lines = _format_report(df, winner, args.a0, mode)
     for line in report_lines:
@@ -808,6 +821,10 @@ def main(argv: list[str] | None = None) -> None:
     # Write log
     log_out = out_dir / "compare_nu_models.log"
     log_out.write_text("\n".join(log_lines) + "\n", encoding="utf-8")
+    (out_dir / "compare_nu_models_status.json").write_text(
+        json.dumps(status_payload, indent=2, ensure_ascii=False) + "\n",
+        encoding="utf-8",
+    )
 
     print(f"\n  Results written to {out_dir}")
 

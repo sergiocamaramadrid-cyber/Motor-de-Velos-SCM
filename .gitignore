@@ -48,3 +48,5 @@ Thumbs.db
 
 # Logs
 *.log
+# Generated pipeline artifacts
+results/

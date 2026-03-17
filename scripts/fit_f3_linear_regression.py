@@ -32,6 +32,7 @@ REQUIRED_COLUMNS = [
     "logMbar",
     "logRd",
 ]
+MIN_REQUIRED_SAMPLES = 10
 
 
 def check_columns(df: pd.DataFrame) -> None:
@@ -101,6 +102,7 @@ def save_results(
     coef_table.to_csv(outdir / "f3_regression_coefficients.csv", index=False)
 
     summary = {
+        "status": "ok",
         "model": "F3 ~ logSigmaHI_out + logMbar + logRd",
         "intercept": float(intercept),
         "R2": float(r2),
@@ -125,6 +127,30 @@ def save_results(
     return summary
 
 
+def save_insufficient_sample(
+    outdir: Path, n_initial: int, n_used: int, n_removed: int
+) -> dict[str, float | int | str]:
+    outdir.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"variable": [], "coefficient": []}).to_csv(
+        outdir / "f3_regression_coefficients.csv", index=False
+    )
+    summary = {
+        "status": "insufficient_sample",
+        "n_samples": int(n_used),
+        "required": int(MIN_REQUIRED_SAMPLES),
+        "n_initial": int(n_initial),
+        "n_used": int(n_used),
+        "n_removed_nan": int(n_removed),
+    }
+    with open(outdir / "f3_regression_summary.json", "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
+    print(
+        f"Insufficient sample for regression: n_samples={n_used}, "
+        f"required={MIN_REQUIRED_SAMPLES}"
+    )
+    return summary
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--input", default="data/sparc_175_master.csv")
@@ -145,6 +171,15 @@ def main() -> None:
     check_columns(df)
 
     df, n_initial, n_used, n_removed = prepare_data(df)
+    if n_used < MIN_REQUIRED_SAMPLES:
+        summary = save_insufficient_sample(
+            Path(args.out), n_initial=n_initial, n_used=n_used, n_removed=n_removed
+        )
+        if args.summary_out:
+            summary_out = Path(args.summary_out)
+            summary_out.parent.mkdir(parents=True, exist_ok=True)
+            pd.DataFrame([summary]).to_csv(summary_out, index=False)
+        return
 
     intercept, coefs, r2, _ = run_regression(df)
 

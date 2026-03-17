@@ -137,42 +137,45 @@ Salida final:
 
 - `results/framework_summary.json`
 
-## Bloque único (SCM + VELOS) para entorno limitado
+## Single-block run (SCM + VELOS) for limited environments
 
-Comandos mínimos y compatibles con este repositorio:
+Minimal commands aligned with this repository:
 
 ```bash
 python -m pip install -r requirements.txt
 
-# 1) Comparación de modelos (modo CSV compatible en entorno sin rotmod completo)
+# 1) Model comparison (CSV mode for environments without full rotmod data)
 python scripts/compare_nu_models.py \
   --csv results/SPARC/scm_run/per_galaxy_summary.csv \
   --out results/compare_models_velos
 
-# 2) Regresión F3
+# 2) F3 regression
 python scripts/fit_f3_linear_regression.py \
   --input data/sparc_175_master.csv \
   --out results/regression
 
-# 3) Validación OOS
+# 3) OOS validation
 python scripts/scm_oos_validation.py \
   --comparison-csv results/universal_term_comparison_full.csv \
   --out-dir results/oos_validation
 
-# 4) Control shuffled (real) en tabla g_bar/g_obs
+# 4) Real shuffled control over g_bar/g_obs table
 python shuffled_control_test.py \
   --comparison-csv results/universal_term_comparison_full.csv \
   --out results/shuffled_control_results.csv
 
-# 5) Test de pares (si la muestra supera el mínimo)
+# 5) Paired-environment test (if sample size is large enough)
 python scripts/test_paired_environment.py \
   --in data/sparc_175_master.csv \
   --out results/paired_environment
 ```
 
-Notas:
-- `generate_f3_catalog_from_contract.py` requiere una tabla **contract-compliant** de ingesta BIG-SPARC, no `data/sparc_175_master.csv`.
-- El test de pares puede abortar con muestras muy pequeñas tras filtros de calidad.
+Notes:
+- If you run the BIG-SPARC contract workflow, use `generate_f3_catalog_from_contract.py` with a **contract-compliant** ingestion table (not `data/sparc_175_master.csv`).
+- The paired test can stop early when the effective sample is too small after quality filters.
+- Scripts write explicit insufficient-sample status metadata when data is below minimum required thresholds.
+- `shuffled_control_results.csv` uses the standardized schema:
+  `preference_mean,preference_std,n_shuffles,status`.
 
 ## Quick data check
 
