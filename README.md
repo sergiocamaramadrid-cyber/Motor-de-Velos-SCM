@@ -597,6 +597,38 @@ Primero observa el resultado y luego decide ajustes.
 
 ---
 
+## Persistence Law Extension (SCM Framework)
+
+We introduce a dynamical persistence law for the ratio:
+
+`r = g_obs / g_bar`
+
+across mass bins:
+
+`r_{i+1} = (1 − λ) r_i + β r_i (1 − r_i)`
+
+This equation captures the balance between:
+
+- dissipative effects (`λ`)
+- structural reinforcement (`β`)
+
+### Pipeline
+
+SPARC RAW → ingest → `sparc_175_master.csv` (SCM layer)  
+→ `build_persistence_input.py` → `persistence_law_input.csv`  
+→ `persistence_law.py` → (`λ`, `β`, `σ`)
+
+### Validation
+
+- Bootstrap confidence intervals
+- Out-of-sample (70/30) validation
+- AICc comparison vs null model
+
+### Interpretation
+
+The SCM observable (`F3`, `ΔF3`) describes structure, while the persistence law
+describes its stability and convergence.
+
 ## Statistical Protocol
 
 The evaluation framework follows fixed rules:
