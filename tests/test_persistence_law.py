@@ -44,5 +44,18 @@ def test_build_bins_accepts_logmbar():
 
 def test_build_bins_requires_mass_column():
     df = pd.DataFrame({"g_obs": [1.0], "g_bar": [1.0]})
-    with pytest.raises(ValueError, match="Mbar"):
+    with pytest.raises(ValueError, match="r_kpc"):
         build_bins(df, n_bins=2)
+
+
+def test_build_bins_accepts_scale_column():
+    df = pd.DataFrame(
+        {
+            "r_kpc": np.linspace(0.5, 5.0, 10),
+            "g_obs": np.linspace(1.0e-12, 2.0e-12, 10),
+            "g_bar": np.linspace(0.5e-12, 1.5e-12, 10),
+        }
+    )
+    out = build_bins(df, n_bins=4)
+    assert out.size > 0
+    assert np.all(np.isfinite(out))

@@ -6,7 +6,10 @@ import argparse
 import numpy as np
 import pandas as pd
 
-from scripts.experimental.persistence_law import build_bins, fit_parameters
+try:
+    from scripts.experimental.persistence_law import build_bins, fit_parameters
+except ModuleNotFoundError:  # pragma: no cover - CLI fallback
+    from persistence_law import build_bins, fit_parameters
 
 # Numerical floor to avoid unstable sigma = lambda / beta when beta ~ 0.
 EPS = 1e-10

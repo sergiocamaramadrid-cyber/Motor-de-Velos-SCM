@@ -48,8 +48,11 @@ def build_bins(df: pd.DataFrame, n_bins: int = 5) -> np.ndarray:
         mbar = df["Mbar"]
     elif "logMbar" in df.columns:
         mbar = 10.0 ** df["logMbar"]
+    elif "r_kpc" in df.columns:
+        # Fallback to scale bins when mass proxies are unavailable.
+        mbar = df["r_kpc"]
     else:
-        raise ValueError("Input must contain either 'Mbar' or 'logMbar'.")
+        raise ValueError("Input must contain either 'Mbar', 'logMbar', or 'r_kpc'.")
 
     df["logM"] = np.log10(mbar)
     df["bin"] = pd.qcut(df["logM"], n_bins, labels=False, duplicates="drop")

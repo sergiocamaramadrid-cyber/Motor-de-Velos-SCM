@@ -618,6 +618,20 @@ SPARC RAW → ingest → `sparc_175_master.csv` (SCM layer)
 → `build_persistence_input.py` → `persistence_law_input.csv`  
 → `persistence_law.py` → (`λ`, `β`, `σ`)
 
+### Real-data execution (current repository paths)
+
+```bash
+python scripts/experimental/build_persistence_input.py \
+  --input results/universal_term_comparison_full.csv \
+  --output data/derived/persistence_law_input.csv
+
+python scripts/experimental/persistence_law.py \
+  --input data/derived/persistence_law_input.csv
+
+python scripts/experimental/bootstrap_persistence.py \
+  --input data/derived/persistence_law_input.csv
+```
+
 ### Validation
 
 - Bootstrap confidence intervals
