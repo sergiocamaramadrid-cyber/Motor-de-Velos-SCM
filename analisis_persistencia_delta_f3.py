@@ -132,6 +132,7 @@ def build_intra_galaxy_pairs(
         delta = np.diff(f3)
         scale_mid = 0.5 * (scale[:-1] + scale[1:])
         if len(delta) < 2:
+            # Se requieren al menos 2 deltas para construir (delta_i, delta_{i+1}).
             continue
 
         for idx in range(len(delta) - 1):

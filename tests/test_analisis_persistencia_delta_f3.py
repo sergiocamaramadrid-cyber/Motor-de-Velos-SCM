@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 import pandas as pd
+import pytest
 
 from analisis_persistencia_delta_f3 import build_inter_galaxy_pairs, build_intra_galaxy_pairs
 
@@ -28,6 +29,13 @@ def test_build_intra_galaxy_pairs_constructs_consecutive_delta_pairs() -> None:
     g1 = out[out["galaxy"] == "G1"].reset_index(drop=True)
     assert g1["delta_f3_i"].tolist() == [1.0, 2.0]
     assert g1["delta_f3_j"].tolist() == [2.0, 3.0]
+    assert g1["order_i"].tolist() == pytest.approx([1.5, 2.5])
+    assert g1["order_j"].tolist() == pytest.approx([2.5, 3.5])
+    g2 = out[out["galaxy"] == "G2"].reset_index(drop=True)
+    assert g2["delta_f3_i"].tolist() == [0.5, 1.0]
+    assert g2["delta_f3_j"].tolist() == [1.0, 1.5]
+    assert g2["order_i"].tolist() == pytest.approx([1.5, 2.5])
+    assert g2["order_j"].tolist() == pytest.approx([2.5, 3.5])
 
 
 def test_build_inter_galaxy_pairs_uses_global_ordering() -> None:
@@ -43,6 +51,10 @@ def test_build_inter_galaxy_pairs_uses_global_ordering() -> None:
 
     assert len(out) == 3
     assert {"delta_f3_i", "delta_f3_j", "order_i", "order_j"}.issubset(out.columns)
+    assert out["order_i"].tolist() == pytest.approx([8.9, 9.05, 9.15])
+    assert out["order_j"].tolist() == pytest.approx([9.05, 9.15, 9.25])
+    assert out["delta_f3_i"].tolist() == pytest.approx([0.5, -0.2, 0.4])
+    assert out["delta_f3_j"].tolist() == pytest.approx([-0.2, 0.4, 0.2])
 
 
 def test_cli_generates_pairs_models_summary_and_figure(tmp_path: Path) -> None:
@@ -90,3 +102,4 @@ def test_cli_generates_pairs_models_summary_and_figure(tmp_path: Path) -> None:
     models = pd.read_csv(models_csv)
     assert set(models["model"]) == {"nulo", "linear", "quadratic"}
     assert models["aicc"].is_monotonic_increasing
+    assert models.iloc[0]["aicc"] == pytest.approx(models["aicc"].min())
