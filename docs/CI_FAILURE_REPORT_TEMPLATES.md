@@ -4,7 +4,7 @@ Te dejo dos versiones listas para copiar/pegar según dónde lo quieras usar.
 
 ---
 
-🧾 Comentario para cerrar incidencia (GitHub Issue)
+## 🧾 Comentario para cerrar incidencia (GitHub Issue)
 
 ### Análisis de ejecución fallida
 
@@ -41,7 +41,7 @@ Se cierra la incidencia sin acción sobre el código.
 
 ---
 
-📊 Informe técnico breve (para PR / documentación interna)
+## 📊 Informe técnico breve (para PR / documentación interna)
 
 ## Incident Report – GitHub Actions Failure
 
