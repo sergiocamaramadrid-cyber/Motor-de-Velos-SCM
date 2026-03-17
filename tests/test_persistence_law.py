@@ -59,3 +59,15 @@ def test_build_bins_accepts_scale_column():
     out = build_bins(df, n_bins=4)
     assert out.size > 0
     assert np.all(np.isfinite(out))
+
+
+def test_build_bins_rejects_non_positive_scale():
+    df = pd.DataFrame(
+        {
+            "r_kpc": [0.0, 1.0, 2.0],
+            "g_obs": [1.0e-12, 1.1e-12, 1.2e-12],
+            "g_bar": [0.5e-12, 0.6e-12, 0.7e-12],
+        }
+    )
+    with pytest.raises(ValueError, match="strictly positive"):
+        build_bins(df, n_bins=2)

@@ -45,17 +45,20 @@ def compute_aicc(n: int, rss: float, k: int) -> float:
 def build_bins(df: pd.DataFrame, n_bins: int = 5) -> np.ndarray:
     df = df.copy()
     if "Mbar" in df.columns:
-        mbar = df["Mbar"]
+        binning_metric = df["Mbar"]
     elif "logMbar" in df.columns:
-        mbar = 10.0 ** df["logMbar"]
+        binning_metric = 10.0 ** df["logMbar"]
     elif "r_kpc" in df.columns:
         # Fallback to scale bins when mass proxies are unavailable.
-        mbar = df["r_kpc"]
+        binning_metric = df["r_kpc"]
     else:
         raise ValueError("Input must contain either 'Mbar', 'logMbar', or 'r_kpc'.")
 
-    df["logM"] = np.log10(mbar)
-    df["bin"] = pd.qcut(df["logM"], n_bins, labels=False, duplicates="drop")
+    if np.any(np.asarray(binning_metric) <= 0):
+        raise ValueError("Binning metric values must be strictly positive.")
+
+    df["log_binning_metric"] = np.log10(binning_metric)
+    df["bin"] = pd.qcut(df["log_binning_metric"], n_bins, labels=False, duplicates="drop")
 
     grouped = df.groupby("bin", observed=True).agg({"g_obs": "mean", "g_bar": "mean"})
     return (grouped["g_obs"] / grouped["g_bar"]).to_numpy(dtype=float)
