@@ -137,6 +137,43 @@ Salida final:
 
 - `results/framework_summary.json`
 
+## Bloque único (SCM + VELOS) para entorno limitado
+
+Comandos mínimos y compatibles con este repositorio:
+
+```bash
+python -m pip install -r requirements.txt
+
+# 1) Comparación de modelos (modo CSV compatible en entorno sin rotmod completo)
+python scripts/compare_nu_models.py \
+  --csv results/SPARC/scm_run/per_galaxy_summary.csv \
+  --out results/compare_models_velos
+
+# 2) Regresión F3
+python scripts/fit_f3_linear_regression.py \
+  --input data/sparc_175_master.csv \
+  --out results/regression
+
+# 3) Validación OOS
+python scripts/scm_oos_validation.py \
+  --comparison-csv results/universal_term_comparison_full.csv \
+  --out-dir results/oos_validation
+
+# 4) Control shuffled (real) en tabla g_bar/g_obs
+python shuffled_control_test.py \
+  --comparison-csv results/universal_term_comparison_full.csv \
+  --out results/shuffled_control_results.csv
+
+# 5) Test de pares (si la muestra supera el mínimo)
+python scripts/test_paired_environment.py \
+  --in data/sparc_175_master.csv \
+  --out results/paired_environment
+```
+
+Notas:
+- `generate_f3_catalog_from_contract.py` requiere una tabla **contract-compliant** de ingesta BIG-SPARC, no `data/sparc_175_master.csv`.
+- El test de pares puede abortar con muestras muy pequeñas tras filtros de calidad.
+
 ## Quick data check
 
 Before downloading SPARC or LITTLE THINGS again, check whether the data already
