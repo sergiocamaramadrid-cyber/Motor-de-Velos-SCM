@@ -59,6 +59,15 @@ def pick_first_existing(df: pd.DataFrame, candidates: list[str], label: str) -> 
     )
 
 
+def require_columns(df: pd.DataFrame, required: list[str], context: str) -> None:
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError(
+            f"Faltan columnas requeridas para {context}: {missing}. "
+            f"Columnas disponibles: {list(df.columns)}"
+        )
+
+
 def compute_aicc(n: int, rss: float, k: int) -> float:
     rss = max(float(rss), EPS)
     if n <= k + 1:
@@ -373,14 +382,19 @@ def main() -> None:
         order_col = args.order_col or pick_first_existing(
             df, ["r_kpc", "radius_kpc", "R_kpc", "r"], "order_col (intra-galaxy)"
         )
+        delta_col = args.delta_col
     else:
         order_col = args.order_col or pick_first_existing(
-            df, ["logMbar", "r_kpc", "radius_kpc", "bin_mass_log"], "order_col (inter-galaxy)"
+            df, ["logMbar", "Mbar", "logM"], "order_col (inter-galaxy)"
         )
+        delta_col = args.delta_col or pick_first_existing(
+            df, ["delta_f3", "delta_F3"], "delta_col (inter-galaxy)"
+        )
+        require_columns(df, [delta_col, order_col], "inter-galaxy")
 
     clean_cols = [galaxy_col, order_col, f3_col]
-    if args.delta_col:
-        clean_cols.append(args.delta_col)
+    if delta_col:
+        clean_cols.append(delta_col)
     df = finite_clean(df, clean_cols)
 
     if args.mode == "intra-galaxy":
@@ -397,12 +411,13 @@ def main() -> None:
             galaxy_col=galaxy_col,
             f3_col=f3_col,
             order_col=order_col,
-            delta_col=args.delta_col,
+            delta_col=delta_col,
         )
 
-    if pairs_df.empty or len(pairs_df) < 5:
+    min_pairs_required = 5 if args.mode == "intra-galaxy" else 2
+    if pairs_df.empty or len(pairs_df) < min_pairs_required:
         raise ValueError(
-            "Se generaron muy pocos pares de persistencia. "
+            f"Se generaron muy pocos pares de persistencia (n={len(pairs_df)}; mínimo={min_pairs_required}). "
             "Revisa columnas, filtros o el modo seleccionado."
         )
 
@@ -484,11 +499,21 @@ def main() -> None:
     print(f"Columna F3         : {f3_col}")
     print(f"Columna orden      : {order_col}")
     print(f"Número de pares    : {len(pairs_df)}")
-    print("\nComparación de modelos:")
+    print("\n--- COMPARACIÓN DE MODELOS (AICc) ---")
     print(models_df.to_string(index=False))
     print(f"\nMejor modelo       : {best_model_name}")
-    print(f"ΔAICc quadratic-nulo: {delta_aicc_quadratic_vs_null:.6f}")
-    print(f"ΔAICc linear-nulo   : {delta_aicc_linear_vs_null:.6f}")
+    print(f"ΔAICc cuadrático-nulo: {delta_aicc_quadratic_vs_null:.6f}")
+    print(f"ΔAICc lineal-nulo    : {delta_aicc_linear_vs_null:.6f}")
+    if not boot_df.empty:
+        print("\n--- BOOTSTRAP 95% ---")
+        for par in ["a", "b", "c"]:
+            vals = boot_df[par].to_numpy(dtype=float)
+            lo, med, hi = (
+                float(np.nanpercentile(vals, 2.5)),
+                float(np.nanpercentile(vals, 50)),
+                float(np.nanpercentile(vals, 97.5)),
+            )
+            print(f"{par}: {lo:.6g} | {med:.6g} | {hi:.6g}")
     print("\nSalidas:")
     print(f"- Pares            : {pairs_csv}")
     print(f"- Modelos          : {models_csv}")
