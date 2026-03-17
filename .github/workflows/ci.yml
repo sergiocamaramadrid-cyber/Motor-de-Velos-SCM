@@ -51,3 +51,43 @@ jobs:
         run: |
           python scripts/fit_f3_linear_regression.py --input data/sparc_175_master_sample.csv --summary-out results/regression/f3_regression_summary.csv
           test -f results/regression/f3_regression_summary.csv
+
+      - name: Run ΔF3 persistence pipeline (synthetic)
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          from pathlib import Path
+
+          out_path = Path("results/ci_delta_f3_synthetic.csv")
+          out_path.parent.mkdir(parents=True, exist_ok=True)
+          rows = []
+          for galaxy, offset in [("G1", 0.0), ("G2", 0.4)]:
+              for r_kpc, f3 in [
+                  (1, 1.0 + offset),
+                  (2, 1.4 + offset),
+                  (3, 2.0 + offset),
+                  (4, 2.9 + offset),
+                  (5, 4.1 + offset),
+              ]:
+                  rows.append(
+                      {
+                          "galaxy": galaxy,
+                          "r_kpc": r_kpc,
+                          "F3": f3,
+                          "fit_ok": True,
+                          "reliable": True,
+                      }
+                  )
+          pd.DataFrame(rows).to_csv(out_path, index=False)
+          PY
+
+          python analisis_persistencia_delta_f3.py \
+            --input results/ci_delta_f3_synthetic.csv \
+            --mode intra-galaxy \
+            --filter-fit-ok \
+            --filter-reliable \
+            --outdir results/delta_f3_persistence_ci
+
+          test -f results/delta_f3_persistence_ci/delta_f3_pairs.csv
+          test -f results/delta_f3_persistence_ci/delta_f3_model_comparison.csv
+          test -f results/delta_f3_persistence_ci/delta_f3_persistence_fit.png
