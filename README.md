@@ -547,17 +547,17 @@ cat results/executive_summary.txt
 
 Replace `<your_oos_validation_script>` with the OOS entrypoint available in your branch/pipeline.
 
-### Ejecución definitiva: F3 local recurrence (window 5 y 7)
+### Definitive execution: F3 local recurrence (window 5 and 7)
 
-Antes de ejecutar análisis largos, comprobar primero que el dataset SPARC está realmente montado:
+Before running long analyses, first verify that the SPARC dataset is actually mounted:
 
 ```bash
 find data/SPARC/rotmod -name "*_rotmod.dat" | wc -l
 ```
 
-Si el conteo no es grande (esperable ~175 en un montaje completo), no compensa lanzar el pipeline de recurrencia.
+If the count is not large (expected ~175 in a complete mount), it is not worth running the recurrence pipeline.
 
-Comandos de referencia:
+Reference commands:
 
 ```bash
 python scripts/test_f3_local_recurrence.py \
@@ -575,14 +575,14 @@ python scripts/test_f3_local_recurrence.py \
   --bootstrap 50
 ```
 
-Estado del framework (honestidad científica):
+Framework status (scientific honesty):
 
-- La parte metodológica está cerrada.
-- La parte computacional está validada.
-- La validación poblacional queda pendiente únicamente por acceso a datos.
+- The methodological part is closed.
+- The computational part is validated.
+- Population-level validation remains pending only because of data access.
 
-En este estado, el framework está **listo para prueba definitiva**.  
-Cuando estén presentes esos archivos y se generen los `executive_summary.json`, ya se puede decidir si el resultado cae en perfil de paper fuerte o exploratorio.
+In this state, the framework is **ready for the definitive test**.  
+Once those files are present and `executive_summary.json` files are generated, you can determine whether the outcome supports a strong-paper profile or an exploratory-paper profile.
 
 ### Plan Cirujano (rápido y sin pasos inútiles)
 
