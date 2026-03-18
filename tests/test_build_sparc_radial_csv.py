@@ -1,10 +1,13 @@
 import zipfile
 from pathlib import Path
+import sys
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from scripts.build_sparc_radial_csv import KPC_TO_M
+from scripts.build_sparc_radial_csv import main
 from scripts.build_sparc_radial_csv import read_rotmod_zip
 
 
@@ -81,3 +84,37 @@ def test_read_rotmod_zip_raises_when_zip_has_no_rotmod_files(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match=r"No \*_rotmod\.dat files found inside the ZIP\."):
         read_rotmod_zip(str(zip_path))
+
+
+def test_main_writes_output_csv_and_prints_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]) -> None:
+    zip_path = tmp_path / "rotmods.zip"
+    out_csv = tmp_path / "out.csv"
+    _write_zip(
+        zip_path,
+        {
+            "GAL001_rotmod.dat": "\n".join(
+                [
+                    "# r Vobs eVobs Vgas Vdisk Vbul",
+                    "1.0 100.0 5.0 20.0 80.0 10.0",
+                ]
+            )
+        },
+    )
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["build_sparc_radial_csv.py", "--input-zip", str(zip_path), "--output", str(out_csv)],
+    )
+    main()
+
+    assert out_csv.exists()
+    out = pd.read_csv(out_csv)
+    assert len(out) == 1
+    assert out["galaxy"].tolist() == ["GAL001"]
+
+    stdout = capsys.readouterr().out
+    assert f"Saved: {out_csv}" in stdout
+    assert "Rows: 1" in stdout
+    assert "Galaxies: 1" in stdout
+    assert "NaN: 0" in stdout

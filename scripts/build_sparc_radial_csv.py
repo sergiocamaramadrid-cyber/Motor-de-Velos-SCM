@@ -114,8 +114,8 @@ def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--input-zip", required=True)
+    parser = argparse.ArgumentParser(description="Build SPARC radial CSV from rotmod ZIP.")
+    parser.add_argument("--input-zip", required=True, help="ZIP con *_rotmod.dat")
     parser.add_argument("--output", default="data/sparc_175_radial.csv")
     args = parser.parse_args()
 
