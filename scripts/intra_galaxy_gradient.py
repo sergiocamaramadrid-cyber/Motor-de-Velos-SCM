@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -33,6 +34,18 @@ MIN_PAIRS = 4
 
 def ensure_dir(path: str) -> None:
     os.makedirs(path, exist_ok=True)
+
+
+def write_alias(canonical_path: str, alias_path: str) -> None:
+    if canonical_path == alias_path:
+        return
+    try:
+        if os.path.lexists(alias_path):
+            os.remove(alias_path)
+        rel_target = os.path.relpath(canonical_path, start=os.path.dirname(alias_path))
+        os.symlink(rel_target, alias_path)
+    except OSError:
+        shutil.copyfile(canonical_path, alias_path)
 
 
 def clean_df(df: pd.DataFrame, required_cols: list[str]) -> pd.DataFrame:
@@ -153,7 +166,7 @@ def save_outputs(res_df: pd.DataFrame, outdir: str) -> None:
     fig_path_alias = os.path.join(outdir, "coef_histograms.png")
 
     res_df.to_csv(csv_path, index=False)
-    res_df.to_csv(csv_path_alias, index=False)
+    write_alias(csv_path, csv_path_alias)
 
     n_gal = len(res_df)
     mean_a = res_df["a_grad"].mean()
@@ -190,8 +203,8 @@ def save_outputs(res_df: pd.DataFrame, outdir: str) -> None:
 
     plt.tight_layout()
     plt.savefig(fig_path, dpi=150)
-    plt.savefig(fig_path_alias, dpi=150)
     plt.close()
+    write_alias(fig_path, fig_path_alias)
 
 
 def main() -> None:
