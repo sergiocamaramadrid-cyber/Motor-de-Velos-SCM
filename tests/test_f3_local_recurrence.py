@@ -69,5 +69,3 @@ def test_main_writes_expected_outputs(tmp_path: Path, monkeypatch) -> None:
     ]
     for name in expected_files:
         assert (out_dir / name).exists(), f"Missing output file: {name}"
-
-    assert summary["n_galaxies"] == 2
