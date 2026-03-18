@@ -543,8 +543,12 @@ def main() -> None:
         fout.write(f"Columna galaxia: {galaxy_col}\n")
         fout.write(f"Columna F3: {f3_col}\n")
         fout.write(f"Columna orden: {order_col}\n")
+        fout.write("Interpretación del repositorio:\n")
+        fout.write("- technically validated\n")
+        fout.write("- scientifically useful as a falsation module\n")
+        fout.write("- no robust positive signal established in the inter-galaxy formulation\n")
         fout.write(
-            "Interpretación: secuencia global inter-galaxy ordenada por masa/escala; "
+            "Interpretación técnica: secuencia global inter-galaxy ordenada por masa/escala; "
             "no es dinámica radial interna.\n"
         )
         fout.write(f"Número de pares: {len(pairs_df)}\n\n")

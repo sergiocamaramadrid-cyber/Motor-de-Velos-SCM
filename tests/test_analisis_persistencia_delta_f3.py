@@ -190,6 +190,40 @@ def test_cli_inter_galaxy_prints_expected_model_and_bootstrap_blocks(tmp_path: P
     assert "b:" in console
 
 
+def test_cli_summary_includes_repository_interpretation_block(tmp_path: Path) -> None:
+    input_csv = tmp_path / "input_inter_summary.csv"
+    out_dir = tmp_path / "out"
+    pd.DataFrame(
+        {
+            "galaxy": ["A", "B", "C", "D", "E", "F"],
+            "logMbar": [8.9, 9.0, 9.1, 9.2, 9.3, 9.4],
+            "F3": [1.0, 1.3, 1.5, 1.9, 2.2, 2.5],
+            "delta_f3": [0.1, 0.3, 0.2, 0.4, 0.3, 0.2],
+        }
+    ).to_csv(input_csv, index=False)
+
+    cmd = [
+        sys.executable,
+        str(SCRIPT),
+        "--input",
+        str(input_csv),
+        "--mode",
+        "inter-galaxy",
+        "--outdir",
+        str(out_dir),
+        "--n-boot",
+        "20",
+    ]
+    result = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
+    assert result.returncode == 0, result.stdout + "\n" + result.stderr
+
+    summary = (out_dir / "delta_f3_summary.txt").read_text(encoding="utf-8")
+    assert "Interpretación del repositorio:" in summary
+    assert "technically validated" in summary
+    assert "scientifically useful as a falsation module" in summary
+    assert "no robust positive signal established in the inter-galaxy formulation" in summary
+
+
 def test_cli_inter_galaxy_accepts_mbar_as_order_column(tmp_path: Path) -> None:
     input_csv = tmp_path / "input_inter_mbar.csv"
     out_dir = tmp_path / "out"
