@@ -50,3 +50,39 @@ def test_build_catalog_filters_invalid_rows_and_computes_delta_f3():
     assert np.isnan(out.loc[0, "delta_f3"])
     assert np.isclose(out.loc[1, "delta_f3"], expected_f3[1] - expected_f3[0])
     assert np.isnan(out.loc[2, "delta_f3"])
+
+
+def test_build_catalog_accepts_velocity_contract_columns():
+    df = pd.DataFrame(
+        {
+            "galaxy": ["G1", "G1"],
+            "r_kpc": [1.0, 2.0],
+            "vobs_kms": [30.0, 40.0],
+            "vbar_kms": [10.0, 20.0],
+        }
+    )
+
+    out = generate_f3_catalog_from_contract.build_catalog(df)
+    expected_gobs = np.array([9.724778419796843e-10, 6.483185613197896e-10])
+    expected_gbar = np.array([1.0805309355329826e-10, 1.620796403299474e-10])
+    expected_f3 = (expected_gobs - expected_gbar) / expected_gbar
+
+    for col in [
+        "gobs",
+        "gbar",
+        "F3",
+        "delta_f3",
+        "f3_scm",
+        "fit_ok",
+        "quality_flag",
+        "beta",
+        "beta_err",
+        "reliable",
+        "friction_slope",
+        "velo_inerte_flag",
+    ]:
+        assert col in out.columns
+
+    assert np.allclose(out["gobs"].to_numpy(), expected_gobs)
+    assert np.allclose(out["gbar"].to_numpy(), expected_gbar)
+    assert np.allclose(out["F3"].to_numpy(), expected_f3)
