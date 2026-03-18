@@ -23,6 +23,7 @@ def compute_aicc(rss: float, n: int, k: int) -> float:
     rss = max(float(rss), EPS)
     if n <= k + 1:
         return float("inf")
+    # Classical Gaussian AIC from RSS: AIC = n*ln(RSS/n) + 2k
     aic = n * np.log(rss / n) + 2 * k
     return float(aic + (2 * k * (k + 1)) / (n - k - 1))
 
@@ -40,23 +41,27 @@ def run_analysis(input_path: str = INPUT, outdir: str = OUTDIR) -> dict[str, flo
 
     df = pd.read_csv(input_path)
 
-    required = ["delta_f3", "logMbar", "Rdisk", "inclination", "logSigmaHI_out"]
+    rdisk_col = "Rdisk" if "Rdisk" in df.columns else "logRd" if "logRd" in df.columns else None
+    if rdisk_col is None:
+        raise ValueError("Missing required column: Rdisk (or alias logRd)")
+
+    incl_col = "inclination" if "inclination" in df.columns else None
+    required = ["delta_f3", "logMbar", rdisk_col, "logSigmaHI_out"]
     for col in required:
         if col not in df.columns:
             raise ValueError(f"Missing required column: {col}")
+    if incl_col is not None:
+        required.append(incl_col)
 
     df = df.replace([np.inf, -np.inf], np.nan)
     df = df.dropna(subset=required)
 
     y = df["delta_f3"].to_numpy(dtype=float)
 
-    x_controls = np.column_stack(
-        [
-            df["logMbar"].to_numpy(dtype=float),
-            df["Rdisk"].to_numpy(dtype=float),
-            df["inclination"].to_numpy(dtype=float),
-        ]
-    )
+    controls = [df["logMbar"].to_numpy(dtype=float), df[rdisk_col].to_numpy(dtype=float)]
+    if incl_col is not None:
+        controls.append(df[incl_col].to_numpy(dtype=float))
+    x_controls = np.column_stack(controls)
     x_env = df["logSigmaHI_out"].to_numpy(dtype=float).reshape(-1, 1)
 
     beta0 = float(np.mean(y))
@@ -87,8 +92,8 @@ def run_analysis(input_path: str = INPUT, outdir: str = OUTDIR) -> dict[str, flo
     delta_rmse = float(rmse - rmse_ctrl)
     coef_hi = float(beta_full[x_controls.shape[1]])
 
-    print("\n=== MODELOS (AICc) ===")
-    print(f"Nulo: {aicc0:.3f}")
+    print("\n=== MODELS (AICc) ===")
+    print(f"Null: {aicc0:.3f}")
     print(f"Controles: {aicc_ctrl:.3f}")
     print(f"Controles+HI: {aicc_full:.3f}")
     print(f"ΔAICc (HI vs controles): {aicc_full - aicc_ctrl:.3f}")
@@ -98,7 +103,7 @@ def run_analysis(input_path: str = INPUT, outdir: str = OUTDIR) -> dict[str, flo
     print(f"RMSE + HI: {rmse:.5f}")
     print(f"ΔRMSE: {delta_rmse:.5f}")
 
-    print("\n=== COEF HI ===")
+    print("\n=== HI COEFFICIENT ===")
     print(f"logSigmaHI_out coef: {coef_hi:.6f}")
 
     results = {
@@ -116,7 +121,7 @@ def run_analysis(input_path: str = INPUT, outdir: str = OUTDIR) -> dict[str, flo
         for key, value in results.items():
             f.write(f"{key}: {value}\n")
 
-    print(f"\nResultados guardados en {outdir}/results.txt")
+    print(f"\nResults saved to {outdir}/results.txt")
     return results
 
 
