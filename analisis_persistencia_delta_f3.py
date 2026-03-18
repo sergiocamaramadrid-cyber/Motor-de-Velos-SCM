@@ -2,28 +2,17 @@
 # -*- coding: utf-8 -*-
 
 """
-Análisis de persistencia para ΔF3 en SPARC / SCM.
+analisis_persistencia_delta_f3.py
 
-Modos:
-1) intra-galaxy:
-   construye pares (ΔF3_i, ΔF3_{i+1}) dentro de cada galaxia,
-   ordenando por una variable de escala (por defecto r_kpc).
+Exploratory persistence test for ΔF3.
 
-2) inter-galaxy:
-   construye pares entre objetos ordenados por una variable global
-   (por defecto logMbar). Útil como test de estructura global del catálogo,
-   no como dinámica interna estricta.
+This script evaluates whether ΔF3 shows linear or quadratic recurrence
+structure under inter-galaxy or intra-galaxy ordering schemes.
 
-Modelos comparados:
-- nulo:       y = c
-- lineal:     y = a x + c
-- cuadrático: y = b x^2 + a x + c
-
-Salidas:
-- CSV con pares
-- CSV con comparación de modelos
-- PNG con figura
-- TXT resumen
+Current repository interpretation:
+- technically validated
+- scientifically useful as a falsation module
+- no robust positive signal established in the inter-galaxy formulation
 """
 
 from __future__ import annotations
