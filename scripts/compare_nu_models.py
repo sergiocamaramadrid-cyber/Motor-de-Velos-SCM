@@ -38,7 +38,7 @@ Outputs written to --out:
 
 Usage
 -----
-With rotmod files::
+With SPARC rotmod files (`data/SPARC/rotmod` preferred; `raw/` supported)::
 
     python scripts/compare_nu_models.py \\
         --data-dir data/SPARC \\
