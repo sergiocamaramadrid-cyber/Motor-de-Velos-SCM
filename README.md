@@ -547,6 +547,43 @@ cat results/executive_summary.txt
 
 Replace `<your_oos_validation_script>` with the OOS entrypoint available in your branch/pipeline.
 
+### Ejecución definitiva: F3 local recurrence (window 5 y 7)
+
+Antes de ejecutar análisis largos, comprobar primero que el dataset SPARC está realmente montado:
+
+```bash
+find data/SPARC/rotmod -name "*_rotmod.dat" | wc -l
+```
+
+Si el conteo no es grande (esperable ~175 en un montaje completo), no compensa lanzar el pipeline de recurrencia.
+
+Comandos de referencia:
+
+```bash
+python scripts/test_f3_local_recurrence.py \
+  --data_dir data/SPARC \
+  --out_dir results/f3_local_recurrence/window5 \
+  --window 5 \
+  --min_points 10 \
+  --bootstrap 50
+
+python scripts/test_f3_local_recurrence.py \
+  --data_dir data/SPARC \
+  --out_dir results/f3_local_recurrence/window7 \
+  --window 7 \
+  --min_points 10 \
+  --bootstrap 50
+```
+
+Estado del framework (honestidad científica):
+
+- La parte metodológica está cerrada.
+- La parte computacional está validada.
+- La validación poblacional queda pendiente únicamente por acceso a datos.
+
+En este estado, el framework está **listo para prueba definitiva**.  
+Cuando estén presentes esos archivos y se generen los `executive_summary.json`, ya se puede decidir si el resultado cae en perfil de paper fuerte o exploratorio.
+
 ### Plan Cirujano (rápido y sin pasos inútiles)
 
 Objetivo operativo: pasar de *framework listo* a *resultado científico reproducible*.

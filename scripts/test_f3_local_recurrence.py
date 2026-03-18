@@ -61,7 +61,8 @@ def parse_args() -> argparse.Namespace:
         "--data_dir",
         type=Path,
         required=True,
-        help="Directory containing *_rotmod.dat files.",
+        help="Directory containing SPARC data. Prefers data_dir/rotmod/*_rotmod.dat, "
+             "falls back to data_dir/*_rotmod.dat.",
     )
     parser.add_argument(
         "--out_dir",
