@@ -34,7 +34,6 @@ import os
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
-from scipy.optimize import least_squares
 
 EPS = 1e-12
 
@@ -68,7 +67,7 @@ def require_columns(df: pd.DataFrame, required: list[str], context: str) -> None
         )
 
 
-def compute_aicc(n: int, rss: float, k: int) -> float:
+def compute_aicc(rss: float, n: int, k: int) -> float:
     rss = max(float(rss), EPS)
     if n <= k + 1:
         return np.inf
@@ -128,27 +127,86 @@ MODEL_P0 = {
 }
 
 
-def fit_model(name: str, x: np.ndarray, y: np.ndarray, robust: bool = True) -> dict:
-    func = MODEL_FUNCS[name]
-    p0 = MODEL_P0[name]
+def ajustar_modelo(dF3: np.ndarray) -> dict:
+    dF3 = np.asarray(dF3, dtype=float)
+    dF3 = dF3[np.isfinite(dF3)]
 
-    def residuals(p: np.ndarray) -> np.ndarray:
-        return y - func(x, p)
+    if len(dF3) < 6:
+        raise ValueError("Muy pocos puntos para ajustar recurrencia.")
 
-    loss = "soft_l1" if robust and name != "nulo" else "linear"
-    res = least_squares(residuals, p0, loss=loss)
-    p = res.x
-    yhat = func(x, p)
-    rss = float(np.sum((y - yhat) ** 2))
-    aicc = compute_aicc(len(x), rss, MODEL_K[name])
+    x = dF3[:-1]
+    y = dF3[1:]
+    n = len(y)
+
+    x_mean = float(np.mean(x))
+    x0 = x - x_mean
+
+    c0 = float(np.mean(y))
+    yhat_null = np.full_like(y, c0)
+    rss_null = float(np.sum((y - yhat_null) ** 2))
+    aicc_null = compute_aicc(rss_null, n, 1)
+
+    A_lin = np.column_stack([x0, np.ones_like(x0)])
+    coef_lin, *_ = np.linalg.lstsq(A_lin, y, rcond=None)
+    a_lin, c_lin = coef_lin
+    yhat_lin = A_lin @ coef_lin
+    rss_lin = float(np.sum((y - yhat_lin) ** 2))
+    aicc_lin = compute_aicc(rss_lin, n, 2)
+
+    A_quad = np.column_stack([x0, x0**2, np.ones_like(x0)])
+    coef_quad, *_ = np.linalg.lstsq(A_quad, y, rcond=None)
+    a_quad, b_quad, c_quad = coef_quad
+    yhat_quad = A_quad @ coef_quad
+    rss_quad = float(np.sum((y - yhat_quad) ** 2))
+    aicc_quad = compute_aicc(rss_quad, n, 3)
+
+    return {
+        "x_mean": x_mean,
+        "a": float(a_quad),
+        "b": float(b_quad),
+        "c": float(c_quad),
+        "a_lin": float(a_lin),
+        "c_lin": float(c_lin),
+        "c_null": c0,
+        "rss_null": rss_null,
+        "rss_lin": rss_lin,
+        "rss_quad": rss_quad,
+        "aicc_null": float(aicc_null),
+        "aicc_lin": float(aicc_lin),
+        "aicc_quad": float(aicc_quad),
+        "delta_aicc_quad_vs_lin": float(aicc_quad - aicc_lin),
+        "delta_aicc_quad_vs_null": float(aicc_quad - aicc_null),
+    }
+
+
+def fit_model(name: str, x: np.ndarray, y: np.ndarray) -> dict:
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    x_mean = float(np.mean(x))
+    x0 = x - x_mean
+    n = len(x)
 
     if name == "nulo":
-        params = {"c": float(p[0])}
+        c = float(np.mean(y))
+        yhat = np.full_like(y, c)
+        rss = float(np.sum((y - yhat) ** 2))
+        params = {"c": c, "x_mean": x_mean}
     elif name == "linear":
-        params = {"a": float(p[0]), "c": float(p[1])}
+        design = np.column_stack([x0, np.ones_like(x0)])
+        coef, *_ = np.linalg.lstsq(design, y, rcond=None)
+        a, c = coef
+        yhat = design @ coef
+        rss = float(np.sum((y - yhat) ** 2))
+        params = {"a": float(a), "c": float(c), "x_mean": x_mean}
     else:
-        params = {"a": float(p[0]), "b": float(p[1]), "c": float(p[2])}
+        design = np.column_stack([x0, x0**2, np.ones_like(x0)])
+        coef, *_ = np.linalg.lstsq(design, y, rcond=None)
+        a, b, c = coef
+        yhat = design @ coef
+        rss = float(np.sum((y - yhat) ** 2))
+        params = {"a": float(a), "b": float(b), "c": float(c), "x_mean": x_mean}
 
+    aicc = compute_aicc(rss, n, MODEL_K[name])
     return {
         "model": name,
         "params": params,
@@ -256,7 +314,6 @@ def bootstrap_quadratic(
     y: np.ndarray,
     n_boot: int = 1000,
     seed: int = 42,
-    robust: bool = True,
 ) -> pd.DataFrame:
     rng = np.random.default_rng(seed)
     rows: list[dict[str, float]] = []
@@ -267,7 +324,7 @@ def bootstrap_quadratic(
         xb = x[idx]
         yb = y[idx]
         try:
-            fit = fit_model("quadratic", xb, yb, robust=robust)
+            fit = fit_model("quadratic", xb, yb)
         except (ValueError, RuntimeError, FloatingPointError):
             failures += 1
             continue
@@ -305,14 +362,16 @@ def make_figure(
     elif best_fit["model"] == "linear":
         a = best_fit["params"]["a"]
         c = best_fit["params"]["c"]
-        y_line = a * x_line + c
-        label = f"Lineal: y = {a:.4g} x + {c:.4g}"
+        x0_line = x_line - best_fit["params"]["x_mean"]
+        y_line = a * x0_line + c
+        label = f"Lineal: y = {a:.4g} (x-μ) + {c:.4g}"
     elif best_fit["model"] == "quadratic":
         b = best_fit["params"]["b"]
         a = best_fit["params"]["a"]
         c = best_fit["params"]["c"]
-        y_line = b * x_line**2 + a * x_line + c
-        label = f"Cuadrático: y = {b:.4g} x² + {a:.4g} x + {c:.4g}"
+        x0_line = x_line - best_fit["params"]["x_mean"]
+        y_line = b * x0_line**2 + a * x0_line + c
+        label = f"Cuadrático: y = {b:.4g} (x-μ)² + {a:.4g} (x-μ) + {c:.4g}"
     else:
         raise ValueError(f"Modelo no soportado para figura: {best_fit['model']}")
 
@@ -352,11 +411,6 @@ def main() -> None:
     )
     parser.add_argument("--n-boot", type=int, default=1000, help="Número de remuestreos bootstrap.")
     parser.add_argument("--seed", type=int, default=42, help="Semilla para bootstrap.")
-    parser.add_argument(
-        "--no-robust",
-        action="store_true",
-        help="Desactiva ajuste robusto (usa pérdida cuadrática estándar).",
-    )
     args = parser.parse_args()
 
     ensure_dir(args.outdir)
@@ -423,11 +477,10 @@ def main() -> None:
 
     x = pairs_df["delta_f3_i"].to_numpy(dtype=float)
     y = pairs_df["delta_f3_j"].to_numpy(dtype=float)
-    robust = not args.no_robust
     fits = [
-        fit_model("nulo", x, y, robust=robust),
-        fit_model("linear", x, y, robust=robust),
-        fit_model("quadratic", x, y, robust=robust),
+        fit_model("nulo", x, y),
+        fit_model("linear", x, y),
+        fit_model("quadratic", x, y),
     ]
 
     model_rows = []
@@ -452,7 +505,7 @@ def main() -> None:
 
     pairs_df.to_csv(pairs_csv, index=False)
     models_df.to_csv(models_csv, index=False)
-    boot_df = bootstrap_quadratic(x, y, n_boot=args.n_boot, seed=args.seed, robust=robust)
+    boot_df = bootstrap_quadratic(x, y, n_boot=args.n_boot, seed=args.seed)
     boot_df.to_csv(boot_csv, index=False)
     make_figure(pairs_df=pairs_df, best_fit=best_fit, out_png=fig_png, title=f"Persistencia en ΔF3 ({args.mode})")
 
