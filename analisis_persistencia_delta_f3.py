@@ -36,6 +36,7 @@ import numpy as np
 import pandas as pd
 
 EPS = 1e-12
+MIN_POINTS_RECURRENCIA = 6
 
 
 def ensure_dir(path: str) -> None:
@@ -128,10 +129,31 @@ MODEL_P0 = {
 
 
 def ajustar_modelo(dF3: np.ndarray) -> dict:
+    """Ajusta recurrencia de una serie ΔF3 con modelos nulo/lineal/cuadrático.
+
+    Parameters
+    ----------
+    dF3
+        Serie unidimensional con valores de ΔF3. Se filtran automáticamente
+        valores no finitos.
+
+    Returns
+    -------
+    dict
+        Coeficientes y métricas AICc/RSS para los tres modelos, incluyendo:
+        a/b/c del cuadrático y deltas de AICc frente a nulo y lineal.
+
+    Raises
+    ------
+    ValueError
+        Si tras limpiar no hay al menos 6 puntos válidos para construir pares
+        x=dF3[:-1], y=dF3[1:].
+    """
     dF3 = np.asarray(dF3, dtype=float)
     dF3 = dF3[np.isfinite(dF3)]
 
-    if len(dF3) < 6:
+    # 6 puntos => 5 pares (x,y), mínimo razonable para comparar nulo/lineal/cuadrático.
+    if len(dF3) < MIN_POINTS_RECURRENCIA:
         raise ValueError("Muy pocos puntos para ajustar recurrencia.")
 
     x = dF3[:-1]
@@ -147,6 +169,7 @@ def ajustar_modelo(dF3: np.ndarray) -> dict:
     aicc_null = compute_aicc(rss_null, n, 1)
 
     A_lin = np.column_stack([x0, np.ones_like(x0)])
+    # Se descartan diagnósticos de lstsq porque aquí solo se usan coeficientes y RSS.
     coef_lin, *_ = np.linalg.lstsq(A_lin, y, rcond=None)
     a_lin, c_lin = coef_lin
     yhat_lin = A_lin @ coef_lin
@@ -154,6 +177,7 @@ def ajustar_modelo(dF3: np.ndarray) -> dict:
     aicc_lin = compute_aicc(rss_lin, n, 2)
 
     A_quad = np.column_stack([x0, x0**2, np.ones_like(x0)])
+    # Se descartan diagnósticos de lstsq porque aquí solo se usan coeficientes y RSS.
     coef_quad, *_ = np.linalg.lstsq(A_quad, y, rcond=None)
     a_quad, b_quad, c_quad = coef_quad
     yhat_quad = A_quad @ coef_quad
@@ -180,6 +204,11 @@ def ajustar_modelo(dF3: np.ndarray) -> dict:
 
 
 def fit_model(name: str, x: np.ndarray, y: np.ndarray) -> dict:
+    """Ajusta un modelo individual usando mínimos cuadrados sobre x centrado.
+
+    El centrado en la media de `x` mejora estabilidad numérica para términos
+    polinómicos. El resultado devuelve parámetros, RSS, AICc y predicción.
+    """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     x_mean = float(np.mean(x))
@@ -193,6 +222,7 @@ def fit_model(name: str, x: np.ndarray, y: np.ndarray) -> dict:
         params = {"c": c, "x_mean": x_mean}
     elif name == "linear":
         design = np.column_stack([x0, np.ones_like(x0)])
+        # Se descartan diagnósticos de lstsq porque aquí solo se usan coeficientes y RSS.
         coef, *_ = np.linalg.lstsq(design, y, rcond=None)
         a, c = coef
         yhat = design @ coef
@@ -200,6 +230,7 @@ def fit_model(name: str, x: np.ndarray, y: np.ndarray) -> dict:
         params = {"a": float(a), "c": float(c), "x_mean": x_mean}
     else:
         design = np.column_stack([x0, x0**2, np.ones_like(x0)])
+        # Se descartan diagnósticos de lstsq porque aquí solo se usan coeficientes y RSS.
         coef, *_ = np.linalg.lstsq(design, y, rcond=None)
         a, b, c = coef
         yhat = design @ coef

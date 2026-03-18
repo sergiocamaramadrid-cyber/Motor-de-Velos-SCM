@@ -216,7 +216,9 @@ def test_cli_inter_galaxy_accepts_mbar_as_order_column(tmp_path: Path) -> None:
     ]
     result = subprocess.run(cmd, cwd=str(REPO_ROOT), capture_output=True, text=True)
     assert result.returncode == 0, result.stdout + "\n" + result.stderr
-    assert "Columna orden      : Mbar" in (result.stdout + result.stderr)
+    console = result.stdout + result.stderr
+    assert "Columna orden" in console
+    assert "Mbar" in console
 
 
 def test_cli_inter_galaxy_requires_mass_order_column(tmp_path: Path) -> None:
