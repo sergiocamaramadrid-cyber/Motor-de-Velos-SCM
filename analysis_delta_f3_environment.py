@@ -17,7 +17,7 @@ OUTDIR = "results/delta_f3_environment"
 
 
 # ============================================================
-# FUNCIONES
+# FUNCTIONS
 # ============================================================
 def compute_aicc(rss: float, n: int, k: int) -> float:
     rss = max(float(rss), EPS)
@@ -43,7 +43,7 @@ def run_analysis(input_path: str = INPUT, outdir: str = OUTDIR) -> dict[str, flo
     required = ["delta_f3", "logMbar", "Rdisk", "inclination", "logSigmaHI_out"]
     for col in required:
         if col not in df.columns:
-            raise ValueError(f"Falta columna: {col}")
+            raise ValueError(f"Missing required column: {col}")
 
     df = df.replace([np.inf, -np.inf], np.nan)
     df = df.dropna(subset=required)
@@ -85,7 +85,7 @@ def run_analysis(input_path: str = INPUT, outdir: str = OUTDIR) -> dict[str, flo
     rmse_ctrl = float(np.sqrt(np.mean((y_test - y_pred_ctrl) ** 2)))
 
     delta_rmse = float(rmse - rmse_ctrl)
-    coef_hi = float(beta_full[-2])
+    coef_hi = float(beta_full[x_controls.shape[1]])
 
     print("\n=== MODELOS (AICc) ===")
     print(f"Nulo: {aicc0:.3f}")

@@ -58,5 +58,5 @@ def test_run_analysis_fails_when_required_column_missing(tmp_path: Path):
     input_csv = tmp_path / "missing.csv"
     df.to_csv(input_csv, index=False)
 
-    with pytest.raises(ValueError, match="Falta columna: logSigmaHI_out"):
+    with pytest.raises(ValueError, match="Missing required column: logSigmaHI_out"):
         run_analysis(str(input_csv), str(tmp_path / "out"))
