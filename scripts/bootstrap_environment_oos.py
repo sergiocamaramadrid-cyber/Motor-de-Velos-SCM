@@ -134,13 +134,13 @@ def run_bootstrap(
 
     plt.subplot(1, 2, 1)
     plt.hist(delta, bins=30)
-    plt.axvline(0)
-    plt.title("ΔRMSE distribution")
+    plt.axvline(0, color="red", linestyle="--")
+    plt.title("Distribución ΔRMSE")
 
     plt.subplot(1, 2, 2)
     plt.hist(coef_hi_arr, bins=30)
-    plt.axvline(0)
-    plt.title("coef_HI distribution")
+    plt.axvline(0, color="red", linestyle="--")
+    plt.title("Distribución coef_HI")
 
     plt.tight_layout()
     plt.savefig(f"{outdir}/bootstrap_HI.png", dpi=150)
