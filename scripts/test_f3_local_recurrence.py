@@ -35,6 +35,8 @@ import pandas as pd
 
 EPS = 1e-12
 MIN_POINTS_PER_GALAXY = 10
+MIN_RECURRENCE_PAIRS = 5
+MIN_CONTROL_PAIRS = 6
 DEFAULT_WINDOW = 5
 DEFAULT_BOOTSTRAP = 500
 
@@ -237,7 +239,7 @@ def bootstrap_slope(
 def analyze_galaxy(galaxy: str, df: pd.DataFrame, window: int, n_boot: int) -> dict[str, float] | None:
     pair = build_pair_table(galaxy=galaxy, df=df, window=window)
     n_pairs = len(pair)
-    if n_pairs < 5:
+    if n_pairs < MIN_RECURRENCE_PAIRS:
         return None
 
     y = pair["f3_next"].to_numpy(dtype=float)
@@ -259,7 +261,7 @@ def analyze_galaxy(galaxy: str, df: pd.DataFrame, window: int, n_boot: int) -> d
     aicc1 = robust_aicc(rss1, n_pairs, k=2)
 
     mask2 = np.isfinite(x_bar)
-    if mask2.sum() >= 6:
+    if mask2.sum() >= MIN_CONTROL_PAIRS:
         y2 = y[mask2]
         w2 = w[mask2]
         X2 = np.column_stack([np.ones(mask2.sum()), x_prev[mask2], x_bar[mask2]])
