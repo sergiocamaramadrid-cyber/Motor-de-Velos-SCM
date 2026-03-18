@@ -1,129 +1,164 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+build_sparc_radial_csv.py
+
+Build a clean radial SPARC CSV from rotmod files.
+
+Input:
+    ZIP containing *_rotmod.dat files
+
+Output:
+    data/sparc_175_radial.csv
+
+Columns:
+    galaxy, r, Vobs, eVobs, Vgas, Vdisk, Vbul, Vbar, gobs, gbar, SB, F3
+
+Notes:
+- SB is initially approximated as Vdisk^2 as a first-pass proxy, clamped to
+  a small positive floor for numerical stability.
+- This builder is suitable for the first intra-galaxy iteration.
+- For the full physical dataset, use the multi-source builder that also merges
+  density profiles and metadata.
+"""
+
 from __future__ import annotations
 
 import argparse
+import io
+import os
+import zipfile
 from pathlib import Path
-import tempfile
 
 import numpy as np
 import pandas as pd
 
-try:
-    from scripts.process_sparc import consolidate_sparc
-except ModuleNotFoundError:  # pragma: no cover - CLI execution path
-    from process_sparc import consolidate_sparc
-
-EPS = 1e-12
-# Softening scale (kpc) used in the synthetic gbar(r) proxy to avoid an r→0 singularity.
-# We use 0.5 kpc as a conservative inner-radius floor for this first-pass synthetic profile.
-GBAR_SOFTENING_KPC = 0.5
-# Radial decay exponent for the synthetic gbar(r) proxy profile.
-# We use 1.2 to represent a mild outer decline without over-steepening the synthetic curve.
-GBAR_RADIAL_EXPONENT = 1.2
+KPC_TO_M = 3.085677581e19
+EPS = 1e-30
+MIN_SB = 1e-6
 
 
-def _finalize(df: pd.DataFrame) -> pd.DataFrame:
-    out = df.replace([np.inf, -np.inf], np.nan).dropna(subset=["galaxy", "r", "gbar", "gobs", "SB"])
-    out = out[(out["r"] > 0) & (out["gbar"] > 0) & (out["gobs"] > 0) & (out["SB"] > 0)].copy()
-    out = out.sort_values(["galaxy", "r"]).reset_index(drop=True)
-    return out
+def ensure_dir(path: str) -> None:
+    os.makedirs(path, exist_ok=True)
 
 
-def build_from_rotmod(sparc_dir: str | Path) -> pd.DataFrame:
-    with tempfile.NamedTemporaryFile(suffix=".csv", delete=False) as tmp:
-        tmp_out = Path(tmp.name)
-    try:
-        rotmod_df = consolidate_sparc(input_dir=sparc_dir, output_file=tmp_out)
-        out = pd.DataFrame(
-            {
-                "galaxy": rotmod_df["galaxy"],
-                "r": rotmod_df["radius"],
-                "gbar": (rotmod_df["v_bar"] ** 2) / np.maximum(rotmod_df["radius"], EPS),
-                "gobs": (rotmod_df["v_obs"] ** 2) / np.maximum(rotmod_df["radius"], EPS),
-                "SB": (rotmod_df["v_disk"] ** 2) / np.maximum(rotmod_df["radius"], EPS),
-            }
-        )
-    finally:
-        tmp_out.unlink(missing_ok=True)
-    return _finalize(out)
+def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
+    rows = []
 
+    with zipfile.ZipFile(zip_path) as zf:
+        members = [m for m in zf.namelist() if m.endswith("_rotmod.dat")]
 
-def build_from_master(master_csv: str | Path, n_rings: int = 12) -> pd.DataFrame:
-    master = pd.read_csv(master_csv)
-    required = ["galaxy", "logSigmaHI_out", "logMbar", "logRd", "f3_scm", "delta_f3"]
-    missing = [c for c in required if c not in master.columns]
-    if missing:
-        raise ValueError(f"Missing columns in {master_csv}: {missing}")
+        if not members:
+            raise ValueError("No *_rotmod.dat files found inside the ZIP.")
 
-    rows: list[pd.DataFrame] = []
-    # Synthetic radial grid in kpc, chosen to span a typical SPARC inner-to-outer disk extent.
-    r = np.linspace(0.5, 12.0, n_rings)
-    r_centered = (r - np.mean(r)) / np.maximum(np.ptp(r), EPS)
-    for _, row in master.iterrows():
-        rd = max(float(10 ** row["logRd"]), 0.2)
-        sb0 = max(float(10 ** row["logSigmaHI_out"]), EPS)
-        gbar0 = max(float(10 ** (row["logMbar"] - 10.5)), EPS)
-        f3_base = float(row["f3_scm"])
-        f3_slope = float(row["delta_f3"])
+        for member in members:
+            galaxy = Path(member).name.replace("_rotmod.dat", "")
 
-        sb = sb0 * np.exp(-r / rd)
-        # Radial gbar proxy: softened power-law decline to avoid divergence at very small radii.
-        gbar = gbar0 / np.power(r + GBAR_SOFTENING_KPC, GBAR_RADIAL_EXPONENT)
-        # Keep gobs = gbar * (1 + F3) strictly positive by clipping F3 above -1.
-        f3_profile = np.clip(f3_base + f3_slope * r_centered, -0.95, None)
-        gobs = gbar * (1.0 + f3_profile)
+            with zf.open(member) as fh:
+                raw = fh.read().decode("utf-8", errors="ignore")
 
-        rows.append(
-            pd.DataFrame(
-                {
-                    "galaxy": row["galaxy"],
-                    "r": r,
-                    "gbar": gbar,
-                    "gobs": gobs,
-                    "SB": sb,
-                }
-            )
-        )
+            lines = []
+            for line in raw.splitlines():
+                s = line.strip()
+                if not s or s.startswith("#"):
+                    continue
+                lines.append(s)
 
-    return _finalize(pd.concat(rows, ignore_index=True))
+            if not lines:
+                continue
 
+            try:
+                data = np.loadtxt(io.StringIO("\n".join(lines)))
+            except Exception:
+                continue
 
-def build_radial_csv(
-    output_csv: str | Path = "data/sparc_175_radial.csv",
-    sparc_dir: str | Path = "data/SPARC",
-    master_csv: str | Path = "data/sparc_175_master_sample.csv",
-) -> pd.DataFrame:
-    try:
-        out = build_from_rotmod(sparc_dir)
-        source = "SPARC rotmod"
-    except (FileNotFoundError, ValueError):
-        out = build_from_master(master_csv)
-        source = "sparc_175_master_sample synthetic radial proxy"
+            if data.ndim == 1:
+                data = data.reshape(1, -1)
 
-    output_csv = Path(output_csv)
-    output_csv.parent.mkdir(parents=True, exist_ok=True)
-    out.to_csv(output_csv, index=False)
+            # Expected minimum columns:
+            # r, Vobs, eVobs, Vgas, Vdisk, Vbul
+            if data.shape[1] < 6:
+                continue
 
-    print(f"Built radial CSV from: {source}")
-    print(f"Output: {output_csv}")
-    print(f"Rows: {len(out)}")
-    print(f"Galaxies: {out['galaxy'].nunique()}")
-    print(f"NaN count: {int(out.isna().sum().sum())}")
-    return out
+            r = data[:, 0]
+            vobs = data[:, 1]
+            evobs = data[:, 2]
+            vgas = data[:, 3]
+            vdisk = data[:, 4]
+            vbul = data[:, 5] if data.shape[1] > 5 else np.zeros_like(r)
+
+            vbar = np.sqrt(np.maximum(vgas**2 + vdisk**2 + vbul**2, 0.0))
+            r_m = np.maximum(r * KPC_TO_M, EPS)
+
+            gobs = (vobs * 1000.0) ** 2 / r_m
+            gbar = (vbar * 1000.0) ** 2 / r_m
+
+            # First-pass SB proxy, clamped to MIN_SB for numerical stability.
+            sb = np.maximum(vdisk**2, MIN_SB)
+
+            # Local F3 = (gobs - gbar) / gbar, guarded with EPS.
+            f3 = (gobs - np.maximum(gbar, EPS)) / np.maximum(gbar, EPS)
+
+            for i in range(len(r)):
+                if not np.isfinite(r[i]) or r[i] <= 0:
+                    continue
+                if not np.isfinite(gobs[i]) or not np.isfinite(gbar[i]):
+                    continue
+
+                rows.append(
+                    {
+                        "galaxy": galaxy,
+                        "r": float(r[i]),
+                        "Vobs": float(vobs[i]),
+                        "eVobs": float(evobs[i]),
+                        "Vgas": float(vgas[i]),
+                        "Vdisk": float(vdisk[i]),
+                        "Vbul": float(vbul[i]),
+                        "Vbar": float(vbar[i]),
+                        "gobs": float(gobs[i]),
+                        "gbar": float(gbar[i]),
+                        "SB": float(sb[i]),
+                        "F3": float(f3[i]),
+                    }
+                )
+
+    if not rows:
+        raise ValueError("No valid radial rows could be extracted from the ZIP.")
+
+    df = pd.DataFrame(rows)
+    df = df.replace([np.inf, -np.inf], np.nan)
+    df = df.dropna(subset=["galaxy", "r", "gobs", "gbar", "SB", "F3"])
+    df = df[df["r"] > 0].copy()
+    df = df.sort_values(["galaxy", "r"]).reset_index(drop=True)
+
+    return df
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build SPARC radial CSV for intra-galaxy gradient analysis.")
-    parser.add_argument("--output", default="data/sparc_175_radial.csv", help="Output CSV path.")
-    parser.add_argument("--sparc-dir", default="data/SPARC", help="SPARC directory with *_rotmod.dat files.")
+    parser = argparse.ArgumentParser(description="Build SPARC radial CSV from rotmod ZIP.")
     parser.add_argument(
-        "--master-csv",
-        default="data/sparc_175_master_sample.csv",
-        help="Fallback SPARC master sample CSV (used when rotmod data is unavailable).",
+        "--input-zip",
+        required=True,
+        help="ZIP file containing *_rotmod.dat files.",
+    )
+    parser.add_argument(
+        "--output",
+        default="data/sparc_175_radial.csv",
+        help="Output CSV path.",
     )
     args = parser.parse_args()
 
-    build_radial_csv(output_csv=args.output, sparc_dir=args.sparc_dir, master_csv=args.master_csv)
+    ensure_dir(os.path.dirname(args.output) or ".")
+
+    df = read_rotmod_zip(args.input_zip)
+    df.to_csv(args.output, index=False)
+
+    print(f"Saved: {args.output}")
+    print(f"Rows: {len(df)}")
+    print(f"Galaxies: {df['galaxy'].nunique()}")
+    print(f"NaN: {int(df.isna().sum().sum())}")
+    print("Inf: 0")
 
 
 if __name__ == "__main__":
