@@ -4,23 +4,35 @@ test_f3_local_recurrence.py
 
 Intra-galaxy recurrence test for the SCM framework using SPARC-style rotmod files.
 
-Core observable:
+Core observable
+---------------
     F3_local = local slope of log10(Vobs) vs log10(r)
 
-For each galaxy, this script computes F3_local on a centered rolling window, then
+For each galaxy, the script computes F3_local on a centered rolling window and
 tests whether F3_{i+1} is better described by:
+
     (1) null model:     y = c
     (2) recurrence:     y = c + a * F3_i
     (3) recurrence+bar: y = c + a * F3_i + b * Δlog10(Vbar_i)
 
 where y = F3_{i+1}.
 
-Outputs:
+Outputs
+-------
 - per_galaxy_f3_recurrence.csv
 - top20_f3_recurrence_improve.csv
 - top20_f3_recurrence_worsen.csv
-- executive_summary.json
 - skipped_galaxies.csv
+- executive_summary.json
+
+Expected rotmod columns (standard SPARC fallback mapping)
+---------------------------------------------------------
+    col0 = radius_kpc
+    col1 = vobs_kms
+    col2 = err_vobs_kms
+    col3 = vgas_kms
+    col4 = vdisk_kms
+    col5 = vbul_kms
 """
 
 from __future__ import annotations
@@ -29,6 +41,7 @@ import argparse
 import json
 import math
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -41,20 +54,18 @@ DEFAULT_WINDOW = 5
 DEFAULT_BOOTSTRAP = 500
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Test F3_local recurrence on SPARC rotmod data.")
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Test F3_local recurrence on SPARC rotmod data."
+    )
     parser.add_argument(
         "--data_dir",
-        "--data-dir",
-        dest="data_dir",
         type=Path,
         required=True,
         help="Directory containing *_rotmod.dat files.",
     )
     parser.add_argument(
         "--out_dir",
-        "--out-dir",
-        dest="out_dir",
         type=Path,
         default=Path("results/f3_local_recurrence"),
         help="Output directory.",
@@ -67,8 +78,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--min_points",
-        "--min-points",
-        dest="min_points",
         type=int,
         default=MIN_POINTS_PER_GALAXY,
         help="Minimum raw radial points per galaxy to attempt analysis.",
@@ -79,7 +88,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_BOOTSTRAP,
         help="Bootstrap iterations per galaxy for recurrence slope CI.",
     )
-    return parser.parse_args(argv)
+    return parser.parse_args()
 
 
 def robust_aicc(rss: float, n: int, k: int) -> float:
@@ -386,8 +395,8 @@ def run(
     return summary
 
 
-def main(argv: list[str] | None = None) -> None:
-    args = parse_args(argv)
+def main() -> None:
+    args = parse_args()
     summary = run(
         data_dir=args.data_dir,
         out_dir=args.out_dir,
