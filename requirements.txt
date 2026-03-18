@@ -8,3 +8,4 @@ statsmodels>=0.13
 pyarrow>=14.0.1
 scikit-learn>=1.0
 joblib>=1.1
+astropy>=6.1
