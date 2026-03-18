@@ -147,10 +147,13 @@ def save_outputs(res_df: pd.DataFrame, outdir: str) -> None:
     ensure_dir(outdir)
 
     csv_path = os.path.join(outdir, "intra_galaxy_fits.csv")
+    csv_path_alias = os.path.join(outdir, "fits_per_galaxy.csv")
     txt_path = os.path.join(outdir, "summary.txt")
     fig_path = os.path.join(outdir, "coef_hist.png")
+    fig_path_alias = os.path.join(outdir, "coef_histograms.png")
 
     res_df.to_csv(csv_path, index=False)
+    res_df.to_csv(csv_path_alias, index=False)
 
     n_gal = len(res_df)
     mean_a = res_df["a_grad"].mean()
@@ -187,6 +190,7 @@ def save_outputs(res_df: pd.DataFrame, outdir: str) -> None:
 
     plt.tight_layout()
     plt.savefig(fig_path, dpi=150)
+    plt.savefig(fig_path_alias, dpi=150)
     plt.close()
 
 
