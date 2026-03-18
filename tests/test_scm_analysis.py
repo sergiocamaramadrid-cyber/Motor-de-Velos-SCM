@@ -157,6 +157,40 @@ class TestLoadRotationCurve:
         rc = load_rotation_curve(tmp_path, "NGC0003")
         assert len(rc) == 2
 
+    def test_prefers_rotmod_over_root_file(self, tmp_path):
+        rotmod_dir = tmp_path / "rotmod"
+        rotmod_dir.mkdir(parents=True)
+
+        root_df = pd.DataFrame(
+            {
+                "r": [1.0],
+                "v_obs": [90.0],
+                "v_obs_err": [5.0],
+                "v_gas": [20.0],
+                "v_disk": [40.0],
+                "v_bul": [0.0],
+                "SBdisk": [0.0],
+                "SBbul": [0.0],
+            }
+        )
+        rotmod_df = pd.DataFrame(
+            {
+                "r": [1.0, 2.0, 3.0],
+                "v_obs": [100.0, 110.0, 120.0],
+                "v_obs_err": [5.0, 5.0, 5.0],
+                "v_gas": [30.0, 31.0, 32.0],
+                "v_disk": [60.0, 61.0, 62.0],
+                "v_bul": [0.0, 0.0, 0.0],
+                "SBdisk": [0.0, 0.0, 0.0],
+                "SBbul": [0.0, 0.0, 0.0],
+            }
+        )
+        root_df.to_csv(tmp_path / "NGC0004_rotmod.dat", sep=" ", index=False, header=False)
+        rotmod_df.to_csv(rotmod_dir / "NGC0004_rotmod.dat", sep=" ", index=False, header=False)
+
+        rc = load_rotation_curve(tmp_path, "NGC0004")
+        assert len(rc) == 3
+
 
 # ---------------------------------------------------------------------------
 # fit_galaxy

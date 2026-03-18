@@ -100,8 +100,8 @@ def load_rotation_curve(data_dir, galaxy_name):
     """
     data_dir = Path(data_dir)
     candidates = [
-        data_dir / f"{galaxy_name}_rotmod.dat",
         data_dir / "rotmod" / f"{galaxy_name}_rotmod.dat",
+        data_dir / f"{galaxy_name}_rotmod.dat",
         data_dir / "raw" / f"{galaxy_name}_rotmod.dat",
     ]
     for path in candidates:

@@ -38,7 +38,7 @@ Outputs written to --out:
 
 Usage
 -----
-With raw rotmod files::
+With rotmod files::
 
     python scripts/compare_nu_models.py \\
         --data-dir data/SPARC \\
@@ -399,8 +399,8 @@ def _load_galaxy_table(data_dir: Path) -> pd.DataFrame:
 
 def _load_rotation_curve(data_dir: Path, name: str) -> pd.DataFrame:
     candidates = [
-        data_dir / f"{name}_rotmod.dat",
         data_dir / "rotmod" / f"{name}_rotmod.dat",
+        data_dir / f"{name}_rotmod.dat",
         data_dir / "raw" / f"{name}_rotmod.dat",
     ]
     for p in candidates:
