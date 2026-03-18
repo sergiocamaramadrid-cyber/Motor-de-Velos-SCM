@@ -41,19 +41,19 @@ import argparse
 import json
 import math
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
 
+
 EPS = 1e-12
 MIN_POINTS_PER_GALAXY = 10
-MIN_RECURRENCE_PAIRS = 5
-MIN_CONTROL_PAIRS = 6
 DEFAULT_WINDOW = 5
 DEFAULT_BOOTSTRAP = 500
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Test F3_local recurrence on SPARC rotmod data."
     )
@@ -73,7 +73,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--window",
         type=int,
         default=DEFAULT_WINDOW,
-        help="Centered rolling window size for local slope (prefer odd values).",
+        help="Centered rolling window size for local slope. Prefer odd values.",
     )
     parser.add_argument(
         "--min_points",
@@ -87,13 +87,13 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_BOOTSTRAP,
         help="Bootstrap iterations per galaxy for recurrence slope CI.",
     )
-    return parser.parse_args(argv)
+    return parser.parse_args()
 
 
 def robust_aicc(rss: float, n: int, k: int) -> float:
     if n <= k + 1:
         return np.inf
-    rss = max(float(rss), EPS)
+    rss = max(rss, EPS)
     aic = n * math.log(rss / n) + 2 * k
     correction = (2 * k * (k + 1)) / max(n - k - 1, EPS)
     return aic + correction
@@ -102,14 +102,28 @@ def robust_aicc(rss: float, n: int, k: int) -> float:
 def rmse(residuals: np.ndarray) -> float:
     if residuals.size == 0:
         return np.nan
-    return float(np.sqrt(np.mean(residuals**2)))
+    return float(np.sqrt(np.mean(residuals ** 2)))
 
 
 def weighted_lstsq(
     X: np.ndarray,
     y: np.ndarray,
-    w: np.ndarray | None = None,
-) -> tuple[np.ndarray, np.ndarray, float, float]:
+    w: Optional[np.ndarray] = None,
+) -> Tuple[np.ndarray, np.ndarray, float, float]:
+    """
+    Weighted least squares via sqrt(weight) transform.
+
+    Returns
+    -------
+    beta : ndarray
+        Best-fit coefficients.
+    residuals : ndarray
+        Unweighted residuals in y-space.
+    rss : float
+        Weighted residual sum of squares.
+    rmse_val : float
+        Unweighted RMSE in y-space.
+    """
     if w is None:
         sw = np.ones_like(y, dtype=float)
     else:
@@ -118,19 +132,24 @@ def weighted_lstsq(
     Xw = X * sw[:, None]
     yw = y * sw
     beta, *_ = np.linalg.lstsq(Xw, yw, rcond=None)
-    resid = y - X @ beta
-    rss = float(np.sum((sw * resid) ** 2))
-    return beta, resid, rss, rmse(resid)
+    residuals = y - X @ beta
+    rss = float(np.sum((sw * residuals) ** 2))
+    return beta, residuals, rss, rmse(residuals)
 
 
 def local_slope_loglog(r: np.ndarray, v: np.ndarray, window: int) -> np.ndarray:
+    """
+    Centered rolling local slope of log10(v) vs log10(r).
+
+    Returns NaN where the window cannot be computed.
+    """
     n = len(r)
     out = np.full(n, np.nan, dtype=float)
 
     if window < 3:
         raise ValueError("window must be >= 3")
     if window % 2 == 0:
-        window -= 1
+        window -= 1  # force odd
     half = window // 2
 
     valid = (r > 0) & (v > 0) & np.isfinite(r) & np.isfinite(v)
@@ -141,13 +160,13 @@ def local_slope_loglog(r: np.ndarray, v: np.ndarray, window: int) -> np.ndarray:
 
     for i in range(half, n - half):
         sl = slice(i - half, i + half + 1)
-        xr = logr[sl]
-        yv = logv[sl]
-        m = np.isfinite(xr) & np.isfinite(yv)
+        x = logr[sl]
+        y = logv[sl]
+        m = np.isfinite(x) & np.isfinite(y)
         if m.sum() < 3:
             continue
-        x = xr[m]
-        y = yv[m]
+        x = x[m]
+        y = y[m]
         if np.nanstd(x) < EPS:
             continue
         A = np.column_stack([np.ones_like(x), x])
@@ -182,11 +201,13 @@ def load_rotmod_file(path: Path) -> pd.DataFrame:
         + np.clip(df["vdisk_kms"], 0, np.inf) ** 2
         + np.clip(df["vbul_kms"], 0, np.inf) ** 2
     )
+
     return df
 
 
 def build_pair_table(galaxy: str, df: pd.DataFrame, window: int) -> pd.DataFrame:
     sub = df.sort_values("r_kpc").reset_index(drop=True).copy()
+
     sub["f3_local"] = local_slope_loglog(
         r=sub["r_kpc"].to_numpy(dtype=float),
         v=sub["vobs_kms"].to_numpy(dtype=float),
@@ -196,13 +217,20 @@ def build_pair_table(galaxy: str, df: pd.DataFrame, window: int) -> pd.DataFrame
     valid_bar = (sub["vbar_kms"] > 0) & np.isfinite(sub["vbar_kms"])
     sub["log_vbar"] = np.nan
     sub.loc[valid_bar, "log_vbar"] = np.log10(sub.loc[valid_bar, "vbar_kms"])
-
     sub["delta_log_vbar"] = sub["log_vbar"].diff()
     sub["f3_next"] = sub["f3_local"].shift(-1)
 
     pair = sub.loc[
         :,
-        ["r_kpc", "vobs_kms", "err_vobs_kms", "vbar_kms", "f3_local", "f3_next", "delta_log_vbar"],
+        [
+            "r_kpc",
+            "vobs_kms",
+            "err_vobs_kms",
+            "vbar_kms",
+            "f3_local",
+            "f3_next",
+            "delta_log_vbar",
+        ],
     ].copy()
     pair["galaxy"] = galaxy
 
@@ -219,15 +247,15 @@ def bootstrap_slope(
     x: np.ndarray,
     y: np.ndarray,
     n_boot: int,
-    w: np.ndarray | None = None,
+    w: Optional[np.ndarray] = None,
     seed: int = 12345,
-) -> tuple[float, float]:
+) -> Tuple[float, float]:
     rng = np.random.default_rng(seed)
     n = len(x)
     if n < 3:
         return np.nan, np.nan
 
-    slopes: list[float] = []
+    slopes = []
     for _ in range(n_boot):
         idx = rng.integers(0, n, n)
         xb = x[idx]
@@ -235,7 +263,7 @@ def bootstrap_slope(
         wb = None if w is None else w[idx]
         X = np.column_stack([np.ones_like(xb), xb])
         beta, _, _, _ = weighted_lstsq(X, yb, wb)
-        slopes.append(float(beta[1]))
+        slopes.append(beta[1])
 
     if not slopes:
         return np.nan, np.nan
@@ -244,10 +272,15 @@ def bootstrap_slope(
     return float(lo), float(hi)
 
 
-def analyze_galaxy(galaxy: str, df: pd.DataFrame, window: int, n_boot: int) -> dict[str, float] | None:
+def analyze_galaxy(
+    galaxy: str,
+    df: pd.DataFrame,
+    window: int,
+    n_boot: int,
+) -> Optional[Dict[str, float]]:
     pair = build_pair_table(galaxy=galaxy, df=df, window=window)
     n_pairs = len(pair)
-    if n_pairs < MIN_RECURRENCE_PAIRS:
+    if n_pairs < 5:
         return None
 
     y = pair["f3_next"].to_numpy(dtype=float)
@@ -260,32 +293,38 @@ def analyze_galaxy(galaxy: str, df: pd.DataFrame, window: int, n_boot: int) -> d
     err = np.where(valid_err, err, median_err)
     w = 1.0 / np.clip(err, EPS, np.inf) ** 2
 
+    # Null model
     X0 = np.ones((n_pairs, 1), dtype=float)
     beta0, resid0, rss0, rmse0 = weighted_lstsq(X0, y, w)
     aicc0 = robust_aicc(rss0, n_pairs, k=1)
 
+    # Recurrence model
     X1 = np.column_stack([np.ones(n_pairs), x_prev])
     beta1, resid1, rss1, rmse1 = weighted_lstsq(X1, y, w)
     aicc1 = robust_aicc(rss1, n_pairs, k=2)
 
+    # Recurrence + local baryonic control
     mask2 = np.isfinite(x_bar)
-    if mask2.sum() >= MIN_CONTROL_PAIRS:
+    if mask2.sum() >= 6:
         y2 = y[mask2]
         w2 = w[mask2]
         X2 = np.column_stack([np.ones(mask2.sum()), x_prev[mask2], x_bar[mask2]])
         beta2, resid2, rss2, rmse2 = weighted_lstsq(X2, y2, w2)
         aicc2 = robust_aicc(rss2, len(y2), k=3)
-        coeff_bar = float(beta2[2])
+
         coeff_prev_bar = float(beta2[1])
+        coeff_bar = float(beta2[2])
         rmse2_val = float(rmse2)
         aicc2_val = float(aicc2)
         delta_aicc_control = float(aicc2 - aicc0)
+        improves_aicc_recbar = bool(aicc2_val < aicc0)
     else:
-        coeff_bar = np.nan
         coeff_prev_bar = np.nan
+        coeff_bar = np.nan
         rmse2_val = np.nan
         aicc2_val = np.nan
         delta_aicc_control = np.nan
+        improves_aicc_recbar = False
 
     boot_lo, boot_hi = bootstrap_slope(
         x=x_prev,
@@ -318,11 +357,11 @@ def analyze_galaxy(galaxy: str, df: pd.DataFrame, window: int, n_boot: int) -> d
         "rmse_recbar": rmse2_val,
         "aicc_recbar": aicc2_val,
         "delta_aicc_recbar_vs_null": delta_aicc_control,
-        "improves_aicc_recbar": bool(aicc2_val < aicc0) if np.isfinite(aicc2_val) else False,
+        "improves_aicc_recbar": improves_aicc_recbar,
     }
 
 
-def summarize(df: pd.DataFrame) -> dict[str, float]:
+def summarize(df: pd.DataFrame) -> Dict[str, float]:
     if df.empty:
         return {}
 
@@ -336,41 +375,47 @@ def summarize(df: pd.DataFrame) -> dict[str, float]:
         "median_delta_rmse": float(np.median(df["delta_rmse"])),
         "median_rec_slope": float(np.median(df["rec_slope"])),
         "pct_delta_aicc_negative_recbar": (
-            float(100.0 * np.mean(df.loc[valid_control, "delta_aicc_recbar_vs_null"] < 0)) if valid_control.any() else np.nan
+            float(100.0 * np.mean(df.loc[valid_control, "delta_aicc_recbar_vs_null"] < 0))
+            if valid_control.any()
+            else np.nan
         ),
         "median_delta_aicc_recbar": (
-            float(np.median(df.loc[valid_control, "delta_aicc_recbar_vs_null"])) if valid_control.any() else np.nan
+            float(np.median(df.loc[valid_control, "delta_aicc_recbar_vs_null"]))
+            if valid_control.any()
+            else np.nan
         ),
     }
 
 
-def run(
-    data_dir: Path,
-    out_dir: Path,
-    window: int,
-    min_points: int,
-    bootstrap: int,
-) -> dict[str, float]:
-    out_dir.mkdir(parents=True, exist_ok=True)
-    files = sorted(data_dir.glob("*_rotmod.dat"))
-    if not files:
-        raise FileNotFoundError(f"No *_rotmod.dat files found in {data_dir}")
+def main() -> None:
+    args = parse_args()
+    args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    rows: list[dict[str, float]] = []
-    skipped: list[tuple[str, str]] = []
+    files = sorted(args.data_dir.glob("*_rotmod.dat"))
+    if not files:
+        raise FileNotFoundError(f"No *_rotmod.dat files found in {args.data_dir}")
+
+    rows: List[Dict[str, float]] = []
+    skipped: List[Tuple[str, str]] = []
 
     for path in files:
         galaxy = path.name.replace("_rotmod.dat", "")
         try:
             df = load_rotmod_file(path)
-            if len(df) < min_points:
+            if len(df) < args.min_points:
                 skipped.append((galaxy, f"too_few_points:{len(df)}"))
                 continue
 
-            result = analyze_galaxy(galaxy=galaxy, df=df, window=window, n_boot=bootstrap)
+            result = analyze_galaxy(
+                galaxy=galaxy,
+                df=df,
+                window=args.window,
+                n_boot=args.bootstrap,
+            )
             if result is None:
                 skipped.append((galaxy, "insufficient_pairs"))
                 continue
+
             rows.append(result)
         except Exception as exc:
             skipped.append((galaxy, f"error:{exc}"))
@@ -379,30 +424,24 @@ def run(
     summary = summarize(out)
     summary["n_files_found"] = int(len(files))
     summary["n_skipped"] = int(len(skipped))
-    summary["window"] = int(window)
-    summary["min_points"] = int(min_points)
-    summary["bootstrap"] = int(bootstrap)
+    summary["window"] = int(args.window)
+    summary["min_points"] = int(args.min_points)
+    summary["bootstrap"] = int(args.bootstrap)
 
-    out.to_csv(out_dir / "per_galaxy_f3_recurrence.csv", index=False)
-    out.head(20).to_csv(out_dir / "top20_f3_recurrence_improve.csv", index=False)
-    out.sort_values("delta_aicc", ascending=False).head(20).to_csv(out_dir / "top20_f3_recurrence_worsen.csv", index=False)
-    pd.DataFrame(skipped, columns=["galaxy", "reason"]).to_csv(out_dir / "skipped_galaxies.csv", index=False)
+    out_csv = args.out_dir / "per_galaxy_f3_recurrence.csv"
+    top_imp_csv = args.out_dir / "top20_f3_recurrence_improve.csv"
+    top_wor_csv = args.out_dir / "top20_f3_recurrence_worsen.csv"
+    skipped_csv = args.out_dir / "skipped_galaxies.csv"
+    summary_json = args.out_dir / "executive_summary.json"
 
-    with (out_dir / "executive_summary.json").open("w", encoding="utf-8") as handle:
-        json.dump(summary, handle, indent=2)
+    out.to_csv(out_csv, index=False)
+    out.head(20).to_csv(top_imp_csv, index=False)
+    out.sort_values("delta_aicc", ascending=False).head(20).to_csv(top_wor_csv, index=False)
+    pd.DataFrame(skipped, columns=["galaxy", "reason"]).to_csv(skipped_csv, index=False)
 
-    return summary
+    with open(summary_json, "w", encoding="utf-8") as f:
+        json.dump(summary, f, indent=2)
 
-
-def main(argv: list[str] | None = None) -> None:
-    args = parse_args(argv)
-    summary = run(
-        data_dir=args.data_dir,
-        out_dir=args.out_dir,
-        window=args.window,
-        min_points=args.min_points,
-        bootstrap=args.bootstrap,
-    )
     print(json.dumps(summary, indent=2))
 
 

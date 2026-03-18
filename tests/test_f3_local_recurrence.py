@@ -29,7 +29,7 @@ def test_local_slope_loglog_recovers_power_law() -> None:
     assert np.allclose(mid, 0.7, atol=1e-3)
 
 
-def test_run_writes_expected_outputs(tmp_path: Path) -> None:
+def test_main_writes_expected_outputs(tmp_path: Path, monkeypatch) -> None:
     data_dir = tmp_path / "rotmod"
     out_dir = tmp_path / "results"
     data_dir.mkdir(parents=True, exist_ok=True)
@@ -37,13 +37,25 @@ def test_run_writes_expected_outputs(tmp_path: Path) -> None:
     _write_rotmod(data_dir / "G1_rotmod.dat", n=16)
     _write_rotmod(data_dir / "G2_rotmod.dat", n=18)
 
-    summary = test_f3_local_recurrence.run(
-        data_dir=data_dir,
-        out_dir=out_dir,
-        window=5,
-        min_points=10,
-        bootstrap=20,
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "test_f3_local_recurrence.py",
+            "--data_dir",
+            str(data_dir),
+            "--out_dir",
+            str(out_dir),
+            "--window",
+            "5",
+            "--min_points",
+            "10",
+            "--bootstrap",
+            "20",
+        ],
     )
+    test_f3_local_recurrence.main()
+
+    summary = json.loads((out_dir / "executive_summary.json").read_text(encoding="utf-8"))
 
     assert summary["n_files_found"] == 2
     assert summary["n_galaxies"] == 2
@@ -58,5 +70,4 @@ def test_run_writes_expected_outputs(tmp_path: Path) -> None:
     for name in expected_files:
         assert (out_dir / name).exists(), f"Missing output file: {name}"
 
-    loaded_summary = json.loads((out_dir / "executive_summary.json").read_text(encoding="utf-8"))
-    assert loaded_summary["n_galaxies"] == 2
+    assert summary["n_galaxies"] == 2
