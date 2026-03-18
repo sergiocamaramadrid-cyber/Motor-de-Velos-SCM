@@ -41,7 +41,6 @@ import argparse
 import json
 import math
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -54,7 +53,7 @@ DEFAULT_WINDOW = 5
 DEFAULT_BOOTSTRAP = 500
 
 
-def parse_args() -> argparse.Namespace:
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Test F3_local recurrence on SPARC rotmod data."
     )
@@ -88,7 +87,7 @@ def parse_args() -> argparse.Namespace:
         default=DEFAULT_BOOTSTRAP,
         help="Bootstrap iterations per galaxy for recurrence slope CI.",
     )
-    return parser.parse_args()
+    return parser.parse_args(argv)
 
 
 def robust_aicc(rss: float, n: int, k: int) -> float:
@@ -395,8 +394,8 @@ def run(
     return summary
 
 
-def main() -> None:
-    args = parse_args()
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
     summary = run(
         data_dir=args.data_dir,
         out_dir=args.out_dir,
