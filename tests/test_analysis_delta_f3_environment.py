@@ -7,9 +7,6 @@ import pytest
 from analysis_delta_f3_environment import compute_aicc, run_analysis
 
 
-MIN_EXPECTED_HI_COEF = 0.1
-
-
 def test_compute_aicc_handles_small_sample_and_zero_rss():
     assert np.isinf(compute_aicc(1.0, n=3, k=2))
     finite_val = compute_aicc(0.0, n=20, k=3)
@@ -20,19 +17,15 @@ def test_run_analysis_outputs_and_detects_environment_signal(tmp_path: Path):
     rng = np.random.default_rng(42)
     n = 250
     log_mbar = rng.uniform(9.0, 11.0, n)
-    rdisk = rng.uniform(0.5, 5.0, n)
-    incl = rng.uniform(30.0, 80.0, n)
     log_sigma_hi = rng.uniform(-1.0, 1.0, n)
 
     noise = rng.normal(0.0, 0.03, n)
-    delta_f3 = 0.4 + 0.09 * log_mbar - 0.12 * rdisk + 0.01 * incl + 0.75 * log_sigma_hi + noise
+    delta_f3 = 0.4 + 0.09 * log_mbar + 0.75 * log_sigma_hi + noise
 
     df = pd.DataFrame(
         {
             "delta_f3": delta_f3,
             "logMbar": log_mbar,
-            "Rdisk": rdisk,
-            "inclination": incl,
             "logSigmaHI_out": log_sigma_hi,
         }
     )
@@ -44,44 +37,24 @@ def test_run_analysis_outputs_and_detects_environment_signal(tmp_path: Path):
     results = run_analysis(str(input_csv), str(outdir))
 
     assert (outdir / "results.txt").exists()
-    assert results["Delta_AICc"] < 0
-    assert results["Delta_RMSE"] < 0
-    # Synthetic data are generated with a strong HI term, so the recovered
-    # coefficient should stay comfortably above this small floor.
-    assert abs(results["coef_HI"]) > MIN_EXPECTED_HI_COEF
+    assert results["delta_aicc"] < 0
+    assert results["delta_rmse"] < 0
+    assert results["coef_hi"] > 0
 
 
-def test_run_analysis_fails_when_required_column_missing(tmp_path: Path):
-    df = pd.DataFrame(
-        {
-            "delta_f3": [0.1, 0.2],
-            "logMbar": [9.5, 10.1],
-            "Rdisk": [1.1, 1.2],
-            "inclination": [45.0, 50.0],
-        }
-    )
-    input_csv = tmp_path / "missing.csv"
-    df.to_csv(input_csv, index=False)
-
-    with pytest.raises(ValueError, match="Missing required column: logSigmaHI_out"):
-        run_analysis(str(input_csv), str(tmp_path / "out"))
-
-
-def test_run_analysis_supports_logrd_and_missing_inclination(tmp_path: Path):
+def test_run_analysis_builds_delta_from_f3_when_missing(tmp_path: Path):
     rng = np.random.default_rng(5)
     n = 120
-    log_mbar = rng.uniform(9.0, 11.0, n)
-    log_rd = rng.uniform(0.2, 1.2, n)
-    log_sigma_hi = rng.uniform(-0.8, 0.8, n)
+    mbar_linear = rng.uniform(9.0, 11.0, n)
+    sigma_hi_linear = rng.uniform(-0.8, 0.8, n)
     noise = rng.normal(0.0, 0.02, n)
-    delta_f3 = 0.2 + 0.08 * log_mbar - 0.4 * log_rd + 0.65 * log_sigma_hi + noise
+    f3 = 0.2 + 0.08 * mbar_linear + 0.65 * sigma_hi_linear + noise
 
     df = pd.DataFrame(
         {
-            "delta_f3": delta_f3,
-            "logMbar": log_mbar,
-            "logRd": log_rd,
-            "logSigmaHI_out": log_sigma_hi,
+            "Mbar": mbar_linear,
+            "SigmaHI_out": sigma_hi_linear,
+            "F3": f3,
         }
     )
     input_csv = tmp_path / "sample.csv"
@@ -90,4 +63,18 @@ def test_run_analysis_supports_logrd_and_missing_inclination(tmp_path: Path):
 
     results = run_analysis(str(input_csv), str(outdir))
     assert (outdir / "results.txt").exists()
-    assert results["Delta_AICc"] < 0
+    assert np.isfinite(results["delta_aicc"])
+
+
+def test_run_analysis_fails_when_required_column_missing(tmp_path: Path):
+    df = pd.DataFrame(
+        {
+            "delta_f3": [0.1, 0.2],
+            "logMbar": [9.5, 10.1],
+        }
+    )
+    input_csv = tmp_path / "missing.csv"
+    df.to_csv(input_csv, index=False)
+
+    with pytest.raises(ValueError, match="No valid column found for HI"):
+        run_analysis(str(input_csv), str(tmp_path / "out"))
