@@ -69,3 +69,35 @@ def test_main_writes_expected_outputs(tmp_path: Path, monkeypatch) -> None:
     ]
     for name in expected_files:
         assert (out_dir / name).exists(), f"Missing output file: {name}"
+
+
+def test_main_with_sparc_rotmod_subdir(tmp_path: Path, monkeypatch) -> None:
+    data_dir = tmp_path / "SPARC"
+    rotmod_dir = data_dir / "rotmod"
+    out_dir = tmp_path / "results_root_mode"
+    rotmod_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_rotmod(rotmod_dir / "G1_rotmod.dat", n=16)
+    _write_rotmod(rotmod_dir / "G2_rotmod.dat", n=18)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "test_f3_local_recurrence.py",
+            "--data_dir",
+            str(data_dir),
+            "--out_dir",
+            str(out_dir),
+            "--window",
+            "5",
+            "--min_points",
+            "10",
+            "--bootstrap",
+            "20",
+        ],
+    )
+    test_f3_local_recurrence.main()
+
+    summary = json.loads((out_dir / "executive_summary.json").read_text(encoding="utf-8"))
+    assert summary["n_files_found"] == 2
+    assert summary["n_galaxies"] == 2

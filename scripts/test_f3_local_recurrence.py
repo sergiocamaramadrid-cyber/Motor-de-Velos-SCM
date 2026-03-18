@@ -205,6 +205,20 @@ def load_rotmod_file(path: Path) -> pd.DataFrame:
     return df
 
 
+def discover_rotmod_files(data_dir: Path) -> List[Path]:
+    """
+    Discover rotmod files with preference for <data_dir>/rotmod, while keeping
+    backward compatibility with legacy layouts that place files directly under
+    <data_dir>.
+    """
+    rotmod_dir = data_dir / "rotmod"
+    if rotmod_dir.is_dir():
+        files = sorted(rotmod_dir.glob("*_rotmod.dat"))
+        if files:
+            return files
+    return sorted(data_dir.glob("*_rotmod.dat"))
+
+
 def build_pair_table(galaxy: str, df: pd.DataFrame, window: int) -> pd.DataFrame:
     sub = df.sort_values("r_kpc").reset_index(drop=True).copy()
 
@@ -391,7 +405,7 @@ def main() -> None:
     args = parse_args()
     args.out_dir.mkdir(parents=True, exist_ok=True)
 
-    files = sorted(args.data_dir.glob("*_rotmod.dat"))
+    files = discover_rotmod_files(args.data_dir)
     if not files:
         raise FileNotFoundError(f"No *_rotmod.dat files found in {args.data_dir}")
 
