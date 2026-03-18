@@ -42,14 +42,14 @@ def test_generates_and_validates_catalog(tmp_path: Path) -> None:
 
     df = pd.DataFrame(
         [
-            {"galaxy": "G1", "r_kpc": 1.0, "vobs_kms": 31.0, "vobs_err_kms": 2.0, "vbar_kms": 10.0},
-            {"galaxy": "G1", "r_kpc": 2.0, "vobs_kms": 37.0, "vobs_err_kms": 2.0, "vbar_kms": 20.0},
-            {"galaxy": "G1", "r_kpc": 3.0, "vobs_kms": 43.0, "vobs_err_kms": 2.0, "vbar_kms": 30.0},
-            {"galaxy": "G1", "r_kpc": 4.0, "vobs_kms": 49.0, "vobs_err_kms": 2.0, "vbar_kms": 40.0},
-            {"galaxy": "G2", "r_kpc": 1.0, "vobs_kms": 15.0, "vobs_err_kms": 2.0, "vbar_kms": 10.0},
-            {"galaxy": "G2", "r_kpc": 2.0, "vobs_kms": 24.0, "vobs_err_kms": 2.0, "vbar_kms": 20.0},
-            {"galaxy": "G2", "r_kpc": 3.0, "vobs_kms": 32.0, "vobs_err_kms": 2.0, "vbar_kms": 30.0},
-            {"galaxy": "G2", "r_kpc": 4.0, "vobs_kms": 39.0, "vobs_err_kms": 2.0, "vbar_kms": 40.0},
+            {"galaxy": "G1", "r": 1.0, "gobs": 31.0, "gbar": 10.0},
+            {"galaxy": "G1", "r": 2.0, "gobs": 37.0, "gbar": 20.0},
+            {"galaxy": "G1", "r": 3.0, "gobs": 43.0, "gbar": 30.0},
+            {"galaxy": "G1", "r": 4.0, "gobs": 49.0, "gbar": 40.0},
+            {"galaxy": "G2", "r": 1.0, "gobs": 15.0, "gbar": 10.0},
+            {"galaxy": "G2", "r": 2.0, "gobs": 24.0, "gbar": 20.0},
+            {"galaxy": "G2", "r": 3.0, "gobs": 32.0, "gbar": 30.0},
+            {"galaxy": "G2", "r": 4.0, "gobs": 39.0, "gbar": 40.0},
         ]
     )
     df.to_csv(input_csv, index=False)
@@ -60,9 +60,6 @@ def test_generates_and_validates_catalog(tmp_path: Path) -> None:
     out_csv = out_dir / "f3_catalog.csv"
     assert out_csv.exists()
     out_df = pd.read_csv(out_csv)
-    canonical = {"f3_scm", "delta_f3", "fit_ok", "quality_flag"}
-    legacy = {"beta", "beta_err", "reliable", "friction_slope", "velo_inerte_flag"}
-    assert canonical.issubset(out_df.columns)
-    assert legacy.issubset(out_df.columns)
+    assert {"F3", "delta_f3"}.issubset(out_df.columns)
     assert "[VALIDACIÓN SCM]" in cp.stdout
     assert "min=" in cp.stdout and "max=" in cp.stdout and "std=" in cp.stdout

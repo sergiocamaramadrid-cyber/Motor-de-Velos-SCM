@@ -15,7 +15,7 @@ PYTHON_BIN="${PYTHON_BIN:-python3}"
 INPUT_CSV="${SCRIPT_DIR}/data/big_sparc/contract/big_sparc_contract.parquet"
 OUTPUT_DIR="${SCRIPT_DIR}/results/SPARC"
 OUTPUT_CSV="${OUTPUT_DIR}/f3_catalog.csv"
-VALIDATION_COL="f3_scm"
+VALIDATION_COL="F3"
 ANALYSIS_SCRIPT="${SCRIPT_DIR}/scripts/run_big_sparc_veil_test.py"
 ANALYSIS_CATALOG=""
 FULL_ANALYSIS=0
@@ -62,7 +62,7 @@ mkdir -p "${OUTPUT_DIR}"
 echo -e "${GREEN}▶️ Generando catálogo F3...${NC}"
 "${PYTHON_BIN}" "${SCRIPT_DIR}/scripts/generate_f3_catalog_from_contract.py" \
     --input "${INPUT_CSV}" \
-    --out "${OUTPUT_DIR}"
+    --output "${OUTPUT_CSV}"
 
 if [[ ! -f "${OUTPUT_CSV}" ]]; then
     echo -e "${RED}❌ No se generó el archivo esperado: ${OUTPUT_CSV}${NC}"
@@ -85,7 +85,7 @@ if df.empty:
     raise SystemExit(1)
 
 # Keep "F3_SCM" and "deep_slope" for transitional compatibility with older artifacts.
-candidate_cols = [preferred_col, "friction_slope", "beta", "F3_SCM", "deep_slope"]
+candidate_cols = [preferred_col, "f3_scm", "friction_slope", "beta", "F3_SCM", "deep_slope"]
 col = next((c for c in candidate_cols if c in df.columns), None)
 if col is None:
     print(f"❌ Error: no se encontró columna de pendiente ({'/'.join(candidate_cols)}).")
