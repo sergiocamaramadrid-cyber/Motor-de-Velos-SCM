@@ -1,0 +1,15 @@
+{
+  "n_galaxies": 2,
+  "pct_delta_aicc_negative": 100.0,
+  "pct_delta_rmse_negative": 100.0,
+  "median_delta_aicc": -14.829626226268278,
+  "median_delta_rmse": -0.09635063947860054,
+  "median_rec_slope": 1.0219155131688844,
+  "pct_delta_aicc_negative_recbar": 100.0,
+  "median_delta_aicc_recbar": -12.57174870229684,
+  "n_files_found": 2,
+  "n_skipped": 0,
+  "window": 7,
+  "min_points": 10,
+  "bootstrap": 20
+}
