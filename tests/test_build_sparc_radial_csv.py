@@ -5,7 +5,6 @@ import numpy as np
 import pytest
 
 from scripts.build_sparc_radial_csv import KPC_TO_M
-from scripts.build_sparc_radial_csv import MIN_SB
 from scripts.build_sparc_radial_csv import read_rotmod_zip
 
 
@@ -48,7 +47,7 @@ def test_read_rotmod_zip_builds_expected_columns_and_values(tmp_path: Path) -> N
     ]
     assert len(out) == 2
     assert out["galaxy"].tolist() == ["GAL001", "GAL001"]
-    expected_sb = np.maximum(np.array([80.0**2, 90.0**2]), MIN_SB)
+    expected_sb = np.maximum(np.array([80.0**2, 90.0**2]), 1e-6)
     assert np.allclose(out["SB"].to_numpy(), expected_sb)
 
     r_m = np.array([1.0, 2.0]) * KPC_TO_M

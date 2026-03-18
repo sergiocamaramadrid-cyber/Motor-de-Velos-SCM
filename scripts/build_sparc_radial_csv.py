@@ -4,23 +4,7 @@
 """
 build_sparc_radial_csv.py
 
-Build a clean radial SPARC CSV from rotmod files.
-
-Input:
-    ZIP containing *_rotmod.dat files
-
-Output:
-    data/sparc_175_radial.csv
-
-Columns:
-    galaxy, r, Vobs, eVobs, Vgas, Vdisk, Vbul, Vbar, gobs, gbar, SB, F3
-
-Notes:
-- SB is initially approximated as Vdisk^2 as a first-pass proxy, clamped to
-  a small positive floor for numerical stability.
-- This builder is suitable for the first intra-galaxy iteration.
-- For the full physical dataset, use the multi-source builder that also merges
-  density profiles and metadata.
+Build a clean radial SPARC CSV from rotmod files inside a ZIP.
 """
 
 from __future__ import annotations
@@ -36,7 +20,6 @@ import pandas as pd
 
 KPC_TO_M = 3.085677581e19
 EPS = 1e-30
-MIN_SB = 1e-6
 
 
 def ensure_dir(path: str) -> None:
@@ -76,8 +59,6 @@ def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
             if data.ndim == 1:
                 data = data.reshape(1, -1)
 
-            # Expected minimum columns:
-            # r, Vobs, eVobs, Vgas, Vdisk, Vbul
             if data.shape[1] < 6:
                 continue
 
@@ -86,7 +67,7 @@ def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
             evobs = data[:, 2]
             vgas = data[:, 3]
             vdisk = data[:, 4]
-            vbul = data[:, 5] if data.shape[1] > 5 else np.zeros_like(r)
+            vbul = data[:, 5]
 
             vbar = np.sqrt(np.maximum(vgas**2 + vdisk**2 + vbul**2, 0.0))
             r_m = np.maximum(r * KPC_TO_M, EPS)
@@ -94,10 +75,7 @@ def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
             gobs = (vobs * 1000.0) ** 2 / r_m
             gbar = (vbar * 1000.0) ** 2 / r_m
 
-            # First-pass SB proxy, clamped to MIN_SB for numerical stability.
-            sb = np.maximum(vdisk**2, MIN_SB)
-
-            # Local F3 = (gobs - gbar) / gbar, guarded with EPS.
+            sb = np.maximum(vdisk**2, 1e-6)
             f3 = (gobs - np.maximum(gbar, EPS)) / np.maximum(gbar, EPS)
 
             for i in range(len(r)):
@@ -124,7 +102,7 @@ def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
                 )
 
     if not rows:
-        raise ValueError("No valid radial rows could be extracted from the ZIP.")
+        raise ValueError("No valid radial data extracted.")
 
     df = pd.DataFrame(rows)
     df = df.replace([np.inf, -np.inf], np.nan)
@@ -136,17 +114,9 @@ def read_rotmod_zip(zip_path: str) -> pd.DataFrame:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Build SPARC radial CSV from rotmod ZIP.")
-    parser.add_argument(
-        "--input-zip",
-        required=True,
-        help="ZIP file containing *_rotmod.dat files.",
-    )
-    parser.add_argument(
-        "--output",
-        default="data/sparc_175_radial.csv",
-        help="Output CSV path.",
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--input-zip", required=True)
+    parser.add_argument("--output", default="data/sparc_175_radial.csv")
     args = parser.parse_args()
 
     ensure_dir(os.path.dirname(args.output) or ".")
@@ -158,7 +128,6 @@ def main() -> None:
     print(f"Rows: {len(df)}")
     print(f"Galaxies: {df['galaxy'].nunique()}")
     print(f"NaN: {int(df.isna().sum().sum())}")
-    print("Inf: 0")
 
 
 if __name__ == "__main__":
