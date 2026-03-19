@@ -408,17 +408,17 @@ def summarize(df: pd.DataFrame) -> Dict[str, float]:
             else np.nan
         ),
         "median_delta_aicc": (
-            float(np.nanmedian(df.loc[valid_delta_aicc, "delta_aicc"]))
+            float(np.median(df.loc[valid_delta_aicc, "delta_aicc"]))
             if valid_delta_aicc.any()
             else np.nan
         ),
         "median_delta_rmse": (
-            float(np.nanmedian(df.loc[valid_delta_rmse, "delta_rmse"]))
+            float(np.median(df.loc[valid_delta_rmse, "delta_rmse"]))
             if valid_delta_rmse.any()
             else np.nan
         ),
         "median_rec_slope": (
-            float(np.nanmedian(df.loc[valid_rec_slope, "rec_slope"]))
+            float(np.median(df.loc[valid_rec_slope, "rec_slope"]))
             if valid_rec_slope.any()
             else np.nan
         ),
