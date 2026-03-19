@@ -13,7 +13,7 @@ N_GALAXIES = 175
 
 
 def generate_galaxy(i):
-    # Radios largos → cola externa clara
+    # Long radii -> clear outer tail
     r = np.array(
         [
             0.5,
@@ -31,37 +31,37 @@ def generate_galaxy(i):
         ]
     )
 
-    # Parámetros físicos
+    # Physical parameters
     v_max = rng.uniform(90, 260)
     r_s = rng.uniform(1.5, 4.5)
 
-    # Subida + transición
+    # Rise + transition
     v = v_max * (r / (r + r_s))
 
-    # Cola externa (la clave del Framework)
+    # Outer tail (the key signal for the framework)
     outer = r >= 10
     mode = i % 3
 
     if mode == 0:
-        # ligera caída
+        # Slight decline
         v[outer] -= 0.45 * (r[outer] - 10)
     elif mode == 1:
-        # casi plana
+        # Nearly flat
         v[outer] -= 0.15 * (r[outer] - 10)
     else:
-        # ligera persistencia
+        # Slight persistence
         v[outer] += 0.08 * (r[outer] - 10)
 
-    # Ruido orgánico pequeño
+    # Small organic scatter
     v += rng.normal(0, 1.2, len(r))
     v = np.clip(v, 5, None)
 
-    # Componentes baryónicos
+    # Baryonic components
     v_gas = v * rng.uniform(0.12, 0.22)
     v_disk = v * rng.uniform(0.65, 0.80) * (r / (r + 1.2))
     v_bulge = v * rng.uniform(0.00, 0.15) * np.exp(-r / 2.2)
 
-    # Errores observacionales
+    # Observational uncertainties
     e_v = rng.uniform(2, 5, len(r))
 
     return np.column_stack([r, v, e_v, v_gas, v_disk, v_bulge])
@@ -76,7 +76,7 @@ def main():
             for row in data:
                 f.write(" ".join(f"{x:.6g}" for x in row) + "\n")
 
-    print(f"✅ 175 galaxias sintéticas físicas generadas en {OUT_DIR}")
+    print(f"✅ 175 physical synthetic galaxies generated in {OUT_DIR}")
 
 
 if __name__ == "__main__":
