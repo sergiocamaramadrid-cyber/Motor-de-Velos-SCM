@@ -13,9 +13,10 @@ def clean_project() -> None:
     results_dir.mkdir(parents=True, exist_ok=True)
 
     for root, dirs, _ in os.walk("."):
-        for d in dirs:
+        for d in list(dirs):
             if d == "__pycache__":
                 shutil.rmtree(Path(root) / d)
+                dirs.remove(d)
 
     print("🧹 Limpieza completada.")
 
