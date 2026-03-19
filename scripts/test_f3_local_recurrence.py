@@ -378,7 +378,16 @@ def analyze_galaxy(
 
 def summarize(df: pd.DataFrame) -> Dict[str, float]:
     if df.empty:
-        return {}
+        return {
+            "n_galaxies": 0,
+            "pct_delta_aicc_negative": np.nan,
+            "pct_delta_rmse_negative": np.nan,
+            "median_delta_aicc": np.nan,
+            "median_delta_rmse": np.nan,
+            "median_rec_slope": np.nan,
+            "pct_delta_aicc_negative_recbar": np.nan,
+            "median_delta_aicc_recbar": np.nan,
+        }
 
     valid_control = np.isfinite(df["delta_aicc_recbar_vs_null"])
 
@@ -435,7 +444,9 @@ def main() -> None:
         except Exception as exc:
             skipped.append((galaxy, f"error:{exc}"))
 
-    out = pd.DataFrame(rows).sort_values("delta_aicc", ascending=True).reset_index(drop=True)
+    out = pd.DataFrame(rows)
+    if not out.empty:
+        out = out.sort_values("delta_aicc", ascending=True).reset_index(drop=True)
     summary = summarize(out)
     summary["n_files_found"] = int(len(files))
     summary["n_skipped"] = int(len(skipped))
@@ -451,7 +462,10 @@ def main() -> None:
 
     out.to_csv(out_csv, index=False)
     out.head(20).to_csv(top_imp_csv, index=False)
-    out.sort_values("delta_aicc", ascending=False).head(20).to_csv(top_wor_csv, index=False)
+    if not out.empty:
+        out.sort_values("delta_aicc", ascending=False).head(20).to_csv(top_wor_csv, index=False)
+    else:
+        out.to_csv(top_wor_csv, index=False)
     pd.DataFrame(skipped, columns=["galaxy", "reason"]).to_csv(skipped_csv, index=False)
 
     with open(summary_json, "w", encoding="utf-8") as f:

@@ -101,3 +101,37 @@ def test_main_with_sparc_rotmod_subdir(tmp_path: Path, monkeypatch) -> None:
     summary = json.loads((out_dir / "executive_summary.json").read_text(encoding="utf-8"))
     assert summary["n_files_found"] == 2
     assert summary["n_galaxies"] == 2
+
+
+def test_main_handles_all_galaxies_skipped(tmp_path: Path, monkeypatch) -> None:
+    data_dir = tmp_path / "SPARC"
+    rotmod_dir = data_dir / "rotmod"
+    out_dir = tmp_path / "results_all_skipped"
+    rotmod_dir.mkdir(parents=True, exist_ok=True)
+
+    # 4 points each -> below min_points=5, all will be skipped
+    _write_rotmod(rotmod_dir / "G1_rotmod.dat", n=4)
+    _write_rotmod(rotmod_dir / "G2_rotmod.dat", n=4)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "test_f3_local_recurrence.py",
+            "--data_dir",
+            str(data_dir),
+            "--out_dir",
+            str(out_dir),
+            "--window",
+            "5",
+            "--min_points",
+            "5",
+            "--bootstrap",
+            "20",
+        ],
+    )
+    test_f3_local_recurrence.main()
+
+    summary = json.loads((out_dir / "executive_summary.json").read_text(encoding="utf-8"))
+    assert summary["n_files_found"] == 2
+    assert summary["n_galaxies"] == 0
+    assert summary["n_skipped"] == 2
