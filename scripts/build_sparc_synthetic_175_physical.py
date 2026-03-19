@@ -12,7 +12,7 @@ rng = np.random.default_rng(SEED)
 N_GALAXIES = 175
 
 
-def generate_galaxy(i):
+def generate_galaxy(galaxy_index):
     # Long radii -> clear outer tail
     r = np.array(
         [
@@ -40,7 +40,8 @@ def generate_galaxy(i):
 
     # Outer tail (the key signal for the framework)
     outer = r >= 10
-    mode = i % 3
+    # Cycle outer-tail families by galaxy index: 0=decline, 1=flat, 2=persistence.
+    mode = galaxy_index % 3
 
     if mode == 0:
         # Slight decline
@@ -68,9 +69,9 @@ def generate_galaxy(i):
 
 
 def main():
-    for i in range(1, N_GALAXIES + 1):
-        data = generate_galaxy(i)
-        name = f"G_SYNTH_{i:03d}"
+    for galaxy_index in range(1, N_GALAXIES + 1):
+        data = generate_galaxy(galaxy_index)
+        name = f"G_SYNTH_{galaxy_index:03d}"
 
         with open(OUT_DIR / f"{name}_rotmod.dat", "w") as f:
             for row in data:
