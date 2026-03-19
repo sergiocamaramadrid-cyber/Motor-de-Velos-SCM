@@ -9,6 +9,9 @@ OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 SEED = 12345
 N_GALAXIES = 50
+TAIL_DECLINE_RATE = 0.45
+TAIL_PLATEAU_RATE = 0.15
+TAIL_PERSISTENCE_RATE = 0.08
 
 
 def generate_physical_galaxy(i: int, rng: np.random.Generator) -> np.ndarray:
@@ -41,13 +44,13 @@ def generate_physical_galaxy(i: int, rng: np.random.Generator) -> np.ndarray:
     outer = r >= 10.0
     if tail_mode == 0:
         # Slight decline
-        v[outer] -= 0.45 * (r[outer] - 10.0)
+        v[outer] -= TAIL_DECLINE_RATE * (r[outer] - 10.0)
     elif tail_mode == 1:
         # Near-flat plateau
-        v[outer] -= 0.15 * (r[outer] - 10.0)
+        v[outer] -= TAIL_PLATEAU_RATE * (r[outer] - 10.0)
     else:
         # Very mild persistence / tiny positive support
-        v[outer] += 0.08 * (r[outer] - 10.0)
+        v[outer] += TAIL_PERSISTENCE_RATE * (r[outer] - 10.0)
 
     # Add small observational scatter
     v += rng.normal(0.0, 1.2, size=len(r))
