@@ -103,6 +103,40 @@ def test_main_with_sparc_rotmod_subdir(tmp_path: Path, monkeypatch) -> None:
     assert summary["n_galaxies"] == 2
 
 
+def test_main_window3_minpoints3_analyzes_short_series(tmp_path: Path, monkeypatch) -> None:
+    data_dir = tmp_path / "SPARC"
+    rotmod_dir = data_dir / "rotmod"
+    out_dir = tmp_path / "results_window3_min3"
+    rotmod_dir.mkdir(parents=True, exist_ok=True)
+
+    # 6 points with window=3 -> yields 3 recurrence pairs (minimum accepted)
+    _write_rotmod(rotmod_dir / "G1_rotmod.dat", n=6)
+    _write_rotmod(rotmod_dir / "G2_rotmod.dat", n=6)
+
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "test_f3_local_recurrence.py",
+            "--data_dir",
+            str(data_dir),
+            "--out_dir",
+            str(out_dir),
+            "--window",
+            "3",
+            "--min_points",
+            "3",
+            "--bootstrap",
+            "20",
+        ],
+    )
+    test_f3_local_recurrence.main()
+
+    summary = json.loads((out_dir / "executive_summary.json").read_text(encoding="utf-8"))
+    assert summary["n_files_found"] == 2
+    assert summary["n_galaxies"] == 2
+    assert summary["n_skipped"] == 0
+
+
 def test_main_handles_all_galaxies_skipped(tmp_path: Path, monkeypatch) -> None:
     data_dir = tmp_path / "SPARC"
     rotmod_dir = data_dir / "rotmod"
@@ -135,3 +169,20 @@ def test_main_handles_all_galaxies_skipped(tmp_path: Path, monkeypatch) -> None:
     assert summary["n_files_found"] == 2
     assert summary["n_galaxies"] == 0
     assert summary["n_skipped"] == 2
+
+
+def test_summarize_ignores_infinite_delta_aicc() -> None:
+    import pandas as pd
+
+    df = pd.DataFrame(
+        {
+            "delta_aicc": [np.inf, -2.0],
+            "delta_rmse": [-0.1, -0.2],
+            "rec_slope": [0.8, 0.7],
+            "delta_aicc_recbar_vs_null": [-1.0, np.nan],
+        }
+    )
+
+    summary = test_f3_local_recurrence.summarize(df)
+    assert summary["median_delta_aicc"] == -2.0
+    assert summary["pct_delta_aicc_negative"] == 100.0

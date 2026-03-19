@@ -51,6 +51,7 @@ EPS = 1e-12
 MIN_POINTS_PER_GALAXY = 10
 DEFAULT_WINDOW = 5
 DEFAULT_BOOTSTRAP = 500
+MIN_RECURRENCE_PAIRS = 3
 
 
 def parse_args() -> argparse.Namespace:
@@ -295,7 +296,7 @@ def analyze_galaxy(
 ) -> Optional[Dict[str, float]]:
     pair = build_pair_table(galaxy=galaxy, df=df, window=window)
     n_pairs = len(pair)
-    if n_pairs < 5:
+    if n_pairs < MIN_RECURRENCE_PAIRS:
         return None
 
     y = pair["f3_next"].to_numpy(dtype=float)
@@ -389,15 +390,38 @@ def summarize(df: pd.DataFrame) -> Dict[str, float]:
             "median_delta_aicc_recbar": np.nan,
         }
 
+    valid_delta_aicc = np.isfinite(df["delta_aicc"])
+    valid_delta_rmse = np.isfinite(df["delta_rmse"])
+    valid_rec_slope = np.isfinite(df["rec_slope"])
     valid_control = np.isfinite(df["delta_aicc_recbar_vs_null"])
 
     return {
         "n_galaxies": int(len(df)),
-        "pct_delta_aicc_negative": float(100.0 * np.mean(df["delta_aicc"] < 0)),
-        "pct_delta_rmse_negative": float(100.0 * np.mean(df["delta_rmse"] < 0)),
-        "median_delta_aicc": float(np.median(df["delta_aicc"])),
-        "median_delta_rmse": float(np.median(df["delta_rmse"])),
-        "median_rec_slope": float(np.median(df["rec_slope"])),
+        "pct_delta_aicc_negative": (
+            float(100.0 * np.mean(df.loc[valid_delta_aicc, "delta_aicc"] < 0))
+            if valid_delta_aicc.any()
+            else np.nan
+        ),
+        "pct_delta_rmse_negative": (
+            float(100.0 * np.mean(df.loc[valid_delta_rmse, "delta_rmse"] < 0))
+            if valid_delta_rmse.any()
+            else np.nan
+        ),
+        "median_delta_aicc": (
+            float(np.nanmedian(df.loc[valid_delta_aicc, "delta_aicc"]))
+            if valid_delta_aicc.any()
+            else np.nan
+        ),
+        "median_delta_rmse": (
+            float(np.nanmedian(df.loc[valid_delta_rmse, "delta_rmse"]))
+            if valid_delta_rmse.any()
+            else np.nan
+        ),
+        "median_rec_slope": (
+            float(np.nanmedian(df.loc[valid_rec_slope, "rec_slope"]))
+            if valid_rec_slope.any()
+            else np.nan
+        ),
         "pct_delta_aicc_negative_recbar": (
             float(100.0 * np.mean(df.loc[valid_control, "delta_aicc_recbar_vs_null"] < 0))
             if valid_control.any()
