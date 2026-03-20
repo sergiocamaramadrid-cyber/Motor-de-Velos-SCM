@@ -139,6 +139,21 @@ python scripts/clean_project.py
 python scripts/clean_project.py --full
 ```
 
+## 🚀 Ignición completa SPARC
+
+```bash
+# Ejecución estándar
+python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean --overwrite
+
+# Ejecución completa (limpieza profunda)
+python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean-full --overwrite
+
+# Con pipeline adicional
+python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean --overwrite \
+  --run "python scripts/build_sparc_full_catalog.py" \
+  --run "python scripts/generate_f3_catalog_from_contract.py"
+```
+
 ## How to Run the Full Pipeline
 
 ```bash
