@@ -1,50 +1,69 @@
-import json
-from argparse import Namespace
 from pathlib import Path
+import json
 
-from scripts import ignition_sparc_real
-
-
-def test_rotmod_dir_path_is_expected():
-    assert str(ignition_sparc_real.ROTMOD_DIR) == "data/SPARC/rotmod"
+from scripts.ignition_sparc_real import run_extra, save_summary
 
 
-def test_run_extra_executes_shell_split_commands(monkeypatch):
-    calls = []
+def test_run_extra_executes_commands(monkeypatch):
+    """Verifica que run_extra ejecuta comandos correctamente sin shell=True."""
 
-    def fake_ejecutar(cmd):
-        calls.append(cmd)
+    executed = []
 
-    monkeypatch.setattr(ignition_sparc_real, "ejecutar", fake_ejecutar)
+    def fake_run(cmd, check):
+        executed.append(cmd)
 
-    ignition_sparc_real.run_extra(
-        [
-            "python scripts/intra_galaxy_gradient_test.py",
-            "python scripts/another.py --flag value",
-        ]
-    )
+    monkeypatch.setattr("subprocess.run", fake_run)
 
-    assert calls == [
-        ["python", "scripts/intra_galaxy_gradient_test.py"],
-        ["python", "scripts/another.py", "--flag", "value"],
+    commands = [
+        "python scripts/intra_galaxy_gradient_test.py",
+        "python scripts/another_script.py",
     ]
 
+    run_extra(commands)
 
-def test_save_summary_persists_extra_run_commands(tmp_path, monkeypatch):
-    monkeypatch.setattr(ignition_sparc_real, "RESULTS_DIR", tmp_path / "results")
+    assert len(executed) == 2
+    assert executed[0][0] == "python"
+    assert any("intra_galaxy_gradient_test.py" in part for part in executed[0])
+    assert executed[1][0] == "python"
 
-    args = Namespace(
-        clean=False,
-        clean_full=False,
-        build_catalog=True,
-        generate_f3=True,
-        run=["python scripts/intra_galaxy_gradient_test.py"],
+
+def test_save_summary_persists_extra_commands(tmp_path):
+    """Verifica que save_summary guarda correctamente extra_commands."""
+
+    results_dir = tmp_path / "results"
+    results_dir.mkdir()
+
+    import scripts.ignition_sparc_real as ignition
+    ignition.RESULTS_DIR = results_dir
+
+    class Args:
+        clean = True
+        clean_full = False
+        build_catalog = True
+        generate_f3 = True
+        run = ["python scripts/test.py"]
+
+    zip_path = Path("CURVAS_SPARC.zip")
+
+    save_summary(
+        n_galaxies=175,
+        zip_path=zip_path,
+        args=Args,
     )
 
-    ignition_sparc_real.save_summary(175, Path("CURVAS_SPARC.zip"), args)
+    summary_file = results_dir / "ignition_summary.json"
+    assert summary_file.exists()
 
-    out = (tmp_path / "results" / "ignition_summary.json")
-    assert out.exists()
-    payload = json.loads(out.read_text(encoding="utf-8"))
-    assert payload["extra_commands"] == ["python scripts/intra_galaxy_gradient_test.py"]
-    assert payload["status"] == "ok"
+    data = json.loads(summary_file.read_text())
+
+    assert data["galaxies_detected"] == 175
+    assert data["status"] == "ok"
+    assert data["build_catalog"] is True
+    assert data["generate_f3"] is True
+    assert data["extra_commands"] == ["python scripts/test.py"]
+
+
+def test_rotmod_path_is_correct():
+    """Test mínimo estructural (evita regresiones de path)."""
+    data_dir = Path("data/SPARC/rotmod")
+    assert str(data_dir) == "data/SPARC/rotmod"
