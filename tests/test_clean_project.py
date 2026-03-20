@@ -22,8 +22,42 @@ def test_clean_project_resets_results_and_removes_pycache(tmp_path: Path) -> Non
 
     subprocess.run([sys.executable, str(script)], cwd=tmp_path, check=True)
 
-    assert results_dir.exists()
-    assert list(results_dir.iterdir()) == []
+    assert not results_dir.exists()
     assert not pycache_root.exists()
     assert not nested_pycache.exists()
 
+
+def test_clean_project_full_removes_extra_targets(tmp_path: Path) -> None:
+    script = Path(__file__).resolve().parents[1] / "scripts" / "clean_project.py"
+
+    sp = tmp_path / "results" / "SPARC"
+    oos = tmp_path / "results" / "oos_validation"
+    final = tmp_path / "results" / "scm_results_final"
+    sp.mkdir(parents=True)
+    oos.mkdir(parents=True)
+    final.mkdir(parents=True)
+
+    subprocess.run([sys.executable, str(script), "--full"], cwd=tmp_path, check=True)
+
+    assert not sp.exists()
+    assert not oos.exists()
+    assert not final.exists()
+
+
+def test_clean_project_does_not_remove_protected_paths(tmp_path: Path) -> None:
+    script = Path(__file__).resolve().parents[1] / "scripts" / "clean_project.py"
+
+    protected_sparc = tmp_path / "data" / "SPARC"
+    protected_sparc.mkdir(parents=True)
+    (protected_sparc / "keep.txt").write_text("x", encoding="utf-8")
+
+    protected_scripts = tmp_path / "scripts"
+    protected_scripts.mkdir(parents=True)
+    (protected_scripts / "keep.py").write_text("print('x')", encoding="utf-8")
+
+    subprocess.run([sys.executable, str(script), "--full"], cwd=tmp_path, check=True)
+
+    assert protected_sparc.exists()
+    assert (protected_sparc / "keep.txt").exists()
+    assert protected_scripts.exists()
+    assert (protected_scripts / "keep.py").exists()
