@@ -5,7 +5,7 @@ from scripts.ignition_sparc_real import run_extra, save_summary
 
 
 def test_run_extra_executes_commands(monkeypatch):
-    """Verifica que run_extra ejecuta comandos correctamente sin shell=True."""
+    """Verifies that run_extra executes commands correctly without shell=True."""
 
     executed = []
 
@@ -28,7 +28,7 @@ def test_run_extra_executes_commands(monkeypatch):
 
 
 def test_save_summary_persists_extra_commands(tmp_path):
-    """Verifica que save_summary guarda correctamente extra_commands."""
+    """Verifies that save_summary correctly saves extra_commands."""
 
     results_dir = tmp_path / "results"
     results_dir.mkdir()
@@ -64,6 +64,6 @@ def test_save_summary_persists_extra_commands(tmp_path):
 
 
 def test_rotmod_path_is_correct():
-    """Test mínimo estructural (evita regresiones de path)."""
+    """Minimal structural test (prevents path regressions)."""
     data_dir = Path("data/SPARC/rotmod")
     assert str(data_dir) == "data/SPARC/rotmod"
