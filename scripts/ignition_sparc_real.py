@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 
-ROTmod_DIR = Path("data/SPARC/rotmod")
+ROTMOD_DIR = Path("data/SPARC/rotmod")
 RESULTS_DIR = Path("results")
 
 
@@ -72,7 +72,7 @@ def run_ingestion(zip_path, overwrite=False):
 def precheck():
     print("\n🔍 Precheck de galaxias...\n")
 
-    files = list(ROTmod_DIR.glob("*_rotmod.dat"))
+    files = list(ROTMOD_DIR.glob("*_rotmod.dat"))
     n = len(files)
 
     print(f"Galaxias detectadas: {n}")
@@ -146,7 +146,7 @@ def main():
 
     zip_path = Path(args.zipfile)
     if not zip_path.exists():
-        raise FileNotFoundError(zip_path)
+        raise FileNotFoundError(f"ZIP file not found: {zip_path}. Expected CURVAS_SPARC.zip in the provided path.")
 
     # Limpieza
     if args.clean_full:
