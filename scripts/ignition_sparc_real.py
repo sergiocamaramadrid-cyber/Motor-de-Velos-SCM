@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -73,7 +74,7 @@ def precheck() -> int:
 def run_extra(commands: list[str]) -> None:
     for cmd in commands:
         print(f"\n🚀 Ejecutando: {cmd}\n")
-        subprocess.run(cmd, shell=True, check=True)
+        subprocess.run(shlex.split(cmd), check=True)
 
 
 def save_summary(n_galaxies: int, zip_path: Path) -> None:
@@ -105,7 +106,10 @@ def main() -> None:
 
     zip_path = Path(args.zipfile)
     if not zip_path.exists():
-        raise FileNotFoundError(zip_path)
+        raise FileNotFoundError(
+            f"ZIP file not found: {zip_path}. "
+            "Please ensure the CURVAS_SPARC.zip file exists in the specified location."
+        )
 
     if args.clean_full:
         run_clean("full")

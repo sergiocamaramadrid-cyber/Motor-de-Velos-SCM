@@ -1,6 +1,6 @@
 from pathlib import Path
 
 
-def test_rotmod_exists_after_ingestion() -> None:
+def test_ignition_rotmod_directory_exists() -> None:
     data_dir = Path("data/SPARC/rotmod")
     assert data_dir.exists()
