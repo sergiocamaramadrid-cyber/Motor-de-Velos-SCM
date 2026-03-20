@@ -84,7 +84,7 @@ def eliminar_seguro(ruta: Path) -> None:
         print(f"⚠️ Error eliminando {ruta}: {e}")
 
 
-def limpiar_artifacts_python() -> None:
+def limpiar_artefactos_python() -> None:
     """Elimina __pycache__ y archivos .pyc en todo el proyecto."""
     for p in Path(".").rglob("__pycache__"):
         eliminar_seguro(p)
@@ -99,7 +99,7 @@ def limpieza_estandar() -> None:
     for objetivo in OBJETIVOS_ESTANDAR:
         eliminar_seguro(objetivo)
 
-    limpiar_artifacts_python()
+    limpiar_artefactos_python()
 
     print("\n✅ Limpieza estándar completada\n")
 

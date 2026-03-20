@@ -67,6 +67,9 @@ def test_clean_project_prints_messages_in_spanish(tmp_path: Path) -> None:
     script = Path(__file__).resolve().parents[1] / "scripts" / "clean_project.py"
     results_dir = tmp_path / "results"
     results_dir.mkdir(parents=True)
+    (results_dir / "x.txt").write_text("tmp", encoding="utf-8")
+    full_target = tmp_path / "results" / "SPARC"
+    full_target.mkdir(parents=True)
 
     completed = subprocess.run(
         [sys.executable, str(script)],
@@ -78,3 +81,14 @@ def test_clean_project_prints_messages_in_spanish(tmp_path: Path) -> None:
 
     assert "Ejecutando limpieza estándar" in completed.stdout
     assert "Limpieza estándar completada" in completed.stdout
+
+    completed_full = subprocess.run(
+        [sys.executable, str(script), "--full"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Ejecutando limpieza COMPLETA" in completed_full.stdout
+    assert "Limpieza COMPLETA finalizada" in completed_full.stdout

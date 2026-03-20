@@ -132,7 +132,7 @@ Salida:
 Recomendado antes de ejecutar pipelines o validaciones:
 
 ```bash
-# Limpieza del entorno (recomendado antes de ejecutar el pipeline)
+# Elimina resultados, logs y cachés antes de ejecutar el pipeline
 python scripts/clean_project.py
 
 # Limpieza completa (antes de validaciones OOS / paper)
