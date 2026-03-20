@@ -212,6 +212,21 @@ python scripts/process_sparc.py \
   --out results/SPARC/rotation_curves-v1.0.csv
 ```
 
+### Precheck SPARC rotmod dataset
+
+```bash
+python scripts/verify_and_extract_sparc_rotmod.py CURVAS_SPARC.zip --extract --overwrite
+
+# Verificar número de galaxias
+find data/SPARC/rotmod -name "*_rotmod.dat" | wc -l
+```
+
+Esperado:
+
+```text
+175
+```
+
 ### SCM framework on SPARC catalog
 
 ```bash
