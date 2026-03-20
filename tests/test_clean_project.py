@@ -61,3 +61,20 @@ def test_clean_project_does_not_remove_protected_paths(tmp_path: Path) -> None:
     assert (protected_sparc / "keep.txt").exists()
     assert protected_scripts.exists()
     assert (protected_scripts / "keep.py").exists()
+
+
+def test_clean_project_prints_messages_in_spanish(tmp_path: Path) -> None:
+    script = Path(__file__).resolve().parents[1] / "scripts" / "clean_project.py"
+    results_dir = tmp_path / "results"
+    results_dir.mkdir(parents=True)
+
+    completed = subprocess.run(
+        [sys.executable, str(script)],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+
+    assert "Ejecutando limpieza estándar" in completed.stdout
+    assert "Limpieza estándar completada" in completed.stdout

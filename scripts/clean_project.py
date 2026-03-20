@@ -2,13 +2,14 @@
 """
 clean_project.py
 
-Production-safe cleaner for SCM project.
+Limpieza segura del proyecto SCM (modo producción).
 
-- Removes generated artifacts and caches
-- Protects critical paths (data, code, git)
-- Provides standard and full cleanup modes
+Funciones:
+- Elimina artefactos generados y caches
+- Protege rutas críticas (datos, código, git)
+- Ofrece modo estándar y modo completo (--full)
 
-Usage:
+Uso:
     python scripts/clean_project.py
     python scripts/clean_project.py --full
 """
@@ -18,8 +19,8 @@ import shutil
 from pathlib import Path
 
 
-# 🔒 Paths that must NEVER be deleted
-PROTECTED_PATHS = [
+# 🔒 Rutas que NUNCA deben eliminarse
+RUTAS_PROTEGIDAS = [
     Path("data/SPARC"),
     Path("data/big_sparc"),
     Path("src"),
@@ -29,8 +30,8 @@ PROTECTED_PATHS = [
 ]
 
 
-# 🧹 Standard cleanup targets
-STANDARD_TARGETS = [
+# 🧹 Objetivos de limpieza estándar
+OBJETIVOS_ESTANDAR = [
     Path("results"),
     Path("outputs"),
     Path("logs"),
@@ -39,94 +40,94 @@ STANDARD_TARGETS = [
 ]
 
 
-# 🔥 Extra targets for --full mode
-FULL_EXTRA_TARGETS = [
+# 🔥 Objetivos extra para modo completo
+OBJETIVOS_FULL = [
     Path("results/SPARC"),
     Path("results/oos_validation"),
     Path("results/scm_results_final"),
 ]
 
 
-def is_protected(path: Path) -> bool:
-    """Check if path is inside a protected directory."""
+def es_ruta_protegida(ruta: Path) -> bool:
+    """Comprueba si la ruta está dentro de una zona protegida."""
     try:
-        resolved = path.resolve()
+        ruta_resuelta = ruta.resolve()
     except Exception:
         return False
 
-    for protected in PROTECTED_PATHS:
+    for protegida in RUTAS_PROTEGIDAS:
         try:
-            if resolved.is_relative_to(protected.resolve()):
+            if ruta_resuelta.is_relative_to(protegida.resolve()):
                 return True
         except Exception:
             continue
     return False
 
 
-def safe_remove(path: Path) -> None:
-    """Safely remove file or directory unless protected."""
-    if not path.exists():
+def eliminar_seguro(ruta: Path) -> None:
+    """Elimina archivo o carpeta solo si no está protegida."""
+    if not ruta.exists():
         return
 
-    if is_protected(path):
-        print(f"⛔ PROTECTED: {path}")
+    if es_ruta_protegida(ruta):
+        print(f"⛔ PROTEGIDO: {ruta}")
         return
 
     try:
-        if path.is_file() or path.is_symlink():
-            path.unlink()
-            print(f"🗑️ Removed file: {path}")
+        if ruta.is_file() or ruta.is_symlink():
+            ruta.unlink()
+            print(f"🗑️ Archivo eliminado: {ruta}")
         else:
-            shutil.rmtree(path)
-            print(f"🗑️ Removed directory: {path}")
+            shutil.rmtree(ruta)
+            print(f"🗑️ Carpeta eliminada: {ruta}")
     except Exception as e:
-        print(f"⚠️ Failed to remove {path}: {e}")
+        print(f"⚠️ Error eliminando {ruta}: {e}")
 
 
-def remove_python_artifacts() -> None:
-    """Remove __pycache__ and *.pyc recursively."""
+def limpiar_artifacts_python() -> None:
+    """Elimina __pycache__ y archivos .pyc en todo el proyecto."""
     for p in Path(".").rglob("__pycache__"):
-        safe_remove(p)
+        eliminar_seguro(p)
 
     for p in Path(".").rglob("*.pyc"):
-        safe_remove(p)
+        eliminar_seguro(p)
 
 
-def clean_standard() -> None:
-    print("\n🧹 Running standard cleanup...\n")
+def limpieza_estandar() -> None:
+    print("\n🧹 Ejecutando limpieza estándar...\n")
 
-    for target in STANDARD_TARGETS:
-        safe_remove(target)
+    for objetivo in OBJETIVOS_ESTANDAR:
+        eliminar_seguro(objetivo)
 
-    remove_python_artifacts()
+    limpiar_artifacts_python()
 
-    print("\n✅ Standard cleanup completed\n")
+    print("\n✅ Limpieza estándar completada\n")
 
 
-def clean_full() -> None:
-    print("\n🔥 Running FULL cleanup...\n")
+def limpieza_full() -> None:
+    print("\n🔥 Ejecutando limpieza COMPLETA...\n")
 
-    for target in FULL_EXTRA_TARGETS:
-        safe_remove(target)
+    for objetivo in OBJETIVOS_FULL:
+        eliminar_seguro(objetivo)
 
-    clean_standard()
+    limpieza_estandar()
 
-    print("\n✅ FULL cleanup completed\n")
+    print("\n✅ Limpieza COMPLETA finalizada\n")
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="SCM project cleaner")
+    parser = argparse.ArgumentParser(description="Limpieza segura del proyecto SCM")
     parser.add_argument(
         "--full",
         action="store_true",
-        help="Run full cleanup (includes extended SCM results)",
+        help="Ejecuta limpieza completa (incluye resultados SCM)",
     )
     args = parser.parse_args()
 
     if args.full:
-        clean_full()
+        limpieza_full()
     else:
-        clean_standard()
+        limpieza_estandar()
 
 
 if __name__ == "__main__":

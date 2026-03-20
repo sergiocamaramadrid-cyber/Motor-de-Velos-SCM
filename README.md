@@ -127,6 +127,18 @@ Salida:
 
 - `results/reproducibility/repro_report.json`
 
+## Limpieza del entorno
+
+Recomendado antes de ejecutar pipelines o validaciones:
+
+```bash
+# Limpieza del entorno (recomendado antes de ejecutar el pipeline)
+python scripts/clean_project.py
+
+# Limpieza completa (antes de validaciones OOS / paper)
+python scripts/clean_project.py --full
+```
+
 ## How to Run the Full Pipeline
 
 ```bash
