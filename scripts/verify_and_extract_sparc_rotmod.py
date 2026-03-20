@@ -29,7 +29,7 @@ OUTPUT_DIR = Path("data/SPARC/rotmod")
 
 
 def file_hash(content: bytes) -> str:
-    return hashlib.md5(content).hexdigest()
+    return hashlib.sha256(content).hexdigest()
 
 
 def validate_rotmod(content_bytes: bytes) -> bool:
@@ -59,13 +59,12 @@ def process_zip(zip_path: Path) -> tuple[dict, dict[str, str]]:
         "total_files": 0,
         "valid_files": 0,
         "invalid_files": 0,
-        "unique_galaxies": set(),
+        "unique_galaxies": 0,
         "duplicates": {},
         "conflicts": [],
     }
 
     seen: dict[str, str] = {}
-
     with zipfile.ZipFile(zip_path, "r") as zf:
         for name in zf.namelist():
             if not name.endswith("_rotmod.dat"):
@@ -84,14 +83,13 @@ def process_zip(zip_path: Path) -> tuple[dict, dict[str, str]]:
 
             if galaxy not in seen:
                 seen[galaxy] = content_hash
-                report["unique_galaxies"].add(galaxy)
             elif seen[galaxy] == content_hash:
                 report["duplicates"].setdefault(galaxy, 0)
                 report["duplicates"][galaxy] += 1
             else:
                 report["conflicts"].append(galaxy)
 
-    report["unique_galaxies"] = len(report["unique_galaxies"])
+    report["unique_galaxies"] = len(seen)
     return report, seen
 
 
@@ -133,7 +131,7 @@ def main() -> None:
 
     zip_path = Path(args.zipfile)
     if not zip_path.exists():
-        raise FileNotFoundError(zip_path)
+        raise FileNotFoundError(f"ZIP file not found: {zip_path.resolve()}")
 
     report, seen_hashes = process_zip(zip_path)
 
