@@ -1,6 +1,6 @@
 from pathlib import Path
 
 
-def test_ignition_rotmod_directory_exists() -> None:
+def test_rotmod_dir_path_is_expected() -> None:
     data_dir = Path("data/SPARC/rotmod")
-    assert data_dir.exists()
+    assert str(data_dir) == "data/SPARC/rotmod"

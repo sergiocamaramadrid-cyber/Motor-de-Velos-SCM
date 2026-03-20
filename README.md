@@ -142,16 +142,23 @@ python scripts/clean_project.py --full
 ## 🚀 Ignición completa SPARC
 
 ```bash
-# Ejecución estándar
+# Ingesta estándar
 python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean --overwrite
 
-# Ejecución completa (limpieza profunda)
+# Ingesta con limpieza completa
 python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean-full --overwrite
 
-# Con pipeline adicional
+# Ingesta + construcción del catálogo SPARC
+python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean --overwrite --build-catalog
+
+# Ingesta + catálogo SPARC + catálogo F3
+python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean --overwrite --build-catalog --generate-f3
+
+# Ingesta + pasos adicionales del pipeline
 python scripts/ignition_sparc_real.py CURVAS_SPARC.zip --clean --overwrite \
-  --run "python scripts/build_sparc_full_catalog.py" \
-  --run "python scripts/generate_f3_catalog_from_contract.py"
+  --build-catalog \
+  --generate-f3 \
+  --run "python scripts/intra_galaxy_gradient_test.py"
 ```
 
 ## How to Run the Full Pipeline
