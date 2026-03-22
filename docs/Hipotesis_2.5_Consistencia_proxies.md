@@ -4,6 +4,8 @@
 Si el gradiente de presión ambiental modula F₃, los proxies disponibles en SPARC (logΣ_HI_outer y LSB/HSB) deben mostrar tendencias coherentes con la señal esperada de δ (sobredensidad local). Al incorporar δ en submuestras cross-match (SDSS o BIG-SPARC), la señal debería fortalecerse en términos de ajuste estadístico y estabilidad de los coeficientes.
 
 **Observables**  
+Nota: ρ_local puede estimarse operativamente en SDSS mediante conteo de vecinos dentro de ~3 Mpc (con corte en velocidad) o mediante reconstrucciones de campo de densidad como NEXUS+ o DisPerSE.
+
 - **Target**: F₃ (primario) o σ_int / V_flat (secundario)  
 - **Proxies**:  
   - logΣ_HI_outer (continuo)  
