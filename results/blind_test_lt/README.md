@@ -12,7 +12,7 @@ sha256sum data/little_things_global.csv
 
 Then replace the placeholder below with the resulting hash.
 
-`SHA256: <INSERT_HASH_HERE>`
+`SHA256: 46b3afa9f770929cf19421816d8a650bfd2bbcf6e3b93d3d3b93d402a2976960`
 
 ---
 
