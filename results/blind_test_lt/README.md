@@ -1,29 +1,96 @@
-## LITTLE THINGS blind dataset note
+# LITTLE THINGS Blind Test (SCM Framework)
 
-The file `data/little_things_global.csv` is used as the blind validation dataset for the LITTLE THINGS experiment. The prediction pipeline is deterministic and does not perform any training or parameter fitting on this dataset.
+This directory contains the results of a blind validation test of the SCM framework using a LITTLE THINGS galaxy sample.
 
-Some galaxies share identical `logVobs` values in the packaged CSV. As a result, and because `predictions.csv` is exported with rounded values (4 decimal places), repeated residuals may appear in `results/blind_test_lt/predictions.csv`. This behaviour is expected and does not indicate a bug in the interpolation or BTFR prediction formulas.
+## Overview
 
-For reproducibility, record the SHA256 checksum of the packaged dataset below. To compute the checksum locally run:
+The blind test evaluates the predictive performance of two deterministic models:
+
+- **BTFR-based prediction**
+- **Interpolation-based SCM prediction**
+
+No model parameters are fitted using this dataset. All predictions are generated using fixed analytical relations.
+
+## Dataset
+
+The input dataset is:
+
+```
+data/little_things_global.csv
+```
+
+This dataset is treated as **blind**, meaning it is not used for calibration or parameter tuning within this pipeline.
+
+### Important note on repeated values
+
+Some galaxies in the dataset share identical values of `logVobs`.  
+As a result:
+
+- Residuals in `predictions.csv` may appear repeated across multiple galaxies.
+- This is expected behavior and **does not indicate a bug** in the prediction formulas.
+- Additional repetition may arise from rounding outputs to 4 decimal places.
+
+## Outputs
+
+### `predictions.csv`
+
+Per-galaxy predictions:
+
+- `galaxy_id`
+- `logVobs` (observed)
+- `logV_btfr`, `logV_interp` (predicted)
+- `residual_btfr`, `residual_interp`
+
+### `summary.csv`
+
+Aggregate metrics for each model:
+
+- `RMSE_dex`
+- `MAE`
+- `bias`
+- `improvement_frac`
+- `wilcoxon_p`
+
+## Reproducibility
+
+The pipeline is fully deterministic:
+
+- No randomness is used
+- Running the script multiple times produces identical outputs
+
+To reproduce:
+
+```bash
+python scripts/blind_test_little_things.py \
+  --csv data/little_things_global.csv \
+  --out results/blind_test_lt
+```
+
+## Data integrity
+
+SHA256 checksum of the dataset:
+
+```
+SHA256: 46b3afa9f770929cf19421816d8a650bfd2bbcf6e3b93d3d3b93d402a2976960
+```
+
+This checksum ensures that the blind dataset has not been modified.
+
+To verify locally:
 
 ```bash
 sha256sum data/little_things_global.csv
 ```
 
-Then replace the placeholder below with the resulting hash.
+## Scientific interpretation
 
-`SHA256: 46b3afa9f770929cf19421816d8a650bfd2bbcf6e3b93d3d3b93d402a2976960`
+This blind test evaluates whether SCM-based relations can predict galaxy kinematics without re-fitting parameters.
 
----
+Consistent improvement over baseline models supports predictive validity.
 
-Notes and recommended follow-ups
-
-- This file documents why repeated residual values can occur: duplicates in the observed velocities combined with rounding of predictions. No changes to the prediction formulas are required.
-- If you want to increase numeric differentiation in the outputs, consider exporting predictions with higher precision (e.g. 6 decimal places) or keeping internal full precision in the saved CSV; this is only a presentation change and not necessary for correctness.
-- Consider adding the computed SHA256 to the project README or a central DATA.md to make the blind dataset provenance explicit for reviewers.
+Residual structure should be interpreted in light of dataset discretization and observational uncertainties.
 
 ---
 
-Interpretation (short):
-
-> Repeated residual values in `predictions.csv` are expected for some galaxies because the input blind dataset contains repeated `logVobs` values, and the exported predictions are rounded to 4 decimal places. This does not indicate a bug in the prediction formulas.
+**Note:** This test does not, by itself, guarantee absence of external calibration overlap.
+The provenance and independence of the dataset must be documented at the manuscript level.
