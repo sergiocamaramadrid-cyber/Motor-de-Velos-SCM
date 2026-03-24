@@ -8,6 +8,7 @@ Tests cover:
   - End-to-end pipeline: CLI produces predictions.csv and summary.csv
 """
 
+import hashlib
 from pathlib import Path
 
 import numpy as np
@@ -64,6 +65,18 @@ class TestDatasetIntegrity:
         df = pd.read_csv(_DATASET)
         assert df["galaxy_id"].nunique() == len(df), (
             "galaxy_id values are not unique"
+        )
+
+    def test_sha256_checksum(self):
+        """Verify the exact file has not been altered since packaging."""
+        expected = (
+            "46b3afa9f770929cf19421816d8a650bfd2bbcf6e3b93d3d3b93d402a2976960"
+        )
+        digest = hashlib.sha256(_DATASET.read_bytes()).hexdigest()
+        assert digest == expected, (
+            f"SHA256 mismatch for {_DATASET.name}:\n"
+            f"  expected : {expected}\n"
+            f"  computed : {digest}"
         )
 
 
