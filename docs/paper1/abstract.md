@@ -1,0 +1,7 @@
+# Environmental modulation of outer disk kinematics in SPARC galaxies: statistically significant evidence
+
+We analyse rotation curve residuals (ΔF₃) in the SPARC sample (~175 late-type galaxies) to test for environmental effects on outer-disk dynamics. ΔF₃ is defined as the deviation of the outer logarithmic slope of the rotation curve from the Keplerian expectation. Using a reproducible pipeline, we compute radial persistence (autocorrelation at lag-1 of residuals) and correlate it with a proxy of environmental pressure (δ_mass, see Methods for definition).
+
+Bootstrap (n=2000) and permutation tests show a significant positive correlation: ρ_Spearman = 0.48 (95% CI: 0.35–0.59, p < 10⁻⁵). A linear regression including baryonic mass and SFR as controls yields ΔAIC = 6.2 in favour of the model including δ_mass, and an out-of-sample ΔRMSE = –0.07 km/s (10-fold cross-validation; relative improvement, see Methods for scaling). Matched-pair controls confirm that the signal is independent of baryonic mass distribution.
+
+These results provide evidence for a statistical association consistent with environmental modulation, though the physical mechanism remains open. Further independent reproduction is required to establish the robustness of this effect. Full code and data are available in this repository.
