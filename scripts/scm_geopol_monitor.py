@@ -8,6 +8,9 @@ y genera señales operativas a partir de indicadores clave.
 Autor: Sergio Cámara Madrid (Framework SCM)
 """
 
+import json
+from pathlib import Path
+
 import pandas as pd
 
 # =========================
@@ -177,11 +180,21 @@ def run_scm(data):
     for k, v in signals.items():
         print(f"  {k}: {v}")
 
-    return {
+    result = {
         "states": states,
+        "red_count": red_count,
+        "amber_count": amber_count,
         "regime": regime,
-        "signals": signals
+        "signals": signals,
+        "input_data": data,
     }
+
+    outdir = Path("results/scm_geopol")
+    outdir.mkdir(parents=True, exist_ok=True)
+    with open(outdir / "scm_geopol_summary.json", "w", encoding="utf-8") as f:
+        json.dump(result, f, indent=2)
+
+    return result
 
 
 # =========================
