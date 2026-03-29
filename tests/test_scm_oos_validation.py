@@ -5,10 +5,12 @@ Covers:
   1. Contract validation (column detection, error messages).
   2. β-proxy mode (catalog with friction_slope / delta_from_mond).
   3. Direct-RMSE mode (catalog with pre-computed rmse_base / rmse_scm).
-  4. Wilcoxon p-value computation.
-  5. Output file creation (CSV, text summary).
-  6. CLI main() entrypoint.
-  7. delta_f3 column alias (slope_tail − 0.5) required by the paper contract.
+  4. Direct-pred mode (row-level y_true / pred_base / pred_scm, multiple rows per galaxy).
+  5. Wilcoxon p-value computation.
+  6. Output file creation (CSV, text summary).
+  7. CLI main() entrypoint.
+  8. delta_f3 column alias (slope_tail − 0.5) required by the paper contract.
+  9. Column aliases (galaxy: name/galname; pred columns: yhat_base, yhat_scm, etc.).
 """
 
 from __future__ import annotations
@@ -23,6 +25,7 @@ import pytest
 from scripts.scm_oos_validation import (
     validate_input,
     run_oos_validation,
+    _aggregate_direct_pred,
     main as oos_main,
     EXPECTED_BETA,
     DEFAULT_SEEDS,
@@ -30,6 +33,12 @@ from scripts.scm_oos_validation import (
 
 # Significance threshold used in statistical tests throughout this module.
 SIGNIFICANCE_THRESHOLD = 0.05
+
+# Tolerance for galaxy-count assertions in split tests.
+# The 70/30 split is integer-rounded and random-shuffled, so the actual test-set
+# size can differ from int(N * 0.3) by up to ±2 galaxies due to rounding; we add
+# 1 extra count as a margin against degenerate seeds.
+SPLIT_TOLERANCE = 3
 
 # ---------------------------------------------------------------------------
 # Synthetic catalog helpers
@@ -105,7 +114,7 @@ class TestValidateInput:
 
     def test_missing_galaxy_column_raises(self):
         df = pd.DataFrame({"friction_slope": [0.5, 0.6]})
-        with pytest.raises(ValueError, match="missing required columns"):
+        with pytest.raises(ValueError, match="missing galaxy identifier"):
             validate_input(df)
 
     def test_missing_beta_and_rmse_raises(self):
@@ -150,10 +159,10 @@ class TestBetaProxyMode:
         result = run_oos_validation(path, tmp_path / "out", train_frac=0.7,
                                     seeds=[42], no_figures=True)
         n_test = result["aggregate"]["n_valid"]
-        # Allow ±3 galaxies: the split is integer-rounded so a 60-galaxy catalog
+        # ±SPLIT_TOLERANCE galaxies: the split is integer-rounded so a 60-galaxy catalog
         # at 70/30 gives 18 test galaxies, but random shuffling can vary by ±1–2.
-        # The ±3 tolerance accommodates both the rounding and one extra shuffle step.
-        assert abs(n_test - int(n * 0.3)) <= 3
+        # The tolerance accommodates rounding and a degenerate seed.
+        assert abs(n_test - int(n * 0.3)) <= SPLIT_TOLERANCE
 
     def test_wilcoxon_p_is_finite(self, tmp_path):
         df = _make_beta_catalog(n=40)
@@ -409,3 +418,226 @@ class TestPaperContract:
                                     no_figures=True)
         # run must complete without error
         assert result["aggregate"]["n_valid"] > 0
+
+
+# ---------------------------------------------------------------------------
+# Helpers for direct_pred mode
+# ---------------------------------------------------------------------------
+
+
+def _make_pred_catalog(
+    n_galaxies: int = 40,
+    n_pts_per_galaxy: int = 15,
+    seed: int = 0,
+    scm_improves: bool = True,
+    galaxy_col: str = "galaxy",
+    y_true_col: str = "y_true",
+    pred_base_col: str = "pred_base",
+    pred_scm_col: str = "pred_scm",
+) -> pd.DataFrame:
+    """Create a synthetic row-level prediction catalog (direct_pred mode).
+
+    Parameters
+    ----------
+    scm_improves : bool
+        If True the SCM predictions are 80 % closer to y_true than the baseline
+        (systematic improvement).  If False, mixed noise is added.
+    galaxy_col, y_true_col, pred_base_col, pred_scm_col : str
+        Column names to use (support alias testing).
+    """
+    rng = np.random.default_rng(seed)
+    rows = []
+    for gal_idx in range(n_galaxies):
+        gal = f"G{gal_idx:03d}"
+        y = rng.uniform(50.0, 250.0, n_pts_per_galaxy)
+        noise_base = rng.normal(0, 20.0, n_pts_per_galaxy)
+        if scm_improves:
+            noise_scm = rng.normal(0, 5.0, n_pts_per_galaxy)   # much smaller error
+        else:
+            noise_scm = rng.normal(0, 18.0, n_pts_per_galaxy)  # similar to base
+        for y_i, nb, ns in zip(y, noise_base, noise_scm):
+            rows.append({
+                galaxy_col: gal,
+                y_true_col: y_i,
+                pred_base_col: y_i + nb,
+                pred_scm_col: y_i + ns,
+            })
+    return pd.DataFrame(rows)
+
+
+# ---------------------------------------------------------------------------
+# 8. direct_pred mode
+# ---------------------------------------------------------------------------
+
+
+class TestDirectPredMode:
+    def test_mode_detected(self):
+        df = _make_pred_catalog()
+        col_map = validate_input(df)
+        assert col_map["mode"] == "direct_pred"
+        assert col_map["y_true"] == "y_true"
+        assert col_map["pred_base"] == "pred_base"
+        assert col_map["pred_scm"] == "pred_scm"
+
+    def test_direct_pred_takes_priority_over_beta_proxy(self):
+        """direct_pred mode must win when both y_true and friction_slope are present."""
+        df = _make_pred_catalog()
+        df["friction_slope"] = 0.5  # add beta_proxy column too
+        col_map = validate_input(df)
+        assert col_map["mode"] == "direct_pred"
+
+    def test_direct_pred_takes_priority_over_direct_rmse(self):
+        """direct_pred mode must win when both prediction and rmse columns exist."""
+        df = _make_pred_catalog()
+        df["rmse_base"] = 10.0
+        df["rmse_scm"] = 9.0
+        col_map = validate_input(df)
+        assert col_map["mode"] == "direct_pred"
+
+    def test_aggregate_direct_pred_computes_rmse(self):
+        df = _make_pred_catalog(n_galaxies=5, n_pts_per_galaxy=20)
+        col_map = validate_input(df)
+        agg = _aggregate_direct_pred(df, col_map)
+        assert set(agg.columns) >= {"galaxy", "rmse_base", "rmse_scm", "mae_base", "mae_scm"}
+        assert len(agg) == 5
+        assert (agg["rmse_base"] >= 0).all()
+        assert (agg["rmse_scm"] >= 0).all()
+
+    def test_scm_improves_gives_low_p(self, tmp_path):
+        df = _make_pred_catalog(n_galaxies=60, scm_improves=True, seed=7)
+        path = tmp_path / "cat.csv"
+        df.to_csv(path, index=False)
+        result = run_oos_validation(path, tmp_path / "out",
+                                    seeds=list(range(5)), no_figures=True)
+        p = result["aggregate"]["wilcoxon_p"]
+        assert p < SIGNIFICANCE_THRESHOLD, (
+            f"Expected p < {SIGNIFICANCE_THRESHOLD} when SCM always improves, got {p:.4f}"
+        )
+
+    def test_pct_improved_near_100_when_scm_better(self, tmp_path):
+        df = _make_pred_catalog(n_galaxies=60, scm_improves=True, seed=3)
+        path = tmp_path / "cat.csv"
+        df.to_csv(path, index=False)
+        result = run_oos_validation(path, tmp_path / "out", seeds=[42],
+                                    no_figures=True)
+        pct = result["aggregate"]["pct_improved"]
+        assert pct > 80.0, f"Expected >80% improvement, got {pct:.1f}%"
+
+    def test_outputs_csv_has_mae_columns(self, tmp_path):
+        df = _make_pred_catalog(n_galaxies=30)
+        path = tmp_path / "cat.csv"
+        df.to_csv(path, index=False)
+        out = tmp_path / "results"
+        run_oos_validation(path, out, seeds=[42], no_figures=True)
+        result_df = pd.read_csv(out / "oos_generalization_results.csv")
+        assert {"mae_base", "mae_scm", "delta_mae"}.issubset(set(result_df.columns))
+
+    def test_delta_mae_sign_convention(self, tmp_path):
+        """delta_mae = mae_scm - mae_base."""
+        df = _make_pred_catalog(n_galaxies=30)
+        path = tmp_path / "cat.csv"
+        df.to_csv(path, index=False)
+        result = run_oos_validation(path, tmp_path / "out", seeds=[42],
+                                    no_figures=True)
+        per_gal = result["per_galaxy_df"]
+        pd.testing.assert_series_equal(
+            per_gal["delta_mae"],
+            per_gal["mae_scm"] - per_gal["mae_base"],
+            check_names=False,
+        )
+
+    def test_n_valid_approximately_30pct(self, tmp_path):
+        n = 60
+        df = _make_pred_catalog(n_galaxies=n, n_pts_per_galaxy=10)
+        path = tmp_path / "cat.csv"
+        df.to_csv(path, index=False)
+        result = run_oos_validation(path, tmp_path / "out", train_frac=0.7,
+                                    seeds=[42], no_figures=True)
+        n_test = result["aggregate"]["n_valid"]
+        # See SPLIT_TOLERANCE at the top of this module for the justification.
+        assert abs(n_test - int(n * 0.3)) <= SPLIT_TOLERANCE
+
+    def test_output_summary_txt_created(self, tmp_path):
+        df = _make_pred_catalog(n_galaxies=30)
+        path = tmp_path / "cat.csv"
+        df.to_csv(path, index=False)
+        out = tmp_path / "results"
+        run_oos_validation(path, out, seeds=[42], no_figures=True)
+        assert (out / "oos_summary.txt").exists()
+
+
+# ---------------------------------------------------------------------------
+# 9. Column alias tests
+# ---------------------------------------------------------------------------
+
+
+class TestColumnAliases:
+    """Verify that all documented column aliases are accepted."""
+
+    def test_galaxy_col_name_alias(self, tmp_path):
+        df = _make_pred_catalog(galaxy_col="name")
+        col_map = validate_input(df)
+        assert col_map["galaxy"] == "name"
+        assert col_map["mode"] == "direct_pred"
+
+    def test_galaxy_col_galname_alias(self, tmp_path):
+        df = _make_pred_catalog(galaxy_col="galname")
+        col_map = validate_input(df)
+        assert col_map["galaxy"] == "galname"
+
+    def test_y_true_target_alias(self, tmp_path):
+        df = _make_pred_catalog(y_true_col="target")
+        col_map = validate_input(df)
+        assert col_map["y_true"] == "target"
+        assert col_map["mode"] == "direct_pred"
+
+    def test_y_true_observed_alias(self, tmp_path):
+        df = _make_pred_catalog(y_true_col="observed")
+        col_map = validate_input(df)
+        assert col_map["y_true"] == "observed"
+
+    def test_pred_base_yhat_base_alias(self, tmp_path):
+        df = _make_pred_catalog(pred_base_col="yhat_base")
+        col_map = validate_input(df)
+        assert col_map["pred_base"] == "yhat_base"
+        assert col_map["mode"] == "direct_pred"
+
+    def test_pred_base_pred_baseline_alias(self, tmp_path):
+        df = _make_pred_catalog(pred_base_col="pred_baseline")
+        col_map = validate_input(df)
+        assert col_map["pred_base"] == "pred_baseline"
+
+    def test_pred_scm_yhat_scm_alias(self, tmp_path):
+        df = _make_pred_catalog(pred_scm_col="yhat_scm")
+        col_map = validate_input(df)
+        assert col_map["pred_scm"] == "yhat_scm"
+        assert col_map["mode"] == "direct_pred"
+
+    def test_pred_scm_pred_model_alias(self, tmp_path):
+        df = _make_pred_catalog(pred_scm_col="pred_model")
+        col_map = validate_input(df)
+        assert col_map["pred_scm"] == "pred_model"
+
+    def test_full_alias_catalog_runs_end_to_end(self, tmp_path):
+        """Full OOS run with all alternative alias names must succeed."""
+        df = _make_pred_catalog(
+            n_galaxies=40,
+            galaxy_col="galname",
+            y_true_col="observed",
+            pred_base_col="yhat_base",
+            pred_scm_col="pred_model",
+        )
+        path = tmp_path / "cat_aliases.csv"
+        df.to_csv(path, index=False)
+        result = run_oos_validation(path, tmp_path / "out", seeds=[42],
+                                    no_figures=True)
+        assert result["aggregate"]["n_valid"] > 0
+        assert math.isfinite(result["aggregate"]["wilcoxon_p"])
+
+    def test_beta_proxy_with_name_galaxy_column(self, tmp_path):
+        """beta_proxy mode must also work when the galaxy column is named 'name'."""
+        df = _make_beta_catalog(n=40)
+        df = df.rename(columns={"galaxy": "name"})
+        col_map = validate_input(df)
+        assert col_map["galaxy"] == "name"
+        assert col_map["mode"] == "beta_proxy"

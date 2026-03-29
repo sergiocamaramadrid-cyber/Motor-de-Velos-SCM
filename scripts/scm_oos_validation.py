@@ -24,9 +24,19 @@ Per-galaxy metric:
   rmse_scm_i   = |β_i − μ_train|
   δRMSE_i      = rmse_scm_i − rmse_base_i   (< 0 ⟹ SCM wins)
 
-Alternative mode — if the input catalog already contains pre-computed per-galaxy
-RMSE columns ``rmse_base`` and ``rmse_scm`` (in km/s from rotation-curve fits),
-those are used directly and the β-proxy is bypassed.
+Alternative modes
+-----------------
+Three operating modes are auto-detected from the input columns (in priority order):
+
+1. **direct_pred** — input has per-row predictions (multiple rows per galaxy).
+   The script splits galaxies 70/30, then computes per-galaxy RMSE and MAE
+   from ``y_true`` vs ``pred_base`` / ``pred_scm``.
+
+2. **direct_rmse** — input has one row per galaxy with pre-computed
+   ``rmse_base`` / ``rmse_scm`` columns (km/s from rotation-curve fits).
+
+3. **beta_proxy** — input has one row per galaxy with ``friction_slope`` (β);
+   base model predicts β = 0.5 (MOND prior), SCM model predicts β = mean(β_train).
 
 Outputs
 -------
@@ -39,31 +49,39 @@ Usage
 -----
 ::
 
+    # direct_pred mode (row-level predictions):
     python scripts/scm_oos_validation.py \\
-        --input results/delta_f3/sparc_delta_f3_catalog.csv \\
+        --input results/predictions/sparc_predictions.csv \\
         --split 0.7 \\
         --out results/scm_oos
 
-    # Multiple seeds for robustness
+    # Multiple seeds for robustness:
     python scripts/scm_oos_validation.py \\
         --input results/delta_f3/sparc_delta_f3_catalog.csv \\
         --split 0.7 \\
         --seeds 42 43 44 45 46 \\
         --out results/scm_oos
 
-Required input columns (one row per galaxy)
--------------------------------------------
-  galaxy                 — galaxy identifier
-  friction_slope         — per-galaxy fitted β (alias: beta)
-  friction_slope_err     — β fitting uncertainty (alias: beta_err)
+Input column contract
+---------------------
+**direct_pred mode** (any row count per galaxy):
+  galaxy identifier  — galaxy | name | galname
+  y_true             — y_true | target | y | observed | value_true
+  pred_base          — pred_base | yhat_base | base_pred | pred_baseline
+  pred_scm           — pred_scm | yhat_scm | scm_pred | pred_model
 
-Optional (if present, direct-RMSE mode is used instead of the β-proxy):
-  rmse_base              — per-galaxy RMSE of baseline rotation-curve fit
-  rmse_scm               — per-galaxy RMSE of SCM rotation-curve fit
+**direct_rmse mode** (one row per galaxy):
+  galaxy             — (same aliases as above)
+  rmse_base          — per-galaxy RMSE of baseline rotation-curve fit
+  rmse_scm           — per-galaxy RMSE of SCM rotation-curve fit
 
-Optional extra columns recognised automatically:
-  delta_from_mond / delta_f3  — β − 0.5 (recomputed if absent)
-  inc_deg / Inc               — inclination (used only for informational filtering)
+**beta_proxy mode** (one row per galaxy):
+  galaxy             — (same aliases as above)
+  friction_slope     — per-galaxy fitted β (alias: beta)
+  friction_slope_err — β fitting uncertainty (alias: beta_err, optional)
+
+Optional:
+  delta_from_mond / delta_f3  — β − 0.5 (recognised in beta_proxy mode)
 """
 
 from __future__ import annotations
@@ -86,13 +104,17 @@ DEFAULT_SPLIT = 0.70         # training fraction
 DEFAULT_SEEDS = [42]         # default random seeds
 MIN_TEST_GALAXIES = 5        # minimum viable test-set size for Wilcoxon
 
-# Column name aliases (primary → fallback)
-_COL_GALAXY = "galaxy"
+# Column name aliases — checked in priority order (first match in the DataFrame wins)
+_COL_GALAXY_ALIASES = ("galaxy", "name", "galname")
 _COL_BETA = ("friction_slope", "beta")
 _COL_BETA_ERR = ("friction_slope_err", "beta_err")
 _COL_DELTA = ("delta_from_mond", "delta_f3")
 _COL_RMSE_BASE = ("rmse_base",)
 _COL_RMSE_SCM = ("rmse_scm",)
+# direct_pred mode aliases — checked in priority order (first match wins)
+_COL_Y_TRUE = ("y_true", "target", "y", "observed", "value_true")
+_COL_PRED_BASE = ("pred_base", "yhat_base", "base_pred", "pred_baseline")
+_COL_PRED_SCM = ("pred_scm", "yhat_scm", "scm_pred", "pred_model")
 
 # ---------------------------------------------------------------------------
 # I/O helpers
@@ -119,27 +141,47 @@ def _first_col(df: pd.DataFrame, names: tuple[str, ...]) -> str | None:
 # Contract validation
 # ---------------------------------------------------------------------------
 
-REQUIRED_BASE_COLS = (_COL_GALAXY,)
-
 
 def validate_input(df: pd.DataFrame) -> dict[str, str]:
     """Validate the input catalog and return a mapping of role → actual column name.
 
+    Operating modes are detected in priority order:
+
+    1. **direct_pred** — ``y_true`` (or alias) + ``pred_base`` (or alias) +
+       ``pred_scm`` (or alias) are present.  Input may have multiple rows per
+       galaxy; per-galaxy RMSE/MAE are computed inside :func:`_aggregate_direct_pred`.
+    2. **direct_rmse** — ``rmse_base`` + ``rmse_scm`` are present (one row per
+       galaxy with pre-computed metrics).
+    3. **beta_proxy** — ``friction_slope`` / ``beta`` is present (one row per
+       galaxy; base model = β = 0.5, SCM model = training-set mean β).
+
     Raises
     ------
     ValueError
-        If required columns are missing.
+        If required columns are missing or the mode cannot be determined.
     """
-    missing = [c for c in REQUIRED_BASE_COLS if c not in df.columns]
-    if missing:
+    # Galaxy column — check aliases in priority order
+    galaxy_col = _first_col(df, _COL_GALAXY_ALIASES)
+    if galaxy_col is None:
         raise ValueError(
-            f"Input catalog missing required columns: {missing}. "
+            f"Input catalog missing galaxy identifier column. "
+            f"Expected one of: {list(_COL_GALAXY_ALIASES)}. "
             f"Available columns: {list(df.columns)}"
         )
+    col_map: dict[str, str] = {"galaxy": galaxy_col}
 
-    col_map: dict[str, str] = {"galaxy": _COL_GALAXY}
+    # Priority 1: direct_pred mode (row-level predictions)
+    y_true_col = _first_col(df, _COL_Y_TRUE)
+    pred_base_col = _first_col(df, _COL_PRED_BASE)
+    pred_scm_col = _first_col(df, _COL_PRED_SCM)
+    if y_true_col is not None and pred_base_col is not None and pred_scm_col is not None:
+        col_map["mode"] = "direct_pred"
+        col_map["y_true"] = y_true_col
+        col_map["pred_base"] = pred_base_col
+        col_map["pred_scm"] = pred_scm_col
+        return col_map
 
-    # Detect operating mode: direct-RMSE or β-proxy
+    # Priority 2: direct_rmse mode (pre-computed per-galaxy RMSE)
     rmse_base_col = _first_col(df, _COL_RMSE_BASE)
     rmse_scm_col = _first_col(df, _COL_RMSE_SCM)
     if rmse_base_col is not None and rmse_scm_col is not None:
@@ -148,14 +190,16 @@ def validate_input(df: pd.DataFrame) -> dict[str, str]:
         col_map["rmse_scm"] = rmse_scm_col
         return col_map
 
-    # β-proxy mode: require friction_slope
+    # Priority 3: beta_proxy mode
     beta_col = _first_col(df, _COL_BETA)
     beta_err_col = _first_col(df, _COL_BETA_ERR)
     if beta_col is None:
         raise ValueError(
-            f"Cannot determine operating mode. "
-            f"Either provide (rmse_base, rmse_scm) columns for direct-RMSE mode, "
-            f"or (friction_slope / beta) for β-proxy mode. "
+            "Cannot determine operating mode.  Expected one of:\n"
+            "  (1) direct_pred  — columns y_true (or alias) + pred_base (or alias)"
+            " + pred_scm (or alias)\n"
+            "  (2) direct_rmse  — columns rmse_base + rmse_scm\n"
+            "  (3) beta_proxy   — column friction_slope (or beta)\n"
             f"Available columns: {list(df.columns)}"
         )
     col_map["mode"] = "beta_proxy"
@@ -231,8 +275,61 @@ def _compute_per_galaxy_metrics(
 
 
 # ---------------------------------------------------------------------------
-# Single-seed OOS run
+# direct_pred aggregation helper
 # ---------------------------------------------------------------------------
+
+
+def _aggregate_direct_pred(df: pd.DataFrame, col_map: dict[str, str]) -> pd.DataFrame:
+    """Aggregate row-level predictions into per-galaxy RMSE and MAE.
+
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Subset of the full catalog for a given split (train or test), with
+        multiple rows per galaxy containing columns y_true, pred_base, pred_scm.
+    col_map : dict
+        Column role → actual column name (from ``validate_input``).
+
+    Returns
+    -------
+    pd.DataFrame with one row per galaxy and columns:
+        galaxy, rmse_base, rmse_scm, mae_base, mae_scm, n_rows
+    """
+    galaxy_col = col_map["galaxy"]
+    y_true_col = col_map["y_true"]
+    pred_base_col = col_map["pred_base"]
+    pred_scm_col = col_map["pred_scm"]
+
+    rows = []
+    for galaxy, group in df.groupby(galaxy_col, sort=False):
+        y = group[y_true_col].to_numpy(dtype=float)
+        yhat_base = group[pred_base_col].to_numpy(dtype=float)
+        yhat_scm = group[pred_scm_col].to_numpy(dtype=float)
+
+        # Keep only rows where all three values are finite
+        mask = np.isfinite(y) & np.isfinite(yhat_base) & np.isfinite(yhat_scm)
+        y = y[mask]
+        yhat_base = yhat_base[mask]
+        yhat_scm = yhat_scm[mask]
+
+        if len(y) == 0:
+            continue
+
+        rmse_base = float(np.sqrt(np.mean((y - yhat_base) ** 2)))
+        rmse_scm = float(np.sqrt(np.mean((y - yhat_scm) ** 2)))
+        mae_base = float(np.mean(np.abs(y - yhat_base)))
+        mae_scm = float(np.mean(np.abs(y - yhat_scm)))
+
+        rows.append({
+            "galaxy": galaxy,
+            "rmse_base": rmse_base,
+            "rmse_scm": rmse_scm,
+            "mae_base": mae_base,
+            "mae_scm": mae_scm,
+            "n_rows": len(y),
+        })
+
+    return pd.DataFrame(rows)
 
 
 def _run_single_seed(
@@ -260,16 +357,36 @@ def _run_single_seed(
     n_train_gals = len(df_train[col_map["galaxy"]].unique())
     n_test_gals = len(df_test[col_map["galaxy"]].unique())
 
-    # Training-set mean (SCM population prior)
-    if col_map["mode"] == "direct_rmse":
+    # Training-set mean (SCM population prior) and per-galaxy test metrics
+    if col_map["mode"] == "direct_pred":
+        # Aggregate row-level predictions into per-galaxy RMSE/MAE
+        agg_test = _aggregate_direct_pred(df_test, col_map)
+        # _aggregate_direct_pred always outputs a normalised "galaxy" column
+        # regardless of the original alias (e.g. "galname").  We therefore
+        # override col_map["galaxy"] in the temporary col_map so that
+        # _compute_per_galaxy_metrics reads the correct column from the
+        # aggregated DataFrame.
+        _rmse_col_map = dict(col_map)
+        _rmse_col_map["mode"] = "direct_rmse"
+        _rmse_col_map["galaxy"] = "galaxy"   # normalised by _aggregate_direct_pred
+        _rmse_col_map["rmse_base"] = "rmse_base"
+        _rmse_col_map["rmse_scm"] = "rmse_scm"
+        per_gal = _compute_per_galaxy_metrics(agg_test, _rmse_col_map, mu_train=0.0)
+        # Attach MAE columns
+        per_gal = per_gal.merge(
+            agg_test[["galaxy", "mae_base", "mae_scm"]], on="galaxy", how="left"
+        )
+        per_gal["delta_mae"] = per_gal["mae_scm"] - per_gal["mae_base"]
+        # mu_train not used in direct modes but stored for info
+        mu_train = 0.0
+    elif col_map["mode"] == "direct_rmse":
         # Use mean rmse_scm from training as SCM model prediction for test
         mu_train = float(df_train[col_map["rmse_scm"]].mean())
+        per_gal = _compute_per_galaxy_metrics(df_test, col_map, mu_train)
     else:
         beta_col = col_map["beta"]
         mu_train = float(df_train[beta_col].mean())
-
-    # Per-galaxy test metrics
-    per_gal = _compute_per_galaxy_metrics(df_test, col_map, mu_train)
+        per_gal = _compute_per_galaxy_metrics(df_test, col_map, mu_train)
     per_gal["seed"] = seed
 
     n_test = len(per_gal)
@@ -356,7 +473,7 @@ def run_oos_validation(
 
     col_map = validate_input(df)
 
-    # Filter to rows with valid β (non-NaN friction_slope)
+    # Filter out rows with NaN in the key prediction columns
     if col_map["mode"] == "beta_proxy":
         beta_col = col_map["beta"]
         n_before = len(df)
@@ -367,9 +484,13 @@ def run_oos_validation(
                 f"  [OOS] Dropped {n_before - n_after} rows with NaN {beta_col}; "
                 f"{n_after} rows remain."
             )
-    else:
+    elif col_map["mode"] == "direct_rmse":
         for rmse_col in (col_map["rmse_base"], col_map["rmse_scm"]):
             df = df[df[rmse_col].notna()].copy()
+    else:
+        # direct_pred mode: drop rows where any key column is NaN
+        for key_col in (col_map["y_true"], col_map["pred_base"], col_map["pred_scm"]):
+            df = df[df[key_col].notna()].copy()
 
     n_galaxies = len(df[col_map["galaxy"]].unique())
     print(f"  [OOS] {n_galaxies} galaxies | mode={col_map['mode']} | "
