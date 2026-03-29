@@ -1,0 +1,28 @@
+{
+  "states": {
+    "PMI": "AMBER",
+    "NPL": "GREEN",
+    "CONF": "RED",
+    "ENERGY": "RED",
+    "CREDIT": "RED",
+    "GRID": "GREEN"
+  },
+  "red_count": 3,
+  "amber_count": 1,
+  "regime": "F3* (FRICTION LIMIT)",
+  "signals": {
+    "BANKS": "OVERWEIGHT",
+    "DEFENSE": "OVERWEIGHT",
+    "INFRA_AI": "WATCH",
+    "INDUSTRY": "UNDERWEIGHT",
+    "CONSUMER": "UNDERWEIGHT"
+  },
+  "input_data": {
+    "PMI": 50.5,
+    "NPL": 2.18,
+    "CONF": -16.3,
+    "ENERGY": 135,
+    "CREDIT_TIGHTENING": true,
+    "GRID_LATENCY": 18
+  }
+}

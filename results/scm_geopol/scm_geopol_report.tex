@@ -1,0 +1,74 @@
+
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2.2cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{longtable}
+\usepackage{xcolor}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{array}
+
+\title{SCM Geoeconomic Weekly Report}
+\author{Framework SCM}
+\date{2026-03-29}
+
+\begin{document}
+\maketitle
+
+\section*{Executive Summary}
+Current regime: \textbf{F3* (FRICTION LIMIT)}.
+
+System state:
+\begin{itemize}
+  \item Red indicators: \textbf{3}
+  \item Amber indicators: \textbf{1}
+  \item Banking stability remains the last systemic anchor while energy and credit conditions constrain investment.
+\end{itemize}
+
+\section*{Indicator States}
+\begin{longtable}{>{\bfseries}p{4cm}p{4cm}p{5cm}}
+\toprule
+Indicator & State & Input value \\
+\midrule
+PMI & AMBER & 50.5 \\
+NPL & GREEN & 2.18 \\
+Consumer Confidence & RED & -16.3 \\
+Energy & RED & 135 EUR/MWh \\
+Credit Tightening & RED & True \\
+Grid Latency & GREEN & 18 months \\
+\bottomrule
+\end{longtable}
+
+\section*{Sector Signals}
+\begin{longtable}{>{\bfseries}p{5cm}p{6cm}}
+\toprule
+Sector & Signal \\
+\midrule
+Banks & OVERWEIGHT \\
+Defense & OVERWEIGHT \\
+Infra-AI & WATCH \\
+Industry & UNDERWEIGHT \\
+Consumer & UNDERWEIGHT \\
+\bottomrule
+\end{longtable}
+
+\section*{Interpretation}
+The current weekly output places the system in regime \textbf{F3* (FRICTION LIMIT)}. This implies that the dominant constraint is no longer only macro-financial; the cost structure of investment is beginning to invalidate deployment economics in selected sectors.
+
+\section*{Operational Rule}
+\begin{quote}
+If energy remains in red and credit conditions stay restrictive while NPL remains green, maintain overweight in banks and defense, keep infra-AI under watch, and underweight industry and consumer exposure.
+\end{quote}
+
+\section*{Weekly Trend (last runs)}
+\begin{longtable}{>{\small}p{3.2cm}>{\small}p{4.5cm}>{\small}p{1.2cm}>{\small}p{1.2cm}}
+\toprule
+Date & Regime & Red & Amber \\
+\midrule
+2026-03-29 & F3\textasteriskcentered{} (FRICTION LIMIT) & 3 & 1 \\
+2026-03-29 & F3\textasteriskcentered{} (FRICTION LIMIT) & 3 & 1 \\
+\bottomrule
+\end{longtable}
+
+\end{document}

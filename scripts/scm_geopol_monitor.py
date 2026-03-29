@@ -8,7 +8,9 @@ y genera señales operativas a partir de indicadores clave.
 Autor: Sergio Cámara Madrid (Framework SCM)
 """
 
+import csv
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -193,6 +195,33 @@ def run_scm(data):
     outdir.mkdir(parents=True, exist_ok=True)
     with open(outdir / "scm_geopol_summary.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)
+
+    # --- weekly history ---
+    timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+    history_record = {"timestamp": timestamp, **result}
+
+    # JSONL — one record per line
+    jsonl_path = outdir / "scm_geopol_history.jsonl"
+    with open(jsonl_path, "a", encoding="utf-8") as f:
+        f.write(json.dumps(history_record) + "\n")
+
+    # CSV — flat row for easy tabular analysis
+    csv_path = outdir / "scm_geopol_history.csv"
+    csv_row = {
+        "timestamp": timestamp,
+        "regime": regime,
+        "red_count": red_count,
+        "amber_count": amber_count,
+        **{f"state_{k}": v for k, v in states.items()},
+        **{f"signal_{k}": v for k, v in signals.items()},
+        **{f"input_{k}": v for k, v in data.items()},
+    }
+    write_header = not csv_path.exists()
+    with open(csv_path, "a", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=list(csv_row.keys()))
+        if write_header:
+            writer.writeheader()
+        writer.writerow(csv_row)
 
     return result
 

@@ -10,6 +10,7 @@ Usage:
     pdflatex -output-directory=results/scm_geopol results/scm_geopol/scm_geopol_report.tex
 """
 
+import csv
 import json
 from pathlib import Path
 from datetime import datetime
@@ -77,8 +78,43 @@ The current weekly output places the system in regime \textbf{{REGIME}}. This im
 If energy remains in red and credit conditions stay restrictive while NPL remains green, maintain overweight in banks and defense, keep infra-AI under watch, and underweight industry and consumer exposure.
 \end{quote}
 
+{TREND_SECTION}
+
 \end{document}
 """
+
+
+def build_trend_section(history_path: Path, n: int = 8) -> str:
+    """Return a LaTeX snippet with the last N weekly rows from the history CSV."""
+    if not history_path.exists():
+        return ""
+
+    with open(history_path, "r", encoding="utf-8") as f:
+        rows = list(csv.DictReader(f))
+
+    if not rows:
+        return ""
+
+    recent = rows[-n:]
+
+    lines = [
+        r"\section*{Weekly Trend (last runs)}",
+        r"\begin{longtable}{>{\small}p{3.2cm}>{\small}p{4.5cm}>{\small}p{1.2cm}>{\small}p{1.2cm}}",
+        r"\toprule",
+        r"Date & Regime & Red & Amber \\",
+        r"\midrule",
+    ]
+    for row in recent:
+        ts = row.get("timestamp", "")[:10]
+        regime = row.get("regime", "")
+        red = row.get("red_count", "")
+        amber = row.get("amber_count", "")
+        # Escape special LaTeX characters in regime string
+        regime_tex = regime.replace("_", r"\_").replace("*", r"\textasteriskcentered{}")
+        lines.append(f"{ts} & {regime_tex} & {red} & {amber} \\\\")
+
+    lines += [r"\bottomrule", r"\end{longtable}"]
+    return "\n".join(lines)
 
 
 def main():
@@ -112,6 +148,7 @@ def main():
         "INFRA_AI": data["signals"]["INFRA_AI"],
         "INDUSTRY": data["signals"]["INDUSTRY"],
         "CONSUMER": data["signals"]["CONSUMER"],
+        "TREND_SECTION": build_trend_section(output_dir / "scm_geopol_history.csv"),
     }
 
     for key, value in replacements.items():
