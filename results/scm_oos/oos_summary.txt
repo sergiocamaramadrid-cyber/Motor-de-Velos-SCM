@@ -1,0 +1,24 @@
+============================================================
+OOS VALIDATION SUMMARY — SCM F3 model
+============================================================
+
+Mode          : direct_pred
+Seeds         : [42, 43, 44, 45, 46]
+Train fraction: 122 / 175 galaxies
+
+--- Paper Table 4 numbers ---
+N_valid (test galaxies, median across seeds) : 53
+Improved cases (δRMSE < 0)                  : 53/53  (100.0%)
+Median δRMSE (β units, proxy)             : -7.2728
+Wilcoxon p-value (one-sided, "less")        : 1.193e-10
+
+--- MNRAS Results skeleton ---
+Using the SPARC sample (N = 53 galaxies after cuts),
+we find that the SCM model improves out-of-sample performance
+in 53/53 cases (100.0%).
+
+The median improvement in RMSE is
+ΔRMSEout = -7.2728 (β units, proxy),
+with a one-sided Wilcoxon test yielding p = 1.193e-10.
+
+============================================================
