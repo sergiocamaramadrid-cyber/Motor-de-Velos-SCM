@@ -59,4 +59,11 @@ A stronger confirmatory version would require an independent environmental class
 
 ---
 
+**Current status**
+
+The script structure and outputs have been verified end-to-end using a synthetic per-galaxy input table.
+Execution on the real SPARC-derived per-galaxy summary requires a table containing `galaxy`, `delta_mass`, and `F3` (or configured aliases; see `detect_column()` in the script).
+
+---
+
 Last updated: 2026-04-01
