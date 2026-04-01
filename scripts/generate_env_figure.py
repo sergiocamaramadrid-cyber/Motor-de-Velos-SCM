@@ -133,10 +133,10 @@ coef = np.polyfit(x, y, 1)
 fit = np.poly1d(coef)
 x_fit = np.linspace(np.min(x), np.max(x), 200)
 plt.plot(x_fit, fit(x_fit), linewidth=2, color='C1')
-plt.xlabel(r'$delta_{\rm mass}$')
-plt.ylabel(r'$ho_{\rm lag1}$')
+plt.xlabel(r'$\delta_{\rm mass}$')
+plt.ylabel(r'$\rho_{\rm lag1}$')
 plt.title('Environmental correlation in SPARC outer disks')
-text = f'$\rho$ = {rho:.2f}, p = {pval:.1e}'
+text = f'$\\rho$ = {rho:.2f}, p = {pval:.1e}'
 plt.text(0.05, 0.95, text, transform=ax.transAxes, verticalalignment='top', fontsize=10)
 plt.tight_layout()
 plt.savefig(OUT, format='pdf', dpi=300)
