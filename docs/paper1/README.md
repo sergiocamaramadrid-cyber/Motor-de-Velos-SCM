@@ -9,6 +9,7 @@ A statistically significant association between outer disk kinematics (ΔF3) and
 - abstract.md — manuscript abstract
 - methods_delta_mass.md — definition of environmental proxy
 - results_summary.md — key metrics and validation
+- section3_results.md — full Section 3 results narrative
 - figures/ — main figure (to be added)
 
 ## Notes

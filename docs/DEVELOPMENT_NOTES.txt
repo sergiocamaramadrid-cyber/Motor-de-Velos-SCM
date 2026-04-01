@@ -1,4 +1,0 @@
-Estado de desarrollo — notas internas
-
-- Estimación preliminar: ≈30% / ≈10% 
-- Mantener fuera del documento principal.
