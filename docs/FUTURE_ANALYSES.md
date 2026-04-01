@@ -62,7 +62,59 @@ A stronger confirmatory version would require an independent environmental class
 **Current status**
 
 The script structure and outputs have been verified end-to-end using a synthetic per-galaxy input table.
-Execution on the real SPARC-derived per-galaxy summary requires a table containing `galaxy`, `delta_mass`, and `F3` (or configured aliases; see `detect_column()` in the script).
+
+> **The interaction-analysis pipeline is operational, but execution on real SPARC galaxies requires an external per-galaxy environmental table containing `galaxy` and `delta_mass`, consistent with the definition adopted in the paper.**
+
+**Column provenance**
+
+| Column | Definition | Source |
+|---|---|---|
+| `F3` | Deep-regime velocity slope (`friction_slope` / `beta`) | `scripts/generate_f3_catalog.py` → `results/f3_catalog_real.csv` |
+| `delta_mass` | Stellar mass overdensity at 3 Mpc: (ρ_local/⟨ρ⟩) − 1 (see `docs/paper1/methods_delta_mass.md`) | **External LSS catalogue** — not produced by any script in this repo |
+| `delta_dyn` / `delta_g` | Per-galaxy median of log10(g_obs) − log10(g_bar) | Derivable from SPARC rotmod files — **must not be named `delta_mass`** |
+
+**Generating F3**
+
+```bash
+python scripts/generate_f3_catalog.py \
+    --data_dir data/SPARC/rotmod \
+    --out results/f3_catalog_real.csv
+```
+
+**Building `results/environment_interaction/per_galaxy_env_f3.csv`**
+
+Once an external `delta_mass` table is available (minimum columns: `galaxy`, `delta_mass`):
+
+```python
+import pandas as pd
+from pathlib import Path
+
+Path("results/environment_interaction").mkdir(parents=True, exist_ok=True)
+
+f3  = pd.read_csv("results/f3_catalog_real.csv")[["galaxy", "friction_slope", "reliable"]]
+env = pd.read_csv("<external_delta_mass_table>.csv")[["galaxy", "delta_mass"]]
+
+merged = f3.merge(env, on="galaxy", how="inner")
+merged = merged.rename(columns={"friction_slope": "F3"})
+merged = merged[merged["reliable"] == True].copy()
+
+merged["source_f3"]         = "generate_f3_catalog.py"
+merged["source_delta_mass"] = "<external_catalogue_name>"
+
+merged.to_csv("results/environment_interaction/per_galaxy_env_f3.csv", index=False)
+```
+
+Then run the analysis:
+
+```bash
+python scripts/environment_interaction_analysis.py \
+    --input results/environment_interaction/per_galaxy_env_f3.csv
+```
+
+**Blocking item**
+
+`delta_mass` (environmental proxy) is **not** computed by any script in this repository and is pending supply from an external large-scale structure catalogue.
+`F3` is fully automated and ready to generate once SPARC rotmod files are present.
 
 ---
 
