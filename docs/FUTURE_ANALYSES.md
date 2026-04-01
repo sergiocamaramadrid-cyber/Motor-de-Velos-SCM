@@ -72,3 +72,71 @@ Ensure the input files exist at the configured paths before running:
 
 Never rename `delta_dyn` as `delta_mass`, and never substitute `delta_mass_yang`
 for `delta_mass` in paper figures or tables.
+
+---
+
+## Yang et al. Environmental Proxy (`delta_mass_yang`) — Uso práctico
+
+**Script:** `scripts/crossmatch_yang_proxy.py`
+
+### Preparación de archivos
+
+1. **Catálogo de Yang**
+   - Descarga una versión del catálogo de grupos de Yang en formato FITS o CSV
+     (por ejemplo, desde VizieR o datos derivados de SDSS).
+   - Asegúrate de que contiene columnas de coordenadas (RA, DEC) y al menos una
+     columna de densidad (p.ej., `DELTA_3MPC`, `DELTA_5MPC`) o multiplicidad de
+     grupo (`NGROUP`, `MGROUP`).
+   - Colócalo en `data/environment/yang_group_catalog.fits` (o ajusta la ruta en
+     el script).
+
+2. **Catálogo básico de SPARC**
+   - El script espera `data/SPARC/sparc_basic.csv` con las columnas `galaxy`,
+     `ra`, `dec`.
+   - Si tu archivo SPARC procesado (`sparc_processed.csv`) ya contiene esas
+     columnas, puedes generarlo así:
+
+     ```python
+     import pandas as pd
+
+     sparc = pd.read_csv("data/SPARC/sparc_processed.csv")
+     required = ["galaxy", "ra", "dec"]
+     missing = [c for c in required if c not in sparc.columns]
+     if missing:
+         raise ValueError(f"Missing required columns: {missing}")
+
+     basic = sparc[required].drop_duplicates()
+     basic.to_csv("data/SPARC/sparc_basic.csv", index=False)
+     ```
+
+### Ejecución
+
+```bash
+python scripts/crossmatch_yang_proxy.py
+```
+
+### Verificación de resultados
+
+Una vez ejecutado, abre `results/delta_mass_yang_sparc.csv` y comprueba:
+
+- **Número de matches** (filas del CSV o salida del script).
+- **Mediana de `match_sep_arcsec`**: si es > 30 arcsec, el cruce puede no ser
+  fiable o el radio es demasiado grande.
+- **`proxy_source`**: columna del catálogo Yang utilizada.
+- **`proxy_mode`**:
+  - `density` → densidad directa
+  - `group_proxy` → proxy derivado (exploratorio)
+
+### Sanity check rápido
+
+Verifica que:
+
+- `delta_mass_yang` no sea constante ni mayoritariamente `NaN`.
+- La distribución tenga valores positivos y negativos (sobredensidad /
+  subdensidad).
+
+### Nota importante
+
+Este proxy (`delta_mass_yang`) es exploratorio y no sustituye al `delta_mass`
+canónico utilizado en el paper. Su finalidad es servir como test de robustez
+ambiental usando una fuente externa independiente.
