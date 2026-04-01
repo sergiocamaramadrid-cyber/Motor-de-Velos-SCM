@@ -140,3 +140,71 @@ Verifica que:
 Este proxy (`delta_mass_yang`) es exploratorio y no sustituye al `delta_mass`
 canónico utilizado en el paper. Su finalidad es servir como test de robustez
 ambiental usando una fuente externa independiente.
+
+---
+
+## Yang et al. Environmental Proxy (`delta_mass_yang`) — Practical Use
+
+**Script:** `scripts/crossmatch_yang_proxy.py`
+
+### File preparation
+
+1. **Yang catalog**
+   - Download a version of the Yang group catalog in FITS or CSV format (for
+     example, from VizieR or SDSS-derived resources).
+   - Ensure that it contains coordinate columns (`RA`, `DEC`) and at least one
+     density-like column (e.g. `DELTA_3MPC`, `DELTA_5MPC`) or group-multiplicity
+     column (`NGROUP`, `MGROUP`).
+   - Place it at `data/environment/yang_group_catalog.fits` (or adjust the path
+     in the script).
+
+2. **Basic SPARC catalog**
+   - The script expects `data/SPARC/sparc_basic.csv` with columns `galaxy`,
+     `ra`, `dec`.
+   - If your processed SPARC table already contains these columns, you can
+     generate it with:
+
+     ```python
+     import pandas as pd
+
+     sparc = pd.read_csv("data/SPARC/sparc_processed.csv")
+     required = ["galaxy", "ra", "dec"]
+     missing = [c for c in required if c not in sparc.columns]
+     if missing:
+         raise ValueError(f"Missing required columns: {missing}")
+
+     basic = sparc[required].drop_duplicates()
+     basic.to_csv("data/SPARC/sparc_basic.csv", index=False)
+     ```
+
+### Execution
+
+```bash
+python scripts/crossmatch_yang_proxy.py
+```
+
+### Output verification
+
+After execution, inspect `results/delta_mass_yang_sparc.csv` and verify:
+
+- **Match count**: number of SPARC galaxies successfully cross-matched.
+- **Median `match_sep_arcsec`**: if it is > 30 arcsec, the match may be
+  unreliable or the search radius may be too large.
+- **`proxy_source`**: which Yang catalog column was used.
+- **`proxy_mode`**:
+  - `density` → direct density-like quantity
+  - `group_proxy` → exploratory proxy derived from group multiplicity or mass
+
+### Quick sanity check
+
+Confirm that:
+
+- `delta_mass_yang` is not constant and not mostly `NaN`.
+- Its distribution includes both positive and negative values (overdensity /
+  underdensity behaviour).
+
+### Important note
+
+`delta_mass_yang` is an exploratory external robustness proxy. It is not
+identical to the canonical `delta_mass` used in the paper and must not replace
+it in the main manuscript, figures, or tables without explicit redefinition.
