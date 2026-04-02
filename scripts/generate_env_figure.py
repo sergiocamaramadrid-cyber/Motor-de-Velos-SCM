@@ -65,6 +65,7 @@ def main() -> int:
         return 1
 
     sparc = sparc.copy()
+    sparc.loc[sparc["Rdisk"] <= 0, "Rdisk"] = np.nan
     sparc["logSigmaHI"] = np.log10(sparc["MHI"] / (np.pi * sparc["Rdisk"] ** 2))
     sparc = sparc.replace([np.inf, -np.inf], np.nan)
 
