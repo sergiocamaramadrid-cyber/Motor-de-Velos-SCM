@@ -1,9 +1,12 @@
 """
 scripts/download_sparc_data.py — Download the SPARC dataset from the public archive.
 
-Downloads from the official SPARC website (astroweb.cwru.edu):
+Downloads from the official SPARC website (astroweb.cwru.edu) with automatic
+fallback to the Zenodo long-term archive (DOI 10.5281/zenodo.16284118):
+
   - SPARC_Lelli2016c.mrt  (galaxy table, ~20 KB)
   - <Galaxy>_rotmod.dat   (per-galaxy rotation curves, ~175 files, ~a few KB each)
+  - Rotmod_LTG.zip        (Zenodo fallback — full rotation-curve bundle)
 
 The rotation curves are placed in ``<out>/raw/`` so they are found by
 :func:`src.scm_analysis.load_rotation_curve`.  The galaxy table is saved
@@ -14,27 +17,42 @@ Usage
 -----
     python scripts/download_sparc_data.py --out data/SPARC
 
+    # Force Zenodo source even when CWRU is reachable:
+    python scripts/download_sparc_data.py --out data/SPARC --source zenodo
+
 References
 ----------
 Lelli, McGaugh & Schombert (2016), AJ 152, 157.
 http://astroweb.cwru.edu/SPARC/
+https://doi.org/10.5281/zenodo.16284118
 """
 
 from __future__ import annotations
 
 import argparse
+import io
 import sys
 import time
 import urllib.error
 import urllib.request
 import socket
+import zipfile
 from pathlib import Path
 
 import pandas as pd
 
+# ---------------------------------------------------------------------------
+# Source URLs
+# ---------------------------------------------------------------------------
 SPARC_BASE = "https://astroweb.cwru.edu/SPARC"
 TABLE_MRT_URL = f"{SPARC_BASE}/SPARC_Lelli2016c.mrt"
 ROTMOD_URL = f"{SPARC_BASE}/Rotmod_LTG/{{galaxy}}_rotmod.dat"
+ROTMOD_ZIP_URL = f"{SPARC_BASE}/Rotmod_LTG.zip"
+
+# Zenodo long-term archive (DOI 10.5281/zenodo.16284118)
+ZENODO_BASE = "https://zenodo.org/records/16284118/files"
+ZENODO_TABLE_URL = f"{ZENODO_BASE}/SPARC_Lelli2016c.mrt"
+ZENODO_ZIP_URL = f"{ZENODO_BASE}/Rotmod_LTG.zip"
 
 _TIMEOUT = 30   # seconds per request
 _RETRY_DELAY = 2  # seconds between retries
@@ -132,10 +150,50 @@ def _parse_galaxy_table(mrt_path: Path) -> pd.DataFrame:
 
 
 # ---------------------------------------------------------------------------
+# Zenodo zip helpers
+# ---------------------------------------------------------------------------
+
+def _download_bytes(url: str, retries: int = 3) -> bytes | None:
+    """Download *url* entirely into memory; return bytes or None on failure."""
+    for attempt in range(retries):
+        try:
+            with urllib.request.urlopen(url, timeout=_TIMEOUT) as resp:
+                return resp.read()
+        except (urllib.error.URLError, OSError) as exc:
+            if attempt < retries - 1:
+                time.sleep(_RETRY_DELAY * (attempt + 1))
+            else:
+                print(f"  [fail] {url}: {exc}", file=sys.stderr)
+    return None
+
+
+def _extract_zip_to(zip_bytes: bytes, dest_dir: Path) -> list[str]:
+    """Extract a zip archive (given as bytes) into *dest_dir*.
+
+    Returns the list of member names that were extracted.
+    """
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    extracted: list[str] = []
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
+        for member in zf.namelist():
+            # Skip directories and manifest files
+            if member.endswith("/"):
+                continue
+            name = Path(member).name
+            if not name:
+                continue
+            target = dest_dir / name
+            if not target.exists():
+                target.write_bytes(zf.read(member))
+            extracted.append(name)
+    return extracted
+
+
+# ---------------------------------------------------------------------------
 # Main download function
 # ---------------------------------------------------------------------------
 
-def download_sparc(out_dir: str | Path) -> bool:
+def download_sparc(out_dir: str | Path, source: str = "auto") -> bool:
     """Download SPARC data to *out_dir*.
 
     Parameters
@@ -144,6 +202,11 @@ def download_sparc(out_dir: str | Path) -> bool:
         Destination directory.  Created if it does not exist.
         Rotation curves go into ``<out_dir>/raw/``.
         The galaxy table is saved as ``<out_dir>/SPARC_Lelli2016c.csv``.
+    source : {"auto", "cwru", "zenodo"}
+        Data source.  ``"auto"`` tries CWRU first, then Zenodo.
+        ``"cwru"`` only tries astroweb.cwru.edu.
+        ``"zenodo"`` only tries the Zenodo archive
+        (DOI 10.5281/zenodo.16284118).
 
     Returns
     -------
@@ -164,9 +227,26 @@ def download_sparc(out_dir: str | Path) -> bool:
         print(f"Galaxy table already present: {csv_path}")
         df = pd.read_csv(csv_path)
     else:
-        print(f"Downloading galaxy table → {mrt_path} …")
-        if not _download_file(TABLE_MRT_URL, mrt_path):
-            print("ERROR: Could not download the SPARC galaxy table.", file=sys.stderr)
+        table_downloaded = False
+
+        # Try CWRU first (unless Zenodo is forced)
+        if source in ("auto", "cwru"):
+            print(f"Downloading galaxy table from CWRU → {mrt_path} …")
+            table_downloaded = _download_file(TABLE_MRT_URL, mrt_path)
+
+        # Fall back to Zenodo
+        if not table_downloaded and source in ("auto", "zenodo"):
+            print(f"Trying Zenodo fallback for galaxy table …")
+            table_downloaded = _download_file(ZENODO_TABLE_URL, mrt_path)
+
+        if not table_downloaded:
+            print(
+                "ERROR: Could not download the SPARC galaxy table from any source.\n"
+                "  Primary: " + TABLE_MRT_URL + "\n"
+                "  Zenodo:  " + ZENODO_TABLE_URL + "\n"
+                "Run manually: python scripts/download_sparc_data.py --out data/SPARC",
+                file=sys.stderr,
+            )
             return False
 
         print("Parsing galaxy table …")
@@ -176,7 +256,6 @@ def download_sparc(out_dir: str | Path) -> bool:
             print(f"ERROR: {exc}", file=sys.stderr)
             return False
 
-        # Ensure required columns exist with canonical names
         if "Galaxy" not in df.columns:
             print("ERROR: 'Galaxy' column not found in table.", file=sys.stderr)
             return False
@@ -191,34 +270,93 @@ def download_sparc(out_dir: str | Path) -> bool:
     # ------------------------------------------------------------------
     # 2. Rotation curves
     # ------------------------------------------------------------------
-    print(f"\nDownloading rotation curves → {raw} …")
-    ok = 0
-    fail = 0
-    skipped = 0
+    already_have = {p.stem.replace("_rotmod", "") for p in raw.glob("*_rotmod.dat")}
+    need = [n for n in galaxy_names if n not in already_have]
 
-    for name in galaxy_names:
+    if not need:
+        print(f"\nAll {len(galaxy_names)} rotation curves already present in {raw}")
+        return True
+
+    print(f"\nDownloading {len(need)} rotation curve(s) → {raw} …")
+
+    # ------------------------------------------------------------------
+    # 2a. Try bulk zip download first (faster than 175 individual requests)
+    # ------------------------------------------------------------------
+    zip_ok = False
+    for zip_url, label in [
+        (ROTMOD_ZIP_URL, "CWRU"),
+        (ZENODO_ZIP_URL, "Zenodo"),
+    ]:
+        if source == "cwru" and label == "Zenodo":
+            continue
+        if source == "zenodo" and label == "CWRU":
+            continue
+        print(f"  Trying bulk zip from {label}: {zip_url} …")
+        zip_bytes = _download_bytes(zip_url, retries=2)
+        if zip_bytes is not None:
+            extracted = _extract_zip_to(zip_bytes, raw)
+            print(f"  Extracted {len(extracted)} file(s) from zip.")
+            zip_ok = True
+            break
+
+    if zip_ok:
+        # Check what's still missing after the zip extraction
+        still_missing = [
+            n for n in galaxy_names
+            if not (raw / f"{n}_rotmod.dat").exists()
+        ]
+        if still_missing:
+            print(
+                f"  {len(still_missing)} file(s) not found in zip; "
+                "attempting individual downloads …"
+            )
+        else:
+            print(f"\nAll rotation curves obtained from zip.")
+            return True
+        need = still_missing
+
+    # ------------------------------------------------------------------
+    # 2b. Individual file downloads (fallback / supplement)
+    # ------------------------------------------------------------------
+    ok_count = 0
+    fail_count = 0
+
+    for name in need:
         dest = raw / f"{name}_rotmod.dat"
         if dest.exists():
-            skipped += 1
-            ok += 1
+            ok_count += 1
             continue
-        url = ROTMOD_URL.format(galaxy=name)
-        if _download_file(url, dest, retries=3):
-            ok += 1
+
+        # Try CWRU then Zenodo per file
+        downloaded = False
+        for url, label in [
+            (ROTMOD_URL.format(galaxy=name), "CWRU"),
+            (f"{ZENODO_BASE}/{name}_rotmod.dat", "Zenodo"),
+        ]:
+            if source == "cwru" and label == "Zenodo":
+                continue
+            if source == "zenodo" and label == "CWRU":
+                continue
+            if _download_file(url, dest, retries=2):
+                downloaded = True
+                break
+
+        if downloaded:
+            ok_count += 1
             print(f"  [ok]   {name}")
         else:
-            fail += 1
+            fail_count += 1
         time.sleep(0.05)  # polite rate limiting
 
     total = len(galaxy_names)
     print(
-        f"\nRotation curves: {ok - skipped} downloaded, {skipped} already present, "
-        f"{fail} failed  (total {total})"
+        f"\nRotation curves: {ok_count} downloaded/present, "
+        f"{fail_count} failed  (total {total})"
     )
 
-    if fail > 0:
+    if fail_count > 0:
         print(
-            f"WARNING: {fail} rotation curve(s) could not be downloaded. "
+            f"WARNING: {fail_count} rotation curve(s) could not be downloaded. "
             "Those galaxies will be skipped by generate_f3_catalog.py.",
             file=sys.stderr,
         )
@@ -233,7 +371,8 @@ def download_sparc(out_dir: str | Path) -> bool:
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Download the SPARC dataset (Lelli+2016) from astroweb.cwru.edu. "
+            "Download the SPARC dataset (Lelli+2016) from astroweb.cwru.edu "
+            "with automatic fallback to Zenodo (DOI 10.5281/zenodo.16284118). "
             "Downloads the galaxy table and per-galaxy rotation curves."
         )
     )
@@ -241,12 +380,20 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--out", default="data/SPARC",
         help="Destination directory (default: data/SPARC).",
     )
+    parser.add_argument(
+        "--source", choices=["auto", "cwru", "zenodo"], default="auto",
+        help=(
+            "Data source: 'auto' tries CWRU then Zenodo (default), "
+            "'cwru' uses only astroweb.cwru.edu, "
+            "'zenodo' uses only the Zenodo archive."
+        ),
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> None:
     args = _parse_args(argv)
-    ok = download_sparc(args.out)
+    ok = download_sparc(args.out, source=args.source)
     sys.exit(0 if ok else 1)
 
 
