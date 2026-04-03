@@ -1,0 +1,13 @@
+LITTLE THINGS + YANG-STYLE PROXY
+==================================================
+radius_arcsec = 60
+N = 24
+rho = -0.3530434782608695
+p = 0.09060541970723539
+median_sep_arcsec = 27.354
+verdict = Tendencia compatible con el efecto ambiental.
+
+Sensitivity:
+radius=30 N=14 rho=-0.6307692307692307 p=0.015578224272771276
+radius=60 N=24 rho=-0.3530434782608695 p=0.09060541970723539
+radius=120 N=26 rho=-0.3005128205128205 p=0.1357811570511287
