@@ -103,15 +103,18 @@ def build_mock_yang(df_beta: pd.DataFrame) -> pd.DataFrame:
 def load_or_mock_lt() -> pd.DataFrame:
     if LT_FILE.exists():
         df_lt = pd.read_csv(LT_FILE)
+
         # permitimos beta o f3, pero internamente trabajamos con beta
         if "beta" not in df_lt.columns and "f3" in df_lt.columns:
             df_lt = df_lt.rename(columns={"f3": "beta"})
+
         missing = [c for c in ["beta", "ra", "dec"] if c not in df_lt.columns]
         if missing:
-            if SIMULATE_IF_MISSING:
-                print(f"⚠️  {LT_FILE} existe pero le faltan columnas {missing}. Generando simulación.")
-                return build_mock_lt()
-            raise ValueError(f"LITTLE THINGS table is missing required columns: {missing}")
+            raise ValueError(
+                f"{LT_FILE} exists but is missing required columns: {missing}. "
+                "Refusing to fall back to simulation because this would mix real and mock modes."
+            )
+
         return df_lt.dropna(subset=["beta", "ra", "dec"]).copy()
 
     if SIMULATE_IF_MISSING:
