@@ -4,18 +4,33 @@ scripts/generate_scm_residual_catalog.py — Build per-galaxy residual catalog.
 For each galaxy the script computes two summary quantities from the rotation
 curve:
 
-  f3_residual
+  a_residual
       Median of log10(g_obs / g_bar) across all valid radial points.
-      This captures the per-galaxy acceleration anomaly (positive values
-      indicate excess observed acceleration over the baryonic prediction).
+      This is the **acceleration-anomaly observable** (A_residual), distinct
+      from the geometric deep-regime slope F3_geom (``friction_slope`` /
+      ``beta`` in ``generate_f3_catalog.py``).  Positive values indicate
+      excess observed acceleration over the baryonic prediction.
 
   v_last
       Observed rotation velocity (km/s) at the outermost valid radial point.
       This is a proxy for the asymptotic / flat-rotation velocity.
 
+Naming convention
+-----------------
+``F3_geom``   — deep-regime log–log slope β = d log g_obs / d log g_bar
+                (computed by ``generate_f3_catalog.py``, stored as
+                ``friction_slope`` / ``beta``).
+``A_residual`` — per-galaxy median of log10(g_obs / g_bar), the
+                acceleration-anomaly offset (this script, column
+                ``a_residual``).
+
+Keeping the two observables under distinct names prevents conflation in
+papers and downstream analyses.
+
 The output CSV (``results/scm_clean_with_residual.csv``) feeds the
 Mann-Whitney U test in ``analyze_residual_by_v_last.py``, which tests
-whether the F3 residual differs between galaxies with low and high ``v_last``.
+whether the acceleration-anomaly residual differs between galaxies with
+low and high ``v_last``.
 
 Usage
 -----
@@ -58,7 +73,7 @@ from src.scm_models import v_baryonic
 A0_DEFAULT = 1.2e-10        # characteristic acceleration (m/s²)
 MIN_POINTS_DEFAULT = 3      # minimum valid radial points for a usable entry
 
-OUTPUT_COLS = ["galaxy", "f3_residual", "v_last"]
+OUTPUT_COLS = ["galaxy", "a_residual", "v_last"]
 
 
 # ---------------------------------------------------------------------------
@@ -70,7 +85,7 @@ def compute_galaxy_residual(
     upsilon_disk: float,
     min_points: int = MIN_POINTS_DEFAULT,
 ) -> dict | None:
-    """Compute ``f3_residual`` and ``v_last`` for a single galaxy.
+    """Compute ``a_residual`` and ``v_last`` for a single galaxy.
 
     Parameters
     ----------
@@ -86,7 +101,7 @@ def compute_galaxy_residual(
     Returns
     -------
     dict or None
-        Keys: ``f3_residual`` (float), ``v_last`` (float).
+        Keys: ``a_residual`` (float), ``v_last`` (float).
         ``None`` if the galaxy has insufficient valid data.
     """
     r_arr = rc["r"].values
@@ -110,14 +125,14 @@ def compute_galaxy_residual(
         return None
 
     log_ratio = np.log10(g_obs_arr[valid]) - np.log10(g_bar_arr[valid])
-    f3_residual = float(np.median(log_ratio))
+    a_residual = float(np.median(log_ratio))
 
     # v_last: observed velocity at the outermost valid radial point
     valid_indices = np.where(valid)[0]
     last_idx = valid_indices[np.argmax(r_arr[valid_indices])]
     v_last = float(v_obs_arr[last_idx])
 
-    return {"f3_residual": f3_residual, "v_last": v_last}
+    return {"a_residual": a_residual, "v_last": v_last}
 
 
 # ---------------------------------------------------------------------------
@@ -131,7 +146,7 @@ def generate_residual_catalog(
     min_points: int = MIN_POINTS_DEFAULT,
     verbose: bool = True,
 ) -> pd.DataFrame:
-    """Generate the per-galaxy F3 residual and v_last catalog.
+    """Generate the per-galaxy acceleration-anomaly residual and v_last catalog.
 
     Parameters
     ----------
@@ -149,7 +164,7 @@ def generate_residual_catalog(
     Returns
     -------
     pd.DataFrame
-        Per-galaxy catalog with columns: galaxy, f3_residual, v_last.
+        Per-galaxy catalog with columns: galaxy, a_residual, v_last.
     """
     data_dir = Path(data_dir)
     out = Path(out)
@@ -178,7 +193,7 @@ def generate_residual_catalog(
         entry["galaxy"] = name
         records.append(entry)
         if verbose:
-            print(f"  {name}: f3_residual={entry['f3_residual']:.4f}, "
+            print(f"  {name}: a_residual={entry['a_residual']:.4f}, "
                   f"v_last={entry['v_last']:.2f} km/s")
 
     if records:
@@ -202,7 +217,7 @@ def generate_residual_catalog(
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Build a per-galaxy F3 residual catalog with f3_residual and "
+            "Build a per-galaxy acceleration-anomaly catalog with a_residual and "
             "v_last columns for downstream Mann-Whitney U analysis."
         )
     )

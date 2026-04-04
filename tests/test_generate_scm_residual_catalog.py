@@ -36,7 +36,7 @@ def _make_synthetic_sparc_dir(
 
     Velocities are chosen small (≤ 3.5 km/s) so that deep-regime points
     exist at large radii.  Flat rotation curves give g_obs ∝ g_bar, so
-    f3_residual ≈ 0 and v_last equals the flat velocity.
+    a_residual ≈ 0 and v_last equals the flat velocity.
     """
     tmp_path.mkdir(parents=True, exist_ok=True)
     rng = np.random.default_rng(seed)
@@ -93,13 +93,13 @@ class TestComputeGalaxyResidual:
         rc = _make_rc()
         result = compute_galaxy_residual(rc, upsilon_disk=1.0)
         assert result is not None
-        assert {"f3_residual", "v_last"}.issubset(result.keys())
+        assert {"a_residual", "v_last"}.issubset(result.keys())
 
-    def test_f3_residual_is_finite(self):
+    def test_a_residual_is_finite(self):
         rc = _make_rc()
         result = compute_galaxy_residual(rc, upsilon_disk=1.0)
         assert result is not None
-        assert np.isfinite(result["f3_residual"])
+        assert np.isfinite(result["a_residual"])
 
     def test_v_last_equals_last_radius_v_obs(self):
         """v_last must be the v_obs at the outermost radial point."""
@@ -109,13 +109,13 @@ class TestComputeGalaxyResidual:
         expected = float(rc.loc[rc["r"].idxmax(), "v_obs"])
         assert result["v_last"] == pytest.approx(expected, rel=1e-9)
 
-    def test_flat_curve_f3_residual_near_zero(self):
+    def test_flat_curve_a_residual_near_zero(self):
         """For a flat rotation curve with upsilon_disk ≈ 1, the log ratio
         g_obs/g_bar should be close to zero (both scale as V²/r)."""
         rc = _make_rc(vf=2.0)
         result = compute_galaxy_residual(rc, upsilon_disk=1.0)
         assert result is not None
-        assert abs(result["f3_residual"]) < 1.0
+        assert abs(result["a_residual"]) < 1.0
 
     def test_returns_none_when_insufficient_points(self):
         """When fewer valid points than min_points, return None."""
@@ -167,12 +167,12 @@ class TestGenerateResidualCatalog:
         df = generate_residual_catalog(data_dir, out, verbose=False)
         assert len(df) == n
 
-    def test_all_f3_residuals_finite(self, tmp_path):
+    def test_all_a_residuals_finite(self, tmp_path):
         data_dir = _make_synthetic_sparc_dir(tmp_path / "data", n_gal=4)
         out = tmp_path / "catalog.csv"
         df = generate_residual_catalog(data_dir, out, verbose=False)
-        assert df["f3_residual"].notna().all()
-        assert np.isfinite(df["f3_residual"].values).all()
+        assert df["a_residual"].notna().all()
+        assert np.isfinite(df["a_residual"].values).all()
 
     def test_all_v_last_positive(self, tmp_path):
         data_dir = _make_synthetic_sparc_dir(tmp_path / "data", n_gal=4)

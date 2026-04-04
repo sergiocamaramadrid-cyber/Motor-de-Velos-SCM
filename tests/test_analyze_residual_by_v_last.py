@@ -41,7 +41,7 @@ def _make_catalog(
     half = n // 2
     return pd.DataFrame({
         "galaxy": [f"G{i:03d}" for i in range(n)],
-        "f3_residual": np.concatenate([
+        "a_residual": np.concatenate([
             rng.normal(low_residual, 0.05, half),
             rng.normal(high_residual, 0.05, n - half),
         ]),
@@ -116,7 +116,7 @@ class TestAnalyzeResidualByVLast:
 
     def test_n_total_excludes_nonfinite_rows(self):
         df = _make_catalog(n=20)
-        df.loc[0, "f3_residual"] = float("nan")
+        df.loc[0, "a_residual"] = float("nan")
         df.loc[1, "v_last"] = float("inf")
         result = analyze_residual_by_v_last(df)
         assert result["n_total"] == 18
@@ -126,7 +126,7 @@ class TestAnalyzeResidualByVLast:
         rng = np.random.default_rng(1)
         df = pd.DataFrame({
             "galaxy": [f"G{i}" for i in range(40)],
-            "f3_residual": np.concatenate([
+            "a_residual": np.concatenate([
                 rng.normal(-0.5, 0.05, 20),
                 rng.normal(0.5, 0.05, 20),
             ]),
@@ -143,7 +143,7 @@ class TestAnalyzeResidualByVLast:
         rng = np.random.default_rng(42)
         df = pd.DataFrame({
             "galaxy": [f"G{i}" for i in range(100)],
-            "f3_residual": rng.normal(0.0, 0.1, 100),
+            "a_residual": rng.normal(0.0, 0.1, 100),
             "v_last": rng.uniform(50, 300, 100),
         })
         result = analyze_residual_by_v_last(df)
@@ -165,14 +165,14 @@ class TestAnalyzeResidualByVLast:
     def test_all_nonfinite_rows_drops_all(self):
         """Catalog with all NaN residuals → empty df → ValueError."""
         df = pd.DataFrame({
-            "f3_residual": [float("nan"), float("nan")],
+            "a_residual": [float("nan"), float("nan")],
             "v_last": [100.0, 200.0],
         })
         with pytest.raises(ValueError, match="No finite rows"):
             analyze_residual_by_v_last(df)
 
-    def test_handles_single_valid_column_name_f3_residual(self):
-        """Column must be named exactly f3_residual (no aliases)."""
+    def test_handles_single_valid_column_name_a_residual(self):
+        """Column must be named exactly a_residual (no aliases)."""
         df = pd.DataFrame({
             "residual": [0.1, -0.1, 0.2, -0.2],
             "v_last": [100.0, 150.0, 200.0, 250.0],
@@ -197,7 +197,7 @@ class TestPrintResults:
     def test_significant_output_contains_marker(self, capsys):
         rng = np.random.default_rng(5)
         df = pd.DataFrame({
-            "f3_residual": np.concatenate([
+            "a_residual": np.concatenate([
                 rng.normal(-1.0, 0.1, 30),
                 rng.normal(1.0, 0.1, 30),
             ]),
