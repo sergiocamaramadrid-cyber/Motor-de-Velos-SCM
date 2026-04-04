@@ -86,7 +86,11 @@ def load_residual_catalog(csv_path: Path) -> pd.DataFrame:
     if not csv_path.exists():
         raise FileNotFoundError(
             f"Residual catalog not found: {csv_path}\n"
-            "Run generate_scm_residual_catalog.py first."
+            "Run generate_scm_residual_catalog.py first:\n"
+            "  python scripts/generate_scm_residual_catalog.py "
+            "--data-dir data/SPARC\n"
+            "Or use --demo for a synthetic catalog (no SPARC data required):\n"
+            "  python scripts/generate_scm_residual_catalog.py --demo"
         )
     df = pd.read_csv(csv_path)
     missing = [c for c in REQUIRED_COLS if c not in df.columns]

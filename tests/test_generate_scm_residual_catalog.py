@@ -13,10 +13,12 @@ import pytest
 
 from scripts.generate_scm_residual_catalog import (
     compute_galaxy_residual,
+    generate_demo_catalog,
     generate_residual_catalog,
     OUTPUT_COLS,
     MIN_POINTS_DEFAULT,
     A0_DEFAULT,
+    DEMO_N_GALAXIES,
     main as generate_main,
 )
 
@@ -213,3 +215,57 @@ class TestGenerateResidualCatalog:
         ])
         assert out.exists()
         assert len(df) == 3
+
+
+# ---------------------------------------------------------------------------
+# generate_demo_catalog tests
+# ---------------------------------------------------------------------------
+
+class TestGenerateDemoCatalog:
+    def test_output_columns(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        df = generate_demo_catalog(out, verbose=False)
+        assert set(OUTPUT_COLS).issubset(set(df.columns))
+
+    def test_output_file_created(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        generate_demo_catalog(out, verbose=False)
+        assert out.exists()
+
+    def test_default_n_galaxies(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        df = generate_demo_catalog(out, verbose=False)
+        assert len(df) == DEMO_N_GALAXIES
+
+    def test_custom_n_galaxies(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        df = generate_demo_catalog(out, n_galaxies=10, verbose=False)
+        assert len(df) == 10
+
+    def test_all_a_residuals_finite(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        df = generate_demo_catalog(out, verbose=False)
+        assert np.isfinite(df["a_residual"].values).all()
+
+    def test_all_v_last_positive(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        df = generate_demo_catalog(out, verbose=False)
+        assert (df["v_last"] > 0).all()
+
+    def test_reproducible_with_same_seed(self, tmp_path):
+        out1 = tmp_path / "demo1.csv"
+        out2 = tmp_path / "demo2.csv"
+        df1 = generate_demo_catalog(out1, seed=7, verbose=False)
+        df2 = generate_demo_catalog(out2, seed=7, verbose=False)
+        pd.testing.assert_frame_equal(df1, df2)
+
+    def test_cli_demo_flag(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        df = generate_main(["--demo", "--out", str(out), "--quiet"])
+        assert out.exists()
+        assert len(df) == DEMO_N_GALAXIES
+
+    def test_cli_no_data_dir_raises_without_demo(self, tmp_path):
+        out = tmp_path / "demo.csv"
+        with pytest.raises(SystemExit):
+            generate_main(["--out", str(out)])

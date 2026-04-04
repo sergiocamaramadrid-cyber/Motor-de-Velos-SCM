@@ -47,6 +47,10 @@ Custom parameters::
         --out results/scm_clean_with_residual.csv \\
         --a0 1.2e-10 \\
         --min-points 3
+
+Demo mode (no SPARC data required)::
+
+    python scripts/generate_scm_residual_catalog.py --demo
 """
 
 from __future__ import annotations
@@ -72,6 +76,7 @@ from src.scm_models import v_baryonic
 
 A0_DEFAULT = 1.2e-10        # characteristic acceleration (m/s²)
 MIN_POINTS_DEFAULT = 3      # minimum valid radial points for a usable entry
+DEMO_N_GALAXIES = 30        # number of galaxies in demo mode
 
 OUTPUT_COLS = ["galaxy", "a_residual", "v_last"]
 
@@ -133,6 +138,61 @@ def compute_galaxy_residual(
     v_last = float(v_obs_arr[last_idx])
 
     return {"a_residual": a_residual, "v_last": v_last}
+
+
+# ---------------------------------------------------------------------------
+# Demo catalog (no SPARC data required)
+# ---------------------------------------------------------------------------
+
+def generate_demo_catalog(
+    out: str | Path,
+    n_galaxies: int = DEMO_N_GALAXIES,
+    seed: int = 42,
+    verbose: bool = True,
+) -> pd.DataFrame:
+    """Generate a fully synthetic residual catalog for demonstration purposes.
+
+    Uses ``numpy`` random numbers to produce plausible ``a_residual`` and
+    ``v_last`` values without requiring any SPARC data files.  The output
+    has the same schema as the real catalog so that
+    ``analyze_residual_by_v_last.py`` can consume it directly.
+
+    Parameters
+    ----------
+    out : str or Path
+        Output CSV path.
+    n_galaxies : int
+        Number of synthetic galaxies (default: 30).
+    seed : int
+        Random seed for reproducibility.
+    verbose : bool
+        Print a summary line when True.
+
+    Returns
+    -------
+    pd.DataFrame
+        Per-galaxy catalog with columns: galaxy, a_residual, v_last.
+    """
+    rng = np.random.default_rng(seed)
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+
+    # Synthetic v_last: uniform over a realistic SPARC-like range (km/s)
+    v_last = rng.uniform(30.0, 300.0, n_galaxies)
+
+    # Synthetic a_residual: slight positive correlation with v_last + noise
+    a_residual = 0.001 * v_last + rng.normal(0.0, 0.15, n_galaxies)
+
+    df = pd.DataFrame({
+        "galaxy": [f"SYN{i:03d}" for i in range(n_galaxies)],
+        "a_residual": a_residual,
+        "v_last": v_last,
+    })[OUTPUT_COLS].sort_values("galaxy").reset_index(drop=True)
+
+    df.to_csv(out, index=False)
+    if verbose:
+        print(f"[demo] Synthetic catalog written to {out}  ({n_galaxies} galaxies)")
+    return df
 
 
 # ---------------------------------------------------------------------------
@@ -222,8 +282,16 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         )
     )
     parser.add_argument(
-        "--data-dir", required=True,
-        help="Directory containing SPARC data (SPARC_Lelli2016c.csv + rotmod files).",
+        "--demo", action="store_true",
+        help=(
+            "Generate a synthetic demo catalog without requiring SPARC data. "
+            "Ignores --data-dir."
+        ),
+    )
+    parser.add_argument(
+        "--data-dir", default=None,
+        help="Directory containing SPARC data (SPARC_Lelli2016c.csv + rotmod files). "
+             "Required unless --demo is used.",
     )
     parser.add_argument(
         "--out", default="results/scm_clean_with_residual.csv",
@@ -247,6 +315,15 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def main(argv: list[str] | None = None) -> pd.DataFrame:
     """Entry point: parse arguments and run catalog generation."""
     args = _parse_args(argv)
+    if args.demo:
+        return generate_demo_catalog(
+            out=args.out,
+            verbose=not args.quiet,
+        )
+    if args.data_dir is None:
+        raise SystemExit(
+            "error: --data-dir is required (or use --demo for a synthetic catalog)."
+        )
     return generate_residual_catalog(
         data_dir=args.data_dir,
         out=args.out,
