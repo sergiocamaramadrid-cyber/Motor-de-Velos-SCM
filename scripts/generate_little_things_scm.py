@@ -51,6 +51,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from scipy import stats as _scipy_stats
+from scipy.stats import spearmanr as _spearmanr
+from scipy.stats import linregress as _linregress
 
 # ---------------------------------------------------------------------------
 # Physics constants
@@ -205,6 +207,117 @@ def build_catalog(
 
 
 # ---------------------------------------------------------------------------
+# Mass-correlation and detrending
+# ---------------------------------------------------------------------------
+
+def compute_mass_detrend(cat: pd.DataFrame) -> pd.DataFrame:
+    """Add *f3_mass_residual* column: F3 after removing the logVobs linear trend.
+
+    For galaxies that are marked reliable the OLS fit of *friction_slope* on
+    *logVobs* is computed and the residuals stored in ``f3_mass_residual``.
+    Non-reliable galaxies receive NaN.
+
+    The OLS coefficients are returned via the ``_ols_slope`` and
+    ``_ols_intercept`` attributes attached to the returned DataFrame for use
+    by callers (e.g. figure functions).
+
+    Parameters
+    ----------
+    cat : pd.DataFrame
+        Catalog as returned by *build_catalog*.  Must contain columns
+        ``friction_slope``, ``logVobs``, and ``reliable``.
+
+    Returns
+    -------
+    pd.DataFrame
+        Copy of *cat* with an added ``f3_mass_residual`` column.
+    """
+    cat = cat.copy()
+    cat["f3_mass_residual"] = float("nan")
+
+    clean_mask = cat["reliable"] & cat["friction_slope"].notna()
+    if clean_mask.sum() >= 2:
+        f3 = cat.loc[clean_mask, "friction_slope"].values
+        logV = cat.loc[clean_mask, "logVobs"].values
+        slope, intercept, *_ = _linregress(logV, f3)
+        residuals = f3 - (slope * logV + intercept)
+        cat.loc[clean_mask, "f3_mass_residual"] = residuals
+        cat.attrs["_ols_slope"] = slope
+        cat.attrs["_ols_intercept"] = intercept
+    else:
+        cat.attrs["_ols_slope"] = float("nan")
+        cat.attrs["_ols_intercept"] = float("nan")
+
+    return cat
+
+
+def compute_mass_correlation_stats(cat: pd.DataFrame) -> dict:
+    """Compute Spearman correlations between F3 and logVobs (mass proxy).
+
+    Two-step analysis:
+
+    1. **Raw** Spearman ρ(F3, logVobs) — shows that the outer slope carries
+       a mass dependence.
+
+    2. **Rank-detrended residual**: the OLS of *rank(F3)* on *rank(logVobs)*
+       is fitted; the rank residuals are then correlated (Spearman) with
+       logVobs.  This partial-Spearman approach removes the monotone mass
+       trend; if the residual ρ is close to zero the mass dependence fully
+       accounts for the F3 variation.
+
+    Parameters
+    ----------
+    cat : pd.DataFrame
+        Catalog containing ``friction_slope``, ``logVobs``, and ``reliable``.
+
+    Returns
+    -------
+    dict with keys:
+        spearman_f3_vlast_rho    — raw Spearman ρ
+        spearman_f3_vlast_p      — raw p-value
+        ols_slope                — OLS slope (value-space, F3 ~ a·logVobs + b)
+        ols_intercept            — OLS intercept
+        spearman_resid_vlast_rho — rank-detrended residual Spearman ρ
+        spearman_resid_vlast_p   — rank-detrended residual p-value
+    """
+    clean = cat[cat["reliable"] & cat["friction_slope"].notna()]
+    n = len(clean)
+    if n < 4:
+        return {
+            "spearman_f3_vlast_rho": float("nan"),
+            "spearman_f3_vlast_p": float("nan"),
+            "ols_slope": float("nan"),
+            "ols_intercept": float("nan"),
+            "spearman_resid_vlast_rho": float("nan"),
+            "spearman_resid_vlast_p": float("nan"),
+        }
+
+    f3 = clean["friction_slope"].values
+    logV = clean["logVobs"].values
+
+    rho_raw, p_raw = _spearmanr(f3, logV)
+
+    slope, intercept, *_ = _linregress(logV, f3)
+
+    # Rank-detrend: regress rank(F3) on rank(logVobs), compute rank residuals,
+    # then measure their Spearman correlation with logVobs (partial Spearman).
+    r_f3 = pd.Series(f3).rank().values
+    r_v = pd.Series(logV).rank().values
+    slope_r, intercept_r, *_ = _linregress(r_v, r_f3)
+    resid_r = r_f3 - (slope_r * r_v + intercept_r)
+    rho_resid, p_resid = _spearmanr(resid_r, logV)
+
+    return {
+        "spearman_f3_vlast_rho": float(rho_raw),
+        "spearman_f3_vlast_p": float(p_raw),
+        "ols_slope": float(slope),
+        "ols_intercept": float(intercept),
+        "spearman_resid_vlast_rho": float(rho_resid),
+        "spearman_resid_vlast_p": float(p_resid),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Summary statistics
 # ---------------------------------------------------------------------------
 
@@ -221,7 +334,8 @@ def compute_summary(cat: pd.DataFrame) -> dict:
     dict
         Summary with keys: n_galaxies, n_reliable, f3_mean, f3_median,
         f3_std, delta_f3_mean, delta_f3_median, delta_f3_std,
-        t_stat, p_value_ttest, consistent_mond.
+        t_stat, p_value_ttest, consistent_mond, plus mass-correlation
+        keys from *compute_mass_correlation_stats*.
     """
     clean = cat[cat["reliable"]]["friction_slope"].dropna()
     n_galaxies = int(len(cat))
@@ -246,6 +360,8 @@ def compute_summary(cat: pd.DataFrame) -> dict:
 
     consistent = (p_value > 0.05) if not np.isnan(p_value) else False
 
+    corr_stats = compute_mass_correlation_stats(cat)
+
     return {
         "n_galaxies": n_galaxies,
         "n_reliable": n_reliable,
@@ -258,6 +374,7 @@ def compute_summary(cat: pd.DataFrame) -> dict:
         "t_stat": t_stat,
         "p_value_ttest": p_value,
         "consistent_mond": consistent,
+        **corr_stats,
     }
 
 
@@ -266,7 +383,8 @@ def compute_summary(cat: pd.DataFrame) -> dict:
 # ---------------------------------------------------------------------------
 
 def _save_faseA_f3_vs_vlast(cat: pd.DataFrame, out_path: Path) -> None:
-    """Phase-A diagnostic: F3 vs log10(Vlast), annotated with SCM prediction."""
+    """Phase-A diagnostic: F3 vs log10(Vlast), annotated with SCM prediction and
+    OLS mass-trend line + Spearman ρ."""
     reliable = cat["reliable"]
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.set_facecolor("white")
@@ -288,9 +406,23 @@ def _save_faseA_f3_vs_vlast(cat: pd.DataFrame, out_path: Path) -> None:
             zorder=3,
         )
 
-    xlims = ax.get_xlim()
     ax.axhline(EXPECTED_F3_MOND, color="tomato", linewidth=1.5, linestyle="--",
                label=f"SCM prediction (F3 = {EXPECTED_F3_MOND})", zorder=2)
+
+    # OLS mass-trend line and Spearman annotation (reliable galaxies only)
+    corr = compute_mass_correlation_stats(cat)
+    if not np.isnan(corr["ols_slope"]):
+        logV_clean = cat.loc[reliable, "logVobs"].values
+        x_fit = np.linspace(logV_clean.min(), logV_clean.max(), 100)
+        y_fit = corr["ols_slope"] * x_fit + corr["ols_intercept"]
+        ax.plot(x_fit, y_fit, color="darkorange", linewidth=1.5, linestyle="-",
+                label="OLS mass trend", zorder=2)
+        rho_str = f"ρ = {corr['spearman_f3_vlast_rho']:.2f}"
+        p_str = f"p = {corr['spearman_f3_vlast_p']:.3f}"
+        ax.text(0.97, 0.95, f"{rho_str}, {p_str}",
+                transform=ax.transAxes, ha="right", va="top",
+                fontsize=9, color="darkorange",
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.7))
 
     ax.set_xlabel(r"$\log_{10}(V_{\rm last}\,/\,\rm km\,s^{-1})$", fontsize=11)
     ax.set_ylabel(r"$F_3$ (friction slope)", fontsize=11)
@@ -303,7 +435,7 @@ def _save_faseA_f3_vs_vlast(cat: pd.DataFrame, out_path: Path) -> None:
 
 
 def _save_scatter_f3_vlast(cat: pd.DataFrame, out_path: Path) -> None:
-    """Simple scatter plot: F3 vs log10(Vlast)."""
+    """Simple scatter plot: F3 vs log10(Vlast) with Spearman ρ annotation."""
     fig, ax = plt.subplots(figsize=(6, 4))
     ax.set_facecolor("white")
 
@@ -314,6 +446,15 @@ def _save_scatter_f3_vlast(cat: pd.DataFrame, out_path: Path) -> None:
     )
     ax.axhline(EXPECTED_F3_MOND, color="tomato", linewidth=1.2, linestyle="--",
                label=f"F3 = {EXPECTED_F3_MOND}", zorder=2)
+
+    corr = compute_mass_correlation_stats(cat)
+    if not np.isnan(corr["spearman_f3_vlast_rho"]):
+        rho_str = f"ρ = {corr['spearman_f3_vlast_rho']:.2f}"
+        p_str = f"p = {corr['spearman_f3_vlast_p']:.3f}"
+        ax.text(0.97, 0.95, f"Spearman {rho_str}, {p_str}",
+                transform=ax.transAxes, ha="right", va="top",
+                fontsize=8, color="dimgray",
+                bbox=dict(boxstyle="round,pad=0.3", fc="white", alpha=0.7))
 
     ax.set_xlabel(r"$\log_{10}(V_{\rm last}\,/\,\rm km\,s^{-1})$", fontsize=10)
     ax.set_ylabel(r"$F_3$", fontsize=10)
@@ -403,8 +544,9 @@ def run_little_things_scm(
 
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Build full catalog
+    # Build full catalog and add mass-detrended residuals
     cat = build_catalog(df, a0=a0, deep_threshold=deep_threshold)
+    cat = compute_mass_detrend(cat)
 
     # Full catalog
     cat.to_csv(out_dir / "little_things_scm_catalog.csv", index=False)
@@ -501,6 +643,15 @@ def _print_summary(summary: dict) -> None:
         else:
             print(f"  ⚠️  Estado B — F3 deviates from {EXPECTED_F3_MOND} "
                   f"(p = {summary['p_value_ttest']:.3e} < 0.05)")
+        print()
+        rho_raw = summary.get("spearman_f3_vlast_rho", float("nan"))
+        p_raw   = summary.get("spearman_f3_vlast_p",   float("nan"))
+        rho_res = summary.get("spearman_resid_vlast_rho", float("nan"))
+        p_res   = summary.get("spearman_resid_vlast_p",   float("nan"))
+        if not np.isnan(rho_raw):
+            print(f"  Spearman ρ(F3, Vlast) : {rho_raw:+.3f}  (p = {p_raw:.3e})")
+            print(f"  Spearman ρ(resid, Vlast) [mass-removed]: "
+                  f"{rho_res:+.3f}  (p = {p_res:.3f})")
     print(sep)
 
 

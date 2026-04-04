@@ -29,6 +29,8 @@ from scripts.generate_little_things_scm import (
     build_catalog,
     compute_f3,
     compute_log_gobs,
+    compute_mass_correlation_stats,
+    compute_mass_detrend,
     compute_reliable,
     compute_summary,
     main,
@@ -243,6 +245,9 @@ class TestComputeSummary:
             "n_galaxies", "n_reliable", "f3_mean", "f3_median", "f3_std",
             "delta_f3_mean", "delta_f3_median", "delta_f3_std",
             "t_stat", "p_value_ttest", "consistent_mond",
+            "spearman_f3_vlast_rho", "spearman_f3_vlast_p",
+            "ols_slope", "ols_intercept",
+            "spearman_resid_vlast_rho", "spearman_resid_vlast_p",
         ]:
             assert key in s, f"Missing summary key: {key}"
 
@@ -292,7 +297,10 @@ class TestRunLittleThingsScm:
     def test_catalog_columns(self, tmp_path):
         run_little_things_scm(csv_path=_DATASET, out_dir=tmp_path, no_figures=True)
         df = pd.read_csv(tmp_path / "little_things_scm_catalog.csv")
-        for col in ["galaxy_id", "friction_slope", "delta_F3", "reliable", "log_gobs"]:
+        for col in [
+            "galaxy_id", "friction_slope", "delta_F3", "reliable",
+            "log_gobs", "f3_mass_residual",
+        ]:
             assert col in df.columns
 
     def test_clean_sample_subset_of_catalog(self, tmp_path):
@@ -312,6 +320,8 @@ class TestRunLittleThingsScm:
         data = json.loads((tmp_path / "summary.json").read_text())
         assert data["n_galaxies"] == N_GALAXIES
         assert isinstance(data["consistent_mond"], bool)
+        assert "spearman_f3_vlast_rho" in data
+        assert "spearman_resid_vlast_rho" in data
 
     def test_missing_csv_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -343,7 +353,95 @@ class TestRunLittleThingsScm:
 
 
 # ---------------------------------------------------------------------------
-# CLI (main)
+# compute_mass_detrend
+# ---------------------------------------------------------------------------
+
+
+class TestComputeMassDetrend:
+    def test_column_added(self, minimal_df):
+        cat = build_catalog(minimal_df)
+        cat = compute_mass_detrend(cat)
+        assert "f3_mass_residual" in cat.columns
+
+    def test_reliable_galaxies_have_residuals(self, real_df):
+        cat = build_catalog(real_df)
+        cat = compute_mass_detrend(cat)
+        reliable = cat[cat["reliable"]]
+        assert reliable["f3_mass_residual"].notna().all()
+
+    def test_residuals_near_zero_mean(self, real_df):
+        """OLS residuals must sum to zero by construction."""
+        cat = build_catalog(real_df)
+        cat = compute_mass_detrend(cat)
+        resid = cat.loc[cat["reliable"], "f3_mass_residual"].dropna()
+        assert abs(resid.mean()) < 1e-10
+
+    def test_unreliable_galaxies_nan(self, tmp_path):
+        """Galaxies outside deep regime get NaN residual."""
+        df = pd.DataFrame({
+            "galaxy_id": ["deep", "shallow"],
+            "logM": [7.0, 8.0],
+            "logVobs": [1.3, 1.6],
+            "log_gbar": [-12.0, -9.0],   # -9.0 is above a0 → not reliable
+            "log_j": [1.3, 1.6],
+        })
+        cat = build_catalog(df)
+        cat = compute_mass_detrend(cat)
+        # Only deep galaxy should have a finite residual
+        shallow_resid = cat.loc[cat["galaxy_id"] == "shallow", "f3_mass_residual"].iloc[0]
+        assert np.isnan(shallow_resid)
+
+
+# ---------------------------------------------------------------------------
+# compute_mass_correlation_stats
+# ---------------------------------------------------------------------------
+
+
+class TestComputeMassCorrelationStats:
+    def test_keys_present(self, real_df):
+        cat = build_catalog(real_df)
+        stats = compute_mass_correlation_stats(cat)
+        for key in [
+            "spearman_f3_vlast_rho",
+            "spearman_f3_vlast_p",
+            "ols_slope",
+            "ols_intercept",
+            "spearman_resid_vlast_rho",
+            "spearman_resid_vlast_p",
+        ]:
+            assert key in stats, f"Missing key: {key}"
+
+    def test_raw_correlation_negative(self, real_df):
+        """F3 should negatively correlate with logVobs for deep-MOND dwarfs."""
+        cat = build_catalog(real_df)
+        stats = compute_mass_correlation_stats(cat)
+        assert stats["spearman_f3_vlast_rho"] < 0
+
+    def test_raw_correlation_significant(self, real_df):
+        """Raw p-value should be < 0.05 (significant mass dependence)."""
+        cat = build_catalog(real_df)
+        stats = compute_mass_correlation_stats(cat)
+        assert stats["spearman_f3_vlast_p"] < 0.05
+
+    def test_residual_correlation_nonsignificant(self, real_df):
+        """After rank-detrending, residual correlation should not be significant."""
+        cat = build_catalog(real_df)
+        stats = compute_mass_correlation_stats(cat)
+        assert stats["spearman_resid_vlast_p"] > 0.05
+
+    def test_too_few_galaxies_returns_nan(self):
+        df = pd.DataFrame({
+            "galaxy_id": ["G1", "G2"],
+            "logM": [7.0, 8.0],
+            "logVobs": [1.3, 1.6],
+            "log_gbar": [-12.0, -11.5],
+            "log_j": [1.3, 1.6],
+        })
+        cat = build_catalog(df)
+        stats = compute_mass_correlation_stats(cat)
+        assert np.isnan(stats["spearman_f3_vlast_rho"])
+
+
 # ---------------------------------------------------------------------------
 
 

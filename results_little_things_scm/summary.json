@@ -9,5 +9,11 @@
   "delta_f3_std": 0.009422188429434748,
   "t_stat": -12.991067079128994,
   "p_value_ttest": 1.2867678526567698e-12,
-  "consistent_mond": false
+  "consistent_mond": false,
+  "spearman_f3_vlast_rho": -0.537633005096337,
+  "spearman_f3_vlast_p": 0.0046168532150554,
+  "ols_slope": 0.0039001743498738653,
+  "ols_intercept": 0.4699830115715069,
+  "spearman_resid_vlast_rho": -0.11863585444090093,
+  "spearman_resid_vlast_p": 0.5637906475137586
 }
