@@ -21,6 +21,7 @@ import pytest
 
 from scripts.generate_little_things_scm import (
     A0_DEFAULT,
+    ANALYSIS_TITLE,
     DEEP_THRESHOLD_DEFAULT,
     EXPECTED_F3_MOND,
     KPC_TO_M,
@@ -322,6 +323,7 @@ class TestRunLittleThingsScm:
         assert isinstance(data["consistent_mond"], bool)
         assert "spearman_f3_vlast_rho" in data
         assert "spearman_resid_vlast_rho" in data
+        assert data.get("analysis_title") == "SCM \u2013 LITTLE THINGS F3 Analysis (Phase A)"
 
     def test_missing_csv_raises(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -350,6 +352,16 @@ class TestRunLittleThingsScm:
         df = pd.read_csv(tmp_path / "scm_clean_sample.csv")
         mean_delta = df["delta_F3"].mean()
         assert abs(mean_delta) < 0.5, f"Unexpected mean δF3: {mean_delta}"
+
+
+class TestAnalysisTitle:
+    def test_title_value(self):
+        assert ANALYSIS_TITLE == "SCM \u2013 LITTLE THINGS F3 Analysis (Phase A)"
+
+    def test_title_in_summary(self, real_df):
+        cat = build_catalog(real_df)
+        s = compute_summary(cat)
+        assert s["analysis_title"] == ANALYSIS_TITLE
 
 
 # ---------------------------------------------------------------------------
@@ -430,7 +442,8 @@ class TestComputeMassCorrelationStats:
         assert stats["spearman_resid_vlast_p"] > 0.05
 
     def test_too_few_galaxies_returns_nan(self):
-        """Fewer than 5 reliable galaxies → all correlation keys are NaN."""
+        """Fewer than 5 reliable galaxies → all correlation keys are NaN.
+        Uses 4 total galaxies (all reliable) to test the n<5 boundary."""
         df = pd.DataFrame({
             "galaxy_id": ["G1", "G2", "G3", "G4"],
             "logM": [7.0, 7.5, 8.0, 8.5],
@@ -439,6 +452,21 @@ class TestComputeMassCorrelationStats:
             "log_j": [1.3, 1.4, 1.5, 1.6],
         })
         cat = build_catalog(df)
+        stats = compute_mass_correlation_stats(cat)
+        assert np.isnan(stats["spearman_f3_vlast_rho"])
+
+    def test_too_few_reliable_among_more_total(self):
+        """7 total galaxies but only 4 reliable → still returns NaN."""
+        df = pd.DataFrame({
+            "galaxy_id": [f"G{i}" for i in range(7)],
+            "logM": [7.0 + 0.3 * i for i in range(7)],
+            "logVobs": [1.3 + 0.1 * i for i in range(7)],
+            # First 4 deep (reliable), last 3 near Newtonian (not reliable)
+            "log_gbar": [-12.0, -11.8, -11.5, -11.2, -9.5, -9.3, -9.1],
+            "log_j": [1.3 + 0.1 * i for i in range(7)],
+        })
+        cat = build_catalog(df)
+        assert cat["reliable"].sum() == 4
         stats = compute_mass_correlation_stats(cat)
         assert np.isnan(stats["spearman_f3_vlast_rho"])
 

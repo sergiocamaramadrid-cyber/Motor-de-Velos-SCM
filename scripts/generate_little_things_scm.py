@@ -1,5 +1,5 @@
 """
-scripts/generate_little_things_scm.py — SCM F3 analysis for LITTLE THINGS galaxies.
+scripts/generate_little_things_scm.py — SCM – LITTLE THINGS F3 Analysis (Phase A).
 
 Applies the F3 (friction slope) measurement to the LITTLE THINGS dwarf-galaxy
 sample using global photometric and kinematic properties.
@@ -32,8 +32,8 @@ Outputs written to --out DIR (default: results_little_things_scm):
   little_things_scm_catalog.csv   — full per-galaxy F3 catalog
   scm_clean_sample.csv            — reliable-fit subset
   scm_clean_with_residual.csv     — clean subset with explicit δF3 residual
-  summary.json                    — aggregate statistics
-  faseA_f3_vs_vlast.png           — Phase-A diagnostic: F3 vs log10(Vlast)
+  summary.json                    — aggregate statistics + analysis_title
+  faseA_f3_vs_vlast.png           — Phase A diagnostic: F3 vs log10(Vlast)
   scatter_f3_vlast.png            — scatter: F3 vs log10(Vlast)
   hist_f3.png                     — histogram of F3 values
   hist_delta_f3.png               — histogram of δF3 values
@@ -66,6 +66,7 @@ A0_DEFAULT: float = 1.2e-10        # characteristic acceleration (m/s²)
 DEEP_THRESHOLD_DEFAULT: float = 0.3  # deep regime: g_bar < threshold × a0
 
 EXPECTED_F3_MOND: float = 0.5      # expected friction slope in deep-MOND limit
+ANALYSIS_TITLE: str = "SCM \u2013 LITTLE THINGS F3 Analysis (Phase A)"
 
 # Required columns in the input CSV
 REQUIRED_COLS: list[str] = ["galaxy_id", "logM", "logVobs", "log_gbar", "log_j"]
@@ -366,6 +367,7 @@ def compute_summary(cat: pd.DataFrame) -> dict:
     corr_stats = compute_mass_correlation_stats(cat)
 
     return {
+        "analysis_title": ANALYSIS_TITLE,
         "n_galaxies": n_galaxies,
         "n_reliable": n_reliable,
         "f3_mean": f3_mean,
@@ -385,8 +387,8 @@ def compute_summary(cat: pd.DataFrame) -> dict:
 # Figures
 # ---------------------------------------------------------------------------
 
-def _save_faseA_f3_vs_vlast(cat: pd.DataFrame, out_path: Path) -> None:
-    """Phase-A diagnostic: F3 vs log10(Vlast), annotated with SCM prediction and
+def _save_phaseA_f3_vs_vlast(cat: pd.DataFrame, out_path: Path) -> None:
+    """Phase A diagnostic: F3 vs log10(Vlast), annotated with SCM prediction and
     OLS mass-trend line + Spearman ρ."""
     reliable = cat["reliable"]
     fig, ax = plt.subplots(figsize=(7, 5))
@@ -429,7 +431,7 @@ def _save_faseA_f3_vs_vlast(cat: pd.DataFrame, out_path: Path) -> None:
 
     ax.set_xlabel(r"$\log_{10}(V_{\rm last}\,/\,\rm km\,s^{-1})$", fontsize=11)
     ax.set_ylabel(r"$F_3$ (friction slope)", fontsize=11)
-    ax.set_title("Phase A — F3 vs $V_{\\rm last}$ (LITTLE THINGS)", fontsize=12)
+    ax.set_title(f"{ANALYSIS_TITLE}\nF3 vs $V_{{\\rm last}}$", fontsize=11)
     ax.legend(fontsize=9)
     ax.grid(True, alpha=0.3, linestyle=":")
     fig.tight_layout()
@@ -461,7 +463,7 @@ def _save_scatter_f3_vlast(cat: pd.DataFrame, out_path: Path) -> None:
 
     ax.set_xlabel(r"$\log_{10}(V_{\rm last}\,/\,\rm km\,s^{-1})$", fontsize=10)
     ax.set_ylabel(r"$F_3$", fontsize=10)
-    ax.set_title("F3 vs $V_{\\rm last}$  (LITTLE THINGS)", fontsize=11)
+    ax.set_title(f"F3 vs $V_{{\\rm last}}$  — LITTLE THINGS", fontsize=11)
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.25, linestyle=":")
     fig.tight_layout()
@@ -573,7 +575,7 @@ def run_little_things_scm(
 
     # Figures
     if not no_figures:
-        _save_faseA_f3_vs_vlast(cat, out_dir / "faseA_f3_vs_vlast.png")
+        _save_phaseA_f3_vs_vlast(cat, out_dir / "faseA_f3_vs_vlast.png")
         _save_scatter_f3_vlast(cat, out_dir / "scatter_f3_vlast.png")
         _save_hist_f3(cat, out_dir / "hist_f3.png")
         _save_hist_delta_f3(cat, out_dir / "hist_delta_f3.png")
@@ -625,7 +627,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def _print_summary(summary: dict) -> None:
     sep = "=" * 70
     print(sep)
-    print("  Motor de Velos SCM — LITTLE THINGS F3 Analysis")
+    print(f"  {ANALYSIS_TITLE}")
     print(sep)
     print(f"  Galaxies total  : {summary['n_galaxies']}")
     print(f"  Reliable (deep) : {summary['n_reliable']}")
