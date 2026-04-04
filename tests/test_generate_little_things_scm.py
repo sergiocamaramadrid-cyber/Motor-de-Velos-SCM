@@ -127,17 +127,19 @@ class TestComputeF3:
         result = compute_f3(log_gobs, log_gbar)
         assert result.shape == (3,)
 
-    def test_above_mond_gives_higher_f3(self):
-        """g_obs above MOND prediction → F3 > 0.5."""
+    def test_above_mond_gives_lower_f3(self):
+        """g_obs above the MOND prediction → F3 < 0.5.
+
+        F3 = (log_gobs − 0.5·log_a0) / log_gbar.  Because log_gbar < 0,
+        increasing log_gobs makes the numerator less negative while the
+        denominator stays constant negative, so the ratio (F3) decreases.
+        """
         log_gbar = -12.0
         log_gobs_mond = 0.5 * (log_gbar + math.log10(A0_DEFAULT))
         f3_mond = compute_f3(log_gobs_mond, log_gbar)
         f3_above = compute_f3(log_gobs_mond + 0.1, log_gbar)
-        # log_gbar is negative, so adding 0.1 to log_gobs (numerator) decreases F3
-        # (numerator becomes less negative, denominator stays negative → smaller ratio)
-        # Actually: F3 = (log_gobs - C) / log_gbar with C > 0
-        # log_gbar < 0, so increasing log_gobs (less negative numerator) → F3 decreases
-        assert f3_above != f3_mond  # just verify it changes
+        assert abs(f3_mond - 0.5) < 1e-10, "baseline should be 0.5"
+        assert f3_above < f3_mond
 
 
 # ---------------------------------------------------------------------------
