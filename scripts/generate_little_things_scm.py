@@ -53,6 +53,7 @@ import pandas as pd
 from scipy import stats as _scipy_stats
 from scipy.stats import spearmanr as _spearmanr
 from scipy.stats import linregress as _linregress
+from scipy.stats import rankdata as _rankdata
 
 # ---------------------------------------------------------------------------
 # Physics constants
@@ -282,7 +283,7 @@ def compute_mass_correlation_stats(cat: pd.DataFrame) -> dict:
     """
     clean = cat[cat["reliable"] & cat["friction_slope"].notna()]
     n = len(clean)
-    if n < 4:
+    if n < 5:
         return {
             "spearman_f3_vlast_rho": float("nan"),
             "spearman_f3_vlast_p": float("nan"),
@@ -297,12 +298,14 @@ def compute_mass_correlation_stats(cat: pd.DataFrame) -> dict:
 
     rho_raw, p_raw = _spearmanr(f3, logV)
 
+    # OLS: logVobs (X) predicts F3 (Y) — matches the docstring formula F3 ~ a·logVobs + b
     slope, intercept, *_ = _linregress(logV, f3)
 
     # Rank-detrend: regress rank(F3) on rank(logVobs), compute rank residuals,
     # then measure their Spearman correlation with logVobs (partial Spearman).
-    r_f3 = pd.Series(f3).rank().values
-    r_v = pd.Series(logV).rank().values
+    # Use rankdata (average ties) for efficiency.
+    r_f3 = _rankdata(f3)
+    r_v = _rankdata(logV)
     slope_r, intercept_r, *_ = _linregress(r_v, r_f3)
     resid_r = r_f3 - (slope_r * r_v + intercept_r)
     rho_resid, p_resid = _spearmanr(resid_r, logV)

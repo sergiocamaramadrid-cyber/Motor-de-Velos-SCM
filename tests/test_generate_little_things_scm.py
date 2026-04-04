@@ -430,16 +430,30 @@ class TestComputeMassCorrelationStats:
         assert stats["spearman_resid_vlast_p"] > 0.05
 
     def test_too_few_galaxies_returns_nan(self):
+        """Fewer than 5 reliable galaxies → all correlation keys are NaN."""
         df = pd.DataFrame({
-            "galaxy_id": ["G1", "G2"],
-            "logM": [7.0, 8.0],
-            "logVobs": [1.3, 1.6],
-            "log_gbar": [-12.0, -11.5],
-            "log_j": [1.3, 1.6],
+            "galaxy_id": ["G1", "G2", "G3", "G4"],
+            "logM": [7.0, 7.5, 8.0, 8.5],
+            "logVobs": [1.3, 1.4, 1.5, 1.6],
+            "log_gbar": [-12.0, -11.8, -11.5, -11.2],
+            "log_j": [1.3, 1.4, 1.5, 1.6],
         })
         cat = build_catalog(df)
         stats = compute_mass_correlation_stats(cat)
         assert np.isnan(stats["spearman_f3_vlast_rho"])
+
+    def test_exactly_five_galaxies_returns_finite(self):
+        """Exactly 5 reliable galaxies should produce finite correlation values."""
+        df = pd.DataFrame({
+            "galaxy_id": [f"G{i}" for i in range(5)],
+            "logM": [7.0 + 0.3 * i for i in range(5)],
+            "logVobs": [1.3 + 0.1 * i for i in range(5)],
+            "log_gbar": [-12.0 + 0.2 * i for i in range(5)],
+            "log_j": [1.3 + 0.1 * i for i in range(5)],
+        })
+        cat = build_catalog(df)
+        stats = compute_mass_correlation_stats(cat)
+        assert not np.isnan(stats["spearman_f3_vlast_rho"])
 
 
 # ---------------------------------------------------------------------------
