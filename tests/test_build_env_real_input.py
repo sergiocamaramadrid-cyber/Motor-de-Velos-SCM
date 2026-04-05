@@ -422,3 +422,89 @@ class TestMain:
         assert args.sparc_basic == DEFAULT_SPARC_BASIC
         assert args.chae_env == DEFAULT_CHAE_ENV
         assert args.out == DEFAULT_OUT
+
+    # ------------------------------------------------------------------
+    # Keyword-argument interface
+    # ------------------------------------------------------------------
+
+    def test_main_kwargs_returns_dataframe(self, tmp_path):
+        f3_path = _write_f3(tmp_path, n=5)
+        sparc_path = _write_sparc(tmp_path, n=5)
+        chae_path = _write_chae(tmp_path, n=5)
+        out_path = tmp_path / "out_kw.csv"
+        result = build_main(
+            f3_catalog=str(f3_path),
+            sparc_basic=str(sparc_path),
+            chae_env=str(chae_path),
+            out=str(out_path),
+        )
+        assert isinstance(result, pd.DataFrame)
+
+    def test_main_kwargs_writes_file(self, tmp_path):
+        f3_path = _write_f3(tmp_path, n=5)
+        sparc_path = _write_sparc(tmp_path, n=5)
+        chae_path = _write_chae(tmp_path, n=5)
+        out_path = tmp_path / "out_kw.csv"
+        build_main(
+            f3_catalog=str(f3_path),
+            sparc_basic=str(sparc_path),
+            chae_env=str(chae_path),
+            out=str(out_path),
+        )
+        assert out_path.exists()
+
+    def test_main_kwargs_output_columns(self, tmp_path):
+        f3_path = _write_f3(tmp_path, n=5)
+        sparc_path = _write_sparc(tmp_path, n=5)
+        chae_path = _write_chae(tmp_path, n=5)
+        out_path = tmp_path / "out_kw.csv"
+        result = build_main(
+            f3_catalog=str(f3_path),
+            sparc_basic=str(sparc_path),
+            chae_env=str(chae_path),
+            out=str(out_path),
+        )
+        assert set(result.columns) == {"galaxy_name", "delta_f3", "logM", "e_env"}
+
+    def test_main_kwargs_full_overlap_count(self, tmp_path):
+        f3_path = _write_f3(tmp_path, n=8)
+        sparc_path = _write_sparc(tmp_path, n=8)
+        chae_path = _write_chae(tmp_path, n=8)
+        out_path = tmp_path / "out_kw.csv"
+        result = build_main(
+            f3_catalog=str(f3_path),
+            sparc_basic=str(sparc_path),
+            chae_env=str(chae_path),
+            out=str(out_path),
+        )
+        assert len(result) == 8
+
+    def test_main_kwargs_creates_parent_dirs(self, tmp_path):
+        f3_path = _write_f3(tmp_path, n=3)
+        sparc_path = _write_sparc(tmp_path, n=3)
+        chae_path = _write_chae(tmp_path, n=3)
+        out_path = tmp_path / "results" / "env_real" / "merged.csv"
+        build_main(
+            f3_catalog=str(f3_path),
+            sparc_basic=str(sparc_path),
+            chae_env=str(chae_path),
+            out=str(out_path),
+        )
+        assert out_path.exists()
+
+    def test_main_kwargs_override_argv(self, tmp_path):
+        """Keyword args should override argv values."""
+        f3_path = _write_f3(tmp_path, n=5)
+        sparc_path = _write_sparc(tmp_path, n=5)
+        chae_path = _write_chae(tmp_path, n=5)
+        out_path_argv = tmp_path / "out_argv.csv"
+        out_path_kw = tmp_path / "out_kw.csv"
+        build_main(
+            ["--f3-catalog", str(f3_path),
+             "--sparc-basic", str(sparc_path),
+             "--chae-env", str(chae_path),
+             "--out", str(out_path_argv)],
+            out=str(out_path_kw),
+        )
+        assert out_path_kw.exists()
+        assert not out_path_argv.exists()

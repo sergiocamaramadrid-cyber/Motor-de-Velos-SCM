@@ -271,9 +271,41 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> pd.DataFrame:
-    """Entry point: load, merge, save, and print summary."""
-    args = _parse_args(argv)
+def main(
+    argv: list[str] | None = None,
+    *,
+    f3_catalog: str | None = None,
+    sparc_basic: str | None = None,
+    chae_env: str | None = None,
+    out: str | None = None,
+) -> pd.DataFrame:
+    """Entry point: load, merge, save, and print summary.
+
+    Can be called either with a CLI-style argument list::
+
+        main(["--f3-catalog", "f3.csv", "--sparc-basic", "sparc.csv",
+              "--chae-env", "chae.csv", "--out", "merged.csv"])
+
+    or with keyword arguments::
+
+        main(f3_catalog="f3.csv", sparc_basic="sparc.csv",
+             chae_env="chae.csv", out="merged.csv")
+
+    Keyword arguments take precedence over *argv* for any parameter they
+    specify.  Parameters not provided via keywords fall back to *argv* /
+    the argparse defaults.
+    """
+    args = _parse_args([] if argv is None and any(
+        v is not None for v in (f3_catalog, sparc_basic, chae_env, out)
+    ) else argv)
+    if f3_catalog is not None:
+        args.f3_catalog = f3_catalog
+    if sparc_basic is not None:
+        args.sparc_basic = sparc_basic
+    if chae_env is not None:
+        args.chae_env = chae_env
+    if out is not None:
+        args.out = out
 
     f3 = load_f3_catalog(args.f3_catalog)
     sparc = load_sparc_basic(args.sparc_basic)
