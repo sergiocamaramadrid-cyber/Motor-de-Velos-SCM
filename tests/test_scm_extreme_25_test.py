@@ -251,16 +251,26 @@ class TestComputeStats:
         n = 25
         delta = np.linspace(-1, 1, n)
         beta = np.linspace(1, -1, n)  # perfectly anti-correlated
-        df = pd.DataFrame({"galaxy": [f"G{i}" for i in range(n)],
-                           "beta": beta, "delta_mass_std": delta})
+        df = pd.DataFrame(
+            {
+                "galaxy": [f"G{i}" for i in range(n)],
+                "beta": beta,
+                "delta_mass_std": delta,
+            }
+        )
         stats = compute_stats(df)
         np.testing.assert_allclose(stats["rho_spearman"], -1.0, atol=1e-10)
 
     def test_perfect_positive_correlation(self):
         n = 25
         delta = np.linspace(-1, 1, n)
-        df = pd.DataFrame({"galaxy": [f"G{i}" for i in range(n)],
-                           "beta": delta.copy(), "delta_mass_std": delta})
+        df = pd.DataFrame(
+            {
+                "galaxy": [f"G{i}" for i in range(n)],
+                "beta": delta.copy(),
+                "delta_mass_std": delta,
+            }
+        )
         stats = compute_stats(df)
         np.testing.assert_allclose(stats["rho_spearman"], 1.0, atol=1e-10)
 
