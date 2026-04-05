@@ -259,7 +259,7 @@ class TestComputeEnvProxy:
     def test_env_proxy_formula(self):
         df = self._base_df()
         out = compute_env_proxy(df)
-        expected = np.log10(2.0 / 4.0 ** 2)
+        expected = np.log10(2.0) - 2 * np.log10(4.0)
         assert out["env_proxy"].iloc[0] == pytest.approx(expected)
 
     def test_does_not_modify_original(self):

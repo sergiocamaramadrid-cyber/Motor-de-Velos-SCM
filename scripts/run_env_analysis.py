@@ -177,7 +177,7 @@ def compute_env_proxy(df: pd.DataFrame) -> pd.DataFrame:
     """Add ``delta_f3`` and ``env_proxy`` columns to *df* (in-place copy).
 
     ``delta_f3  = slope_tail - F3_REF``
-    ``env_proxy = log10(MHI / Rdisk^2)``
+    ``env_proxy = log10(MHI) - 2 * log10(Rdisk)``
 
     Parameters
     ----------
@@ -191,7 +191,7 @@ def compute_env_proxy(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
     df["delta_f3"] = df["slope_tail"] - F3_REF
-    df["env_proxy"] = np.log10(df["MHI"] / df["Rdisk"] ** 2)
+    df["env_proxy"] = np.log10(df["MHI"]) - 2 * np.log10(df["Rdisk"])
     return df
 
 
