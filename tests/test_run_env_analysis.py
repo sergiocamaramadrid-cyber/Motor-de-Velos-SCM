@@ -16,7 +16,6 @@ from scripts.run_env_analysis import (
     HE_CORRECTION,
     UPSILON_36,
     UNIT_SCALE,
-    EPS_RDISK,
     _resolve_galaxy_key,
     _resolve_beta,
     _resolve_n_deep,
@@ -260,7 +259,7 @@ class TestComputeEnvProxy:
     def test_env_proxy_formula(self):
         df = self._base_df()
         out = compute_env_proxy(df)
-        expected = np.log10(2.0 / (4.0 ** 2 + EPS_RDISK))
+        expected = np.log10(2.0 / 4.0 ** 2)
         assert out["env_proxy"].iloc[0] == pytest.approx(expected)
 
     def test_does_not_modify_original(self):

@@ -61,9 +61,6 @@ HE_CORRECTION: float = 1.33
 # Unit scale: L36 and MHI are in 1e9 Lsun / Msun
 UNIT_SCALE: float = 1.0e9
 
-# Small constant to avoid log10(0) in the env proxy denominator
-EPS_RDISK: float = 1.0e-6
-
 # Default F3 reference value for delta_f3 = F3 - F3_REF
 F3_REF: float = 0.5
 
@@ -180,7 +177,7 @@ def compute_env_proxy(df: pd.DataFrame) -> pd.DataFrame:
     """Add ``delta_f3`` and ``env_proxy`` columns to *df* (in-place copy).
 
     ``delta_f3  = slope_tail - F3_REF``
-    ``env_proxy = log10(MHI / (Rdisk^2 + EPS_RDISK))``
+    ``env_proxy = log10(MHI / Rdisk^2)``
 
     Parameters
     ----------
@@ -194,9 +191,7 @@ def compute_env_proxy(df: pd.DataFrame) -> pd.DataFrame:
     """
     df = df.copy()
     df["delta_f3"] = df["slope_tail"] - F3_REF
-    df["env_proxy"] = np.log10(
-        df["MHI"] / (df["Rdisk"] ** 2 + EPS_RDISK)
-    )
+    df["env_proxy"] = np.log10(df["MHI"] / df["Rdisk"] ** 2)
     return df
 
 
