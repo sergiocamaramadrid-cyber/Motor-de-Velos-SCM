@@ -142,7 +142,11 @@ class TestSparcF3Block:
         assert result["n_reliable"] == 20
 
     def test_synthetic_fixture_beta_near_one(self):
-        """The committed synthetic CI fixture must show β ≈ 1 (not MOND)."""
+        """The committed synthetic CI fixture must show β ≈ 1 (not MOND).
+
+        The tolerance abs=0.15 accounts for random variation in the synthetic
+        fixture (20 galaxies, σ_β ≈ 0.05) while still clearly excluding β=0.5.
+        """
         if not _F3_SYNTHETIC.exists():
             pytest.skip("Synthetic fixture not found.")
         result = _sparc_f3_block(_F3_SYNTHETIC)

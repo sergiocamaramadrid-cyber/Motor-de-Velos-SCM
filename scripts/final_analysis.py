@@ -80,7 +80,7 @@ from scipy.stats import linregress, spearmanr, ttest_1samp
 # Physics / unit constants
 # ---------------------------------------------------------------------------
 
-KPC_TO_M: float = 3.085677581e19   # metres per kiloparsec (IAU 2012)
+KPC_TO_M: float = 3.085677581e19   # meters per kiloparsec (IAU 2012)
 KMS_TO_MS: float = 1.0e3           # m/s per km/s
 A0_DEFAULT: float = 1.2e-10        # characteristic acceleration m/s²
 
@@ -95,6 +95,11 @@ BETA_MOND: float = 0.5
 ALPHA: float = 0.05              # significance level
 
 _SEP = "=" * 72
+
+# Default path for the LITTLE THINGS global CSV
+_DEFAULT_LT_CSV: str = str(
+    Path(__file__).parent.parent / "data" / "little_things_global.csv"
+)
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +147,7 @@ def _sparc_f3_block(f3_catalog_path: Path) -> dict:
     reliable_col = _resolve_col(df, ["reliable", "velo_inerte_flag"])
     if reliable_col is None:
         # Fall back to all rows
-        reliable = pd.Series([True] * len(df), dtype=bool)
+        reliable = pd.Series(np.ones(len(df), dtype=bool), index=df.index)
         warnings.warn(
             "No 'reliable' column found; using all rows.", RuntimeWarning, stacklevel=2
         )
@@ -634,7 +639,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--lt-csv",
-        default=str(Path(__file__).parent.parent / "data" / "little_things_global.csv"),
+        default=_DEFAULT_LT_CSV,
         dest="lt_csv",
         metavar="FILE",
         help=(

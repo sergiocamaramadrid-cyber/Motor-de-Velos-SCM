@@ -43,6 +43,9 @@ from scripts.f3_robustness import (
 # Tolerance added to the |β_env| < N*SE test to account for RNG variance
 _BETA_ENV_NULL_SLACK = 0.3
 
+# Sigma multiplier for the null-hypothesis β_env bound
+_NULL_HYPOTHESIS_SIGMA_THRESHOLD = 3
+
 # Maximum number of seeds (out of 5) allowed to yield p_perm < 0.01 under
 # the null hypothesis before we flag the test as failing.
 _MAX_FALSE_POSITIVES_PERM = 3
@@ -235,8 +238,8 @@ class TestControlledRegression:
         """With no planted signal β_env should be close to zero (within 2 SE)."""
         df, _ = _prepare_dataframe(_make_catalog_no_signal(n=200, seed=7))
         result = controlled_regression(df)
-        # |β_env| < 3 SE is a reasonable statistical expectation on average
-        assert abs(result["beta_env"]) < 3 * result["beta_env_se"] + _BETA_ENV_NULL_SLACK
+        # |β_env| < _NULL_HYPOTHESIS_SIGMA_THRESHOLD SE is a reasonable statistical expectation
+        assert abs(result["beta_env"]) < _NULL_HYPOTHESIS_SIGMA_THRESHOLD * result["beta_env_se"] + _BETA_ENV_NULL_SLACK
 
 
 # ---------------------------------------------------------------------------

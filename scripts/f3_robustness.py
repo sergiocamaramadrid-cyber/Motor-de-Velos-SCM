@@ -86,6 +86,10 @@ DELTA_AIC_STRONG_THRESHOLD = 2.0   # conventional threshold for "strong support"
 # Values below it are assumed to already be in log-scale or normalised units.
 _RMAX_LINEAR_THRESHOLD = 10.0
 
+# Minimum stellar mass in M_sun used as lower clip when deriving log_M_bar
+# from a linear mass column (avoids log(0) for empty/erroneous entries).
+_MIN_MASS_MSUN = 1.0
+
 
 # ---------------------------------------------------------------------------
 # Column resolution helpers
@@ -141,7 +145,7 @@ def _prepare_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str | 
         col_map["log_M_bar"] = log_mbar_col
     elif "M_bar_BTFR_Msun" in df.columns:
         df["_log_M_bar_derived"] = np.log10(
-            df["M_bar_BTFR_Msun"].clip(lower=1.0)
+            df["M_bar_BTFR_Msun"].clip(lower=_MIN_MASS_MSUN)
         )
         col_map["log_M_bar"] = "_log_M_bar_derived"
     else:
