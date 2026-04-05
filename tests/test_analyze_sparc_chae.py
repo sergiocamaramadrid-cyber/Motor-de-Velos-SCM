@@ -565,7 +565,7 @@ class TestCLI:
         for col in ("e_env", "log_mass_proxy", "resid_mass"):
             assert col in result.columns
 
-    def test_cli_missing_sparc_exits(self, tmp_path, capsys):
+    def test_cli_missing_sparc_exits(self, tmp_path):
         chae = _make_chae(_make_sparc(n=30))
         chae_p = self._write_csv(tmp_path, "chae.csv", chae)
         with pytest.raises(SystemExit) as exc_info:

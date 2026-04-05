@@ -334,7 +334,7 @@ def run_analysis(
 
     # ── MODEL 1: y ~ mass ────────────────────────────────────────────────────
     y = df[target_col].values
-    X_base = sm.add_constant(df[["log_mass_proxy"]], has_constant="add")
+    X_base = sm.add_constant(df[["log_mass_proxy"]])
     model_mass = sm.OLS(y, X_base).fit(cov_type="HC3")
     df["resid_mass"] = model_mass.resid
 
@@ -342,11 +342,11 @@ def run_analysis(
     rho, p_spear = spearmanr(df["resid_mass"], df["e_env"], nan_policy="omit")
 
     # ── MODEL 2: resid ~ e_env ───────────────────────────────────────────────
-    X_env = sm.add_constant(df[["e_env"]], has_constant="add")
+    X_env = sm.add_constant(df[["e_env"]])
     model_resid = sm.OLS(df["resid_mass"].values, X_env).fit(cov_type="HC3")
 
     # ── MODEL 3: y ~ mass + e_env ────────────────────────────────────────────
-    X_full = sm.add_constant(df[["log_mass_proxy", "e_env"]], has_constant="add")
+    X_full = sm.add_constant(df[["log_mass_proxy", "e_env"]])
     model_full = sm.OLS(y, X_full).fit(cov_type="HC3")
 
     # ── PERMUTATION TEST ─────────────────────────────────────────────────────
