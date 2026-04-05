@@ -210,6 +210,9 @@ def run_ols(df: pd.DataFrame) -> tuple[Any, Any, pd.DataFrame]:
     The base model regresses ``delta_f3`` on ``logM`` and ``Rmax``.
     The full model adds ``env_proxy`` as a third predictor.
 
+    Both models are fitted with HC3 heteroskedasticity-robust standard errors
+    (``cov_type="HC3"``), consistent with the robustness-analysis pipeline.
+
     Only rows with no NaN in any required column are used.
 
     Parameters
@@ -228,11 +231,11 @@ def run_ols(df: pd.DataFrame) -> tuple[Any, Any, pd.DataFrame]:
     df_fit = df.loc[df[required].notna().all(axis=1)].copy()
 
     X_base = sm.add_constant(df_fit[["logM", "Rmax"]])
-    model_base = sm.OLS(df_fit["delta_f3"], X_base).fit()
+    model_base = sm.OLS(df_fit["delta_f3"], X_base).fit(cov_type="HC3")
     df_fit["residual"] = df_fit["delta_f3"] - model_base.predict(X_base)
 
     X_full = sm.add_constant(df_fit[["logM", "Rmax", "env_proxy"]])
-    model_full = sm.OLS(df_fit["delta_f3"], X_full).fit()
+    model_full = sm.OLS(df_fit["delta_f3"], X_full).fit(cov_type="HC3")
 
     return model_base, model_full, df_fit.reset_index(drop=True)
 

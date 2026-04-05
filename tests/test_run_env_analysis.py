@@ -333,6 +333,13 @@ class TestRunOls:
         # check the calculation runs without error.
         assert isinstance(model_full.aic, float)
 
+    def test_models_use_hc3_covariance(self):
+        """Both base and full models must be fitted with HC3 robust SE."""
+        df = self._make_df()
+        model_base, model_full, _ = run_ols(df)
+        assert model_base.cov_type == "HC3"
+        assert model_full.cov_type == "HC3"
+
 
 # ---------------------------------------------------------------------------
 # compute_stats
