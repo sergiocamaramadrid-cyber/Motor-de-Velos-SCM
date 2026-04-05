@@ -239,7 +239,13 @@ def run_ols(df: pd.DataFrame) -> tuple[Any, Any, pd.DataFrame]:
 # Statistics
 # ---------------------------------------------------------------------------
 
-def compute_stats(df_fit: pd.DataFrame, model_base: Any, model_full: Any) -> dict:
+def compute_stats(
+    df_fit: pd.DataFrame,
+    model_base: Any,
+    model_full: Any,
+    n_perms: int = 1000,
+    seed: int | None = None,
+) -> dict:
     """Return a dictionary of key statistics.
 
     Parameters
@@ -250,13 +256,26 @@ def compute_stats(df_fit: pd.DataFrame, model_base: Any, model_full: Any) -> dic
         Base OLS model.
     model_full : statsmodels result
         Full OLS model.
+    n_perms : int, optional
+        Number of permutations for the permutation p-value (default 1000).
+    seed : int or None, optional
+        Random seed for reproducible permutations.
 
     Returns
     -------
-    dict with keys: N, rho, p, delta_aic, coef_env, p_env
+    dict with keys: N, rho, p, delta_aic, coef_env, p_env, p_perm
     """
     rho, p = spearmanr(df_fit["residual"], df_fit["env_proxy"])
     delta_aic = model_base.aic - model_full.aic
+
+    rng = np.random.default_rng(seed)
+    perm = []
+    for _ in range(n_perms):
+        shuffled = rng.permutation(df_fit["env_proxy"].values)
+        rho_perm, _ = spearmanr(df_fit["residual"], shuffled)
+        perm.append(rho_perm)
+    p_perm = float(np.mean(np.abs(perm) >= abs(rho)))
+
     return {
         "N": int(len(df_fit)),
         "rho": float(rho),
@@ -264,6 +283,7 @@ def compute_stats(df_fit: pd.DataFrame, model_base: Any, model_full: Any) -> dic
         "delta_aic": float(delta_aic),
         "coef_env": float(model_full.params["env_proxy"]),
         "p_env": float(model_full.pvalues["env_proxy"]),
+        "p_perm": p_perm,
     }
 
 
@@ -300,6 +320,7 @@ def save_outputs(
         f"ΔAIC = {stats['delta_aic']:.3f}",
         f"coef_env = {stats['coef_env']:.4f}",
         f"p_env = {stats['p_env']:.4f}",
+        f"p_perm = {stats['p_perm']:.4f}",
     ]
     summary_text = "\n".join(summary_lines) + "\n"
 
@@ -355,6 +376,7 @@ def main(argv: list[str] | None = None) -> None:
     print(f"ΔAIC = {stats['delta_aic']:.3f}")
     print(f"coef_env = {stats['coef_env']:.4f}")
     print(f"p_env = {stats['p_env']:.4f}")
+    print(f"p_perm = {stats['p_perm']:.4f}")
     print(f"\nResultados guardados en: {args.out}")
 
 

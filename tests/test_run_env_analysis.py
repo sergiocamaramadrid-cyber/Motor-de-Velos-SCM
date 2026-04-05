@@ -363,7 +363,7 @@ class TestComputeStats:
     def test_keys_present(self):
         mb, mf, df_fit = self._fit()
         stats = compute_stats(df_fit, mb, mf)
-        for k in ("N", "rho", "p", "delta_aic", "coef_env", "p_env"):
+        for k in ("N", "rho", "p", "delta_aic", "coef_env", "p_env", "p_perm"):
             assert k in stats
 
     def test_N_equals_df_fit_len(self):
@@ -390,6 +390,17 @@ class TestComputeStats:
         mb, mf, df_fit = self._fit()
         stats = compute_stats(df_fit, mb, mf)
         assert isinstance(stats["delta_aic"], float)
+
+    def test_p_perm_in_0_1(self):
+        mb, mf, df_fit = self._fit()
+        stats = compute_stats(df_fit, mb, mf, n_perms=200, seed=0)
+        assert 0.0 <= stats["p_perm"] <= 1.0
+
+    def test_p_perm_reproducible_with_seed(self):
+        mb, mf, df_fit = self._fit()
+        s1 = compute_stats(df_fit, mb, mf, n_perms=100, seed=42)
+        s2 = compute_stats(df_fit, mb, mf, n_perms=100, seed=42)
+        assert s1["p_perm"] == s2["p_perm"]
 
 
 # ---------------------------------------------------------------------------
