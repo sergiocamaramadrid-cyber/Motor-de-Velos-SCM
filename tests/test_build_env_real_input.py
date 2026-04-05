@@ -25,6 +25,7 @@ from scripts.build_env_real_input import (
     MOND_REF,
     UPSILON_36,
     ALPHA_HI,
+    DEFAULT_OUT,
     clean_name,
     load_f3_catalog,
     load_sparc_basic,
@@ -509,7 +510,7 @@ class TestMain:
         ])
         assert isinstance(result, pd.DataFrame)
         # Clean up the default output location
-        default_out = Path("results/env_real/sparc_f3_chae_merged.csv")
+        default_out = Path(DEFAULT_OUT)
         if default_out.exists():
             default_out.unlink()
 

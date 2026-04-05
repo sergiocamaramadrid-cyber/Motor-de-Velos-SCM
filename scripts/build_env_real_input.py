@@ -69,6 +69,9 @@ UPSILON_36: float = 0.5
 #: HI-to-neutral-gas correction factor (accounts for He and metals)
 ALPHA_HI: float = 1.33
 
+#: Default output path used by the CLI when --out is not supplied
+DEFAULT_OUT: str = "results/env_real/sparc_f3_chae_merged.csv"
+
 
 # ---------------------------------------------------------------------------
 # Name normalisation
@@ -255,6 +258,8 @@ def compute_logM(L36: np.ndarray, MHI: np.ndarray) -> np.ndarray:
     L36 = np.asarray(L36, dtype=float)
     MHI = np.asarray(MHI, dtype=float)
     M_bar = UPSILON_36 * L36 * 1e9 + ALPHA_HI * MHI * 1e9
+    # Floor at 1 M_sun to guard against log(0) for degenerate/missing inputs;
+    # physically, no galaxy measured by SPARC is below this threshold.
     return np.log10(np.maximum(M_bar, 1.0))
 
 
@@ -380,10 +385,9 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="Chae environment catalog CSV (columns: galaxy_name, e_env).",
     )
     parser.add_argument(
-        "--out", default="results/env_real/sparc_f3_chae_merged.csv",
+        "--out", default=DEFAULT_OUT,
         help=(
-            "Output CSV path "
-            "(default: results/env_real/sparc_f3_chae_merged.csv)."
+            f"Output CSV path (default: {DEFAULT_OUT})."
         ),
     )
     return parser.parse_args(argv)
