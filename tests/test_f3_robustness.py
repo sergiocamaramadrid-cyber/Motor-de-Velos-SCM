@@ -172,7 +172,7 @@ class TestPrepareDataframe:
         df = _make_catalog(include_controls=False)
         df["M_bar_BTFR_Msun"] = 10 ** np.random.default_rng(7).normal(10, 0.5, len(df))
         work, col_map = _prepare_dataframe(df)
-        assert col_map["log_M_bar"] == "_log_M_bar_derived"
+        assert col_map["log_M_bar"] == "log_M_bar_derived"
         assert "log_M_bar" in work.columns
 
 

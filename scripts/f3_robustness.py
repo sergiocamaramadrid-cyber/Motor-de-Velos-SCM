@@ -144,10 +144,10 @@ def _prepare_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str | 
     if log_mbar_col is not None:
         col_map["log_M_bar"] = log_mbar_col
     elif "M_bar_BTFR_Msun" in df.columns:
-        df["_log_M_bar_derived"] = np.log10(
+        df["log_M_bar_derived"] = np.log10(
             df["M_bar_BTFR_Msun"].clip(lower=_MIN_MASS_MSUN)
         )
-        col_map["log_M_bar"] = "_log_M_bar_derived"
+        col_map["log_M_bar"] = "log_M_bar_derived"
     else:
         col_map["log_M_bar"] = None
 

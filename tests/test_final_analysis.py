@@ -324,13 +324,14 @@ class TestBuildComparisonTable:
             assert col in df.columns
 
     def test_lt_method_label_not_radial_f3(self):
-        """LT method label must clarify it is NOT the same as SPARC radial F3."""
+        """LT method label must explicitly state it is a global proxy, not radial F3."""
         if not _LT_CSV.exists():
             pytest.skip("LT CSV not found.")
         lt = _lt_block(_LT_CSV)
         df = _build_comparison_table(None, lt)
-        method = df.iloc[0]["method"]
-        assert "radial" in method.lower() or "not" in method.lower() or "proxy" in method.lower()
+        method = df.iloc[0]["method"].lower()
+        # Must contain "proxy" or "not radial" or similar disclaimer
+        assert "proxy" in method or "not radial" in method
 
 
 # ---------------------------------------------------------------------------

@@ -165,9 +165,9 @@ def _sparc_f3_block(f3_catalog_path: Path) -> dict:
         t_stat, p_value = ttest_1samp(rel_betas.values, BETA_MOND)
         t_stat, p_value = float(t_stat), float(p_value)
         # 95% confidence interval for the mean (two-sided t-interval)
-        _sem = beta_std / math.sqrt(n_reliable)
-        _ci = _t_dist.interval(0.95, df=n_reliable - 1, loc=beta_mean, scale=_sem)
-        beta_ci_lo, beta_ci_hi = float(_ci[0]), float(_ci[1])
+        sem = beta_std / math.sqrt(n_reliable)
+        ci = _t_dist.interval(0.95, df=n_reliable - 1, loc=beta_mean, scale=sem)
+        beta_ci_lo, beta_ci_hi = float(ci[0]), float(ci[1])
     else:
         beta_mean = beta_median = beta_std = float("nan")
         beta_ci_lo = beta_ci_hi = float("nan")
