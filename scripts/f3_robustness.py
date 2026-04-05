@@ -65,7 +65,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 try:
-    import statsmodels.formula.api as smf  # type: ignore
+    import statsmodels.formula.api as smf  # type: ignore[import-untyped]
     _HAS_STATSMODELS = True
 except ImportError:  # pragma: no cover
     _HAS_STATSMODELS = False
@@ -81,6 +81,10 @@ N_BOOT_DEFAULT = 1000
 SEED_DEFAULT = 42
 N_MASS_BINS = 3
 DELTA_AIC_STRONG_THRESHOLD = 2.0   # conventional threshold for "strong support"
+
+# Rmax values above this are assumed to be in raw kpc; take log10 before use.
+# Values below it are assumed to already be in log-scale or normalised units.
+_RMAX_LINEAR_THRESHOLD = 10.0
 
 
 # ---------------------------------------------------------------------------
@@ -159,8 +163,8 @@ def _prepare_dataframe(df: pd.DataFrame) -> tuple[pd.DataFrame, dict[str, str | 
         work["log_M_bar"] = pd.to_numeric(df[col_map["log_M_bar"]], errors="coerce")
     if col_map["log_Rmax"] is not None:
         raw_rmax = pd.to_numeric(df[col_map["log_Rmax"]], errors="coerce")
-        # If values look like raw kpc (> 100), take log10; otherwise store as-is
-        if raw_rmax.median(skipna=True) > 10:
+        # If values look like raw kpc (> _RMAX_LINEAR_THRESHOLD), take log10; otherwise store as-is
+        if raw_rmax.median(skipna=True) > _RMAX_LINEAR_THRESHOLD:
             work["log_Rmax"] = np.log10(raw_rmax.clip(lower=0.01))
         else:
             work["log_Rmax"] = raw_rmax

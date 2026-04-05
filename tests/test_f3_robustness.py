@@ -37,6 +37,17 @@ from scripts.f3_robustness import (
 )
 
 # ---------------------------------------------------------------------------
+# Test constants (replacing magic numbers for clarity)
+# ---------------------------------------------------------------------------
+
+# Tolerance added to the |β_env| < N*SE test to account for RNG variance
+_BETA_ENV_NULL_SLACK = 0.3
+
+# Maximum number of seeds (out of 5) allowed to yield p_perm < 0.01 under
+# the null hypothesis before we flag the test as failing.
+_MAX_FALSE_POSITIVES_PERM = 3
+
+# ---------------------------------------------------------------------------
 # Synthetic catalog builder
 # ---------------------------------------------------------------------------
 
@@ -225,7 +236,7 @@ class TestControlledRegression:
         df, _ = _prepare_dataframe(_make_catalog_no_signal(n=200, seed=7))
         result = controlled_regression(df)
         # |β_env| < 3 SE is a reasonable statistical expectation on average
-        assert abs(result["beta_env"]) < 3 * result["beta_env_se"] + 0.3
+        assert abs(result["beta_env"]) < 3 * result["beta_env_se"] + _BETA_ENV_NULL_SLACK
 
 
 # ---------------------------------------------------------------------------
@@ -280,7 +291,7 @@ class TestStratifiedPermutation:
             result = stratified_permutation(df, n_perms=200, rng=np.random.default_rng(seed))
             p_perms.append(result["p_perm"])
         # p_perm should NOT be < 0.01 for the majority of seeds
-        assert sum(p < 0.01 for p in p_perms) <= 3, (
+        assert sum(p < 0.01 for p in p_perms) <= _MAX_FALSE_POSITIVES_PERM, (
             f"Too many small p_perm values with no signal: {p_perms}"
         )
 
