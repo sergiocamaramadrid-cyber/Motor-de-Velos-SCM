@@ -306,8 +306,8 @@ def save_outputs(
 # CLI
 # ---------------------------------------------------------------------------
 
-def main() -> None:
-    """CLI entry point."""
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parse CLI arguments for :func:`main`."""
     parser = argparse.ArgumentParser(
         description=(
             "OLS analysis of delta_f3 ~ logM vs. delta_f3 ~ logM + e_env "
@@ -317,13 +317,13 @@ def main() -> None:
     )
     parser.add_argument(
         "--input",
-        required=True,
+        default=None,
         help=(
             "Pre-merged CSV with columns: galaxy/galaxy_name, logM, "
             "delta_f3, e_env [, e_env_err]"
         ),
     )
-    parser.add_argument("--out", required=True, help="Output directory")
+    parser.add_argument("--out", default=None, help="Output directory")
     parser.add_argument(
         "--n-perms",
         type=int,
@@ -336,7 +336,48 @@ def main() -> None:
         default=42,
         help="Random seed for permutation test (default 42)",
     )
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main(
+    argv: list[str] | None = None,
+    *,
+    input_path: str | None = None,
+    out_dir: str | None = None,
+    n_perms: int | None = None,
+    seed: int | None = None,
+) -> None:
+    """CLI entry point.
+
+    Can be called with a CLI-style argument list::
+
+        main(["--input", "merged.csv", "--out", "results/", "--n-perms", "1000"])
+
+    or with keyword arguments::
+
+        main(input_path="merged.csv", out_dir="results/", n_perms=2000, seed=42)
+
+    Keyword arguments take precedence over *argv* for any parameter they
+    specify.  Parameters not provided via keywords fall back to *argv* /
+    the argparse defaults.
+    """
+    args = _parse_args([] if argv is None and any(
+        v is not None for v in (input_path, out_dir, n_perms, seed)
+    ) else argv)
+
+    if input_path is not None:
+        args.input = input_path
+    if out_dir is not None:
+        args.out = out_dir
+    if n_perms is not None:
+        args.n_perms = n_perms
+    if seed is not None:
+        args.seed = seed
+
+    if args.input is None:
+        raise ValueError("input_path / --input is required")
+    if args.out is None:
+        raise ValueError("out_dir / --out is required")
 
     df = load_merged_table(args.input)
 

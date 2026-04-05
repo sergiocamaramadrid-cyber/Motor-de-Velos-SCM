@@ -10,7 +10,7 @@ Covers: load_merged_table (galaxy/galaxy_name normalisation, e_env_err
 
 from __future__ import annotations
 
-import sys
+
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +21,7 @@ from scripts.analyze_env_real_merged import (
     fit_full,
     fit_mass_only,
     load_merged_table,
+    main as merged_main,
     permutation_pvalue,
     save_outputs,
     summarize,
@@ -443,14 +444,11 @@ class TestSaveOutputs:
 
 class TestMain:
     def _invoke(self, tmp_path, extra_args=None):
-        from scripts.analyze_env_real_merged import main
-
         df = _make_table(n=30)
         input_path = _write_csv(df, tmp_path, "input.csv")
         out_dir = tmp_path / "out"
 
         argv = [
-            "analyze_env_real_merged.py",
             "--input", str(input_path),
             "--out", str(out_dir),
             "--n-perms", "50",
@@ -459,8 +457,7 @@ class TestMain:
         if extra_args:
             argv.extend(extra_args)
 
-        sys.argv = argv
-        main()
+        merged_main(argv)
         return out_dir
 
     def test_creates_table_csv(self, tmp_path):
@@ -486,36 +483,110 @@ class TestMain:
         assert "delta_r2" in loaded.columns
 
     def test_works_with_galaxy_col(self, tmp_path):
-        from scripts.analyze_env_real_merged import main
-
         df = _make_table(n=30, col_galaxy="galaxy")
         input_path = _write_csv(df, tmp_path, "galaxy_col.csv")
         out_dir = tmp_path / "out_galaxy"
 
-        sys.argv = [
-            "analyze_env_real_merged.py",
+        merged_main([
             "--input", str(input_path),
             "--out", str(out_dir),
             "--n-perms", "50",
             "--seed", "0",
-        ]
-        main()
+        ])
         assert (out_dir / "env_real_merged_table.csv").exists()
 
     def test_works_with_e_env_err(self, tmp_path):
-        from scripts.analyze_env_real_merged import main
-
         df = _make_table(n=30, include_err=True)
         input_path = _write_csv(df, tmp_path, "with_err.csv")
         out_dir = tmp_path / "out_err"
 
-        sys.argv = [
-            "analyze_env_real_merged.py",
+        merged_main([
             "--input", str(input_path),
             "--out", str(out_dir),
             "--n-perms", "50",
             "--seed", "0",
-        ]
-        main()
+        ])
         loaded = pd.read_csv(out_dir / "env_real_merged_table.csv")
         assert "e_env_err" in loaded.columns
+
+    # ------------------------------------------------------------------
+    # Keyword-argument interface
+    # ------------------------------------------------------------------
+
+    def test_kwargs_creates_table_csv(self, tmp_path):
+        df = _make_table(n=30)
+        input_path = _write_csv(df, tmp_path, "kw_input.csv")
+        out_dir = tmp_path / "kw_out"
+        merged_main(
+            input_path=str(input_path),
+            out_dir=str(out_dir),
+            n_perms=50,
+            seed=0,
+        )
+        assert (out_dir / "env_real_merged_table.csv").exists()
+
+    def test_kwargs_creates_summary_csv(self, tmp_path):
+        df = _make_table(n=30)
+        input_path = _write_csv(df, tmp_path, "kw_input.csv")
+        out_dir = tmp_path / "kw_out"
+        merged_main(
+            input_path=str(input_path),
+            out_dir=str(out_dir),
+            n_perms=50,
+            seed=0,
+        )
+        assert (out_dir / "env_real_merged_summary.csv").exists()
+
+    def test_kwargs_creates_summary_txt(self, tmp_path):
+        df = _make_table(n=30)
+        input_path = _write_csv(df, tmp_path, "kw_input.csv")
+        out_dir = tmp_path / "kw_out"
+        merged_main(
+            input_path=str(input_path),
+            out_dir=str(out_dir),
+            n_perms=50,
+            seed=0,
+        )
+        assert (out_dir / "env_real_merged_summary.txt").exists()
+
+    def test_kwargs_creates_parent_dirs(self, tmp_path):
+        df = _make_table(n=30)
+        input_path = _write_csv(df, tmp_path, "kw_input.csv")
+        out_dir = tmp_path / "nested" / "env_real"
+        merged_main(
+            input_path=str(input_path),
+            out_dir=str(out_dir),
+            n_perms=50,
+            seed=0,
+        )
+        assert (out_dir / "env_real_merged_table.csv").exists()
+
+    def test_kwargs_override_argv_out(self, tmp_path):
+        """out_dir kwarg should override the --out in argv."""
+        df = _make_table(n=30)
+        input_path = _write_csv(df, tmp_path, "kw_input.csv")
+        out_argv = tmp_path / "argv_out"
+        out_kw = tmp_path / "kw_out"
+        merged_main(
+            [
+                "--input", str(input_path),
+                "--out", str(out_argv),
+                "--n-perms", "50",
+                "--seed", "0",
+            ],
+            out_dir=str(out_kw),
+        )
+        assert (out_kw / "env_real_merged_table.csv").exists()
+        assert not out_argv.exists()
+
+    def test_kwargs_with_galaxy_col(self, tmp_path):
+        df = _make_table(n=30, col_galaxy="galaxy")
+        input_path = _write_csv(df, tmp_path, "galaxy_col.csv")
+        out_dir = tmp_path / "kw_galaxy"
+        merged_main(
+            input_path=str(input_path),
+            out_dir=str(out_dir),
+            n_perms=50,
+            seed=0,
+        )
+        assert (out_dir / "env_real_merged_table.csv").exists()
