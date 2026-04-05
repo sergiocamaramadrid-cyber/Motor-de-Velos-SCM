@@ -7,3 +7,4 @@
 ## Derived Hypotheses
 
 - [Hypothesis 2.4 – Mass-dependent environmental sensitivity](Hipotesis_2.4_Sensibilidad_al_entorno.md)
+- [Hypothesis 2.5 – Environmental proxy consistency and δ improvement](Hipotesis_2.5_Consistencia_proxies.md)

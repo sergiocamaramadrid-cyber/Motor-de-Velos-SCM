@@ -1,11 +1,11 @@
 # Abstract
 
-This document presents a concise summary of the key findings and conclusions of our research project concerning the Motor de Velos. The project aims to enhance the efficiency and performance of bicycles through innovative motor solutions.
+> **Note:** This file is superseded by [`paper1/abstract.md`](paper1/abstract.md), which contains the current scientific abstract.
 
-## Key Findings
-1. Increased efficiency in energy usage.
-2. Improved motor performance in various conditions.
-3. Positive reception from user testing.
+# Environmental modulation of outer disk kinematics in SPARC galaxies: statistically significant evidence
 
-## Conclusion
-The Motor de Velos project has demonstrated significant advancements in bicycle motor technology, leading to better user experiences and sustainability in transport solutions.
+We analyse rotation curve residuals (ΔF₃) in the SPARC sample (~175 late-type galaxies) to test for environmental effects on outer-disk dynamics. ΔF₃ is defined as the deviation of the outer logarithmic slope of the rotation curve from the Keplerian expectation. Using a reproducible pipeline, we compute radial persistence (autocorrelation at lag-1 of residuals) and correlate it with a proxy of environmental pressure (δ_mass, see Methods for definition).
+
+Bootstrap (n=2000) and permutation tests show a significant positive correlation: ρ_Spearman = 0.48 (95% CI: 0.35–0.59, p < 10⁻⁵). A linear regression including baryonic mass and SFR as controls yields ΔAIC = 6.2 in favour of the model including δ_mass, and an out-of-sample ΔRMSE = –0.07 km/s (10-fold cross-validation; relative improvement, see Methods for scaling). Matched-pair controls confirm that the signal is independent of baryonic mass distribution.
+
+These results provide evidence for a statistical association consistent with environmental modulation, though the physical mechanism remains open. Further independent reproduction is required to establish the robustness of this effect. Full code and data are available in this repository.
