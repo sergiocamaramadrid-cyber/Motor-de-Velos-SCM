@@ -165,10 +165,17 @@ Interpretation remains separate from computational reproducibility.
 
 ## Citation
 
-See:
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.XXXXXXX.svg)](https://doi.org/10.5281/zenodo.XXXXXXX)
 
-- `CITATION.md`  
-- Zenodo archive (DOI when available)
+> Cámara Madrid, S. (2026). *Motor-de-Velos-SCM: Reproducible Pipeline for SCM
+> Galaxy Rotation Curve Analysis* (v1.0.0). Zenodo.
+> https://doi.org/10.5281/zenodo.XXXXXXX
+
+See [`CITATION.md`](CITATION.md) for the full BibTeX entry and data attribution.
+
+> **Note for maintainers:** once the Zenodo deposit has been created, replace
+> `10.5281/zenodo.XXXXXXX` in `README.md`, `CITATION.md`, and `CITATION.cff`
+> with the actual DOI.
 
 ---
 

@@ -1,0 +1,30 @@
+{
+  "title": "Motor-de-Velos-SCM: Reproducible Pipeline for SCM Galaxy Rotation Curve Analysis",
+  "description": "Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation) model. The repository implements end-to-end workflows covering data preprocessing, out-of-sample validation, OLS environmental analysis (F3 vs. stellar mass and Chae environment proxy), and diagnostic reporting. Validated datasets include SPARC (Lelli et al. 2016) and LITTLE THINGS.",
+  "creators": [
+    {
+      "name": "Cámara Madrid, Sergio",
+      "affiliation": ""
+    }
+  ],
+  "keywords": [
+    "galaxy rotation curves",
+    "SPARC",
+    "MOND",
+    "fluid condensation model",
+    "SCM",
+    "baryonic Tully-Fisher",
+    "statistical astronomy",
+    "reproducible research"
+  ],
+  "license": "AGPL-3.0",
+  "upload_type": "software",
+  "access_right": "open",
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    }
+  ]
+}
