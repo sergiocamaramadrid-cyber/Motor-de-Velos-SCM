@@ -27,6 +27,8 @@ from scripts.final_analysis import (
     main,
     run_final_analysis,
     _build_comparison_table,
+    _build_summary_row,
+    _extract_robustness_summary,
     _lt_block,
     _sparc_f3_block,
 )
@@ -96,8 +98,8 @@ class TestSparcF3Block:
         p = _write(_make_sparc_catalog(), tmp_path / "f3.csv")
         result = _sparc_f3_block(p)
         for key in ("dataset", "n_galaxies", "n_reliable", "beta_mean",
-                    "beta_median", "beta_std", "t_stat", "p_value",
-                    "consistent_mond"):
+                    "beta_median", "beta_std", "beta_ci_lo", "beta_ci_hi",
+                    "t_stat", "p_value", "consistent_mond"):
             assert key in result
 
     def test_dataset_label(self, tmp_path):
@@ -158,6 +160,33 @@ class TestSparcF3Block:
         p = _write(df, tmp_path / "f3.csv")
         with pytest.raises(ValueError, match="F3 column"):
             _sparc_f3_block(p)
+
+    def test_ci_finite(self, tmp_path):
+        p = _write(_make_sparc_catalog(n=20, beta=0.5), tmp_path / "f3.csv")
+        result = _sparc_f3_block(p)
+        assert math.isfinite(result["beta_ci_lo"])
+        assert math.isfinite(result["beta_ci_hi"])
+
+    def test_ci_bracket_mean(self, tmp_path):
+        """95% CI must contain the sample mean."""
+        p = _write(_make_sparc_catalog(n=30, beta=0.5), tmp_path / "f3.csv")
+        result = _sparc_f3_block(p)
+        assert result["beta_ci_lo"] < result["beta_mean"] < result["beta_ci_hi"]
+
+    def test_ci_order(self, tmp_path):
+        p = _write(_make_sparc_catalog(n=20), tmp_path / "f3.csv")
+        result = _sparc_f3_block(p)
+        assert result["beta_ci_lo"] < result["beta_ci_hi"]
+
+    def test_ci_width_decreases_with_n(self, tmp_path):
+        """Larger sample → narrower CI."""
+        p_small = _write(_make_sparc_catalog(n=10, beta=0.5, seed=1), tmp_path / "f3_small.csv")
+        p_large = _write(_make_sparc_catalog(n=200, beta=0.5, seed=1), tmp_path / "f3_large.csv")
+        r_small = _sparc_f3_block(p_small)
+        r_large = _sparc_f3_block(p_large)
+        width_small = r_small["beta_ci_hi"] - r_small["beta_ci_lo"]
+        width_large = r_large["beta_ci_hi"] - r_large["beta_ci_lo"]
+        assert width_large < width_small
 
 
 # ---------------------------------------------------------------------------
@@ -294,10 +323,126 @@ class TestBuildComparisonTable:
                     "p_vs_mond", "consistent_mond"):
             assert col in df.columns
 
+    def test_lt_method_label_not_radial_f3(self):
+        """LT method label must clarify it is NOT the same as SPARC radial F3."""
+        if not _LT_CSV.exists():
+            pytest.skip("LT CSV not found.")
+        lt = _lt_block(_LT_CSV)
+        df = _build_comparison_table(None, lt)
+        method = df.iloc[0]["method"]
+        assert "radial" in method.lower() or "not" in method.lower() or "proxy" in method.lower()
+
 
 # ---------------------------------------------------------------------------
-# Format report
+# Robustness summary helpers
 # ---------------------------------------------------------------------------
+
+class TestExtractRobustnessSummary:
+    def _mock_reg(self):
+        return {
+            "n_galaxies": 55,
+            "beta_env": 0.198,
+            "p_env": 0.022,
+            "delta_aic": 6.21,
+        }
+
+    def _mock_perm(self):
+        return {"p_perm": 0.004, "obs_rho": 0.38}
+
+    def _mock_boot(self):
+        return {"ci_lo": 2.1, "ci_hi": 9.8, "boot_mean_delta_aic": 5.9}
+
+    def test_none_when_all_none(self):
+        assert _extract_robustness_summary(None, None, None) is None
+
+    def test_required_keys_present(self):
+        rob = _extract_robustness_summary(self._mock_reg(), self._mock_perm(), self._mock_boot())
+        assert rob is not None
+        for key in ("N_robustness", "beta_env", "p_env_hc3", "delta_AIC",
+                    "p_perm", "bootstrap_ci_lo", "bootstrap_ci_hi"):
+            assert key in rob
+
+    def test_values_extracted_correctly(self):
+        rob = _extract_robustness_summary(self._mock_reg(), self._mock_perm(), self._mock_boot())
+        assert rob["N_robustness"] == 55
+        assert rob["beta_env"] == pytest.approx(0.198)
+        assert rob["p_env_hc3"] == pytest.approx(0.022)
+        assert rob["delta_AIC"] == pytest.approx(6.21)
+        assert rob["p_perm"] == pytest.approx(0.004)
+        assert rob["bootstrap_ci_lo"] == pytest.approx(2.1)
+        assert rob["bootstrap_ci_hi"] == pytest.approx(9.8)
+
+    def test_partial_none_fallback(self):
+        """With only reg, perm/boot keys should be NaN."""
+        rob = _extract_robustness_summary(self._mock_reg(), None, None)
+        assert rob is not None
+        assert math.isnan(rob["p_perm"])
+        assert math.isnan(rob["bootstrap_ci_lo"])
+
+    def test_bootstrap_only(self):
+        rob = _extract_robustness_summary(None, None, self._mock_boot())
+        assert rob is not None
+        assert rob["bootstrap_ci_lo"] == pytest.approx(2.1)
+        assert math.isnan(rob["N_robustness"])
+
+
+class TestBuildSummaryRow:
+    def _sparc_dict(self, tmp_path):
+        p = _write(_make_sparc_catalog(n=20, beta=0.5), tmp_path / "f3.csv")
+        return _sparc_f3_block(p)
+
+    def test_empty_when_all_none(self):
+        df = _build_summary_row(None, None, None)
+        assert df.empty
+
+    def test_has_metric_and_value_columns(self, tmp_path):
+        sparc = self._sparc_dict(tmp_path)
+        df = _build_summary_row(sparc, None, None)
+        assert list(df.columns) == ["metric", "value"]
+
+    def test_sparc_metrics_present(self, tmp_path):
+        sparc = self._sparc_dict(tmp_path)
+        df = _build_summary_row(sparc, None, None)
+        metrics = set(df["metric"])
+        for m in ("sparc_N", "sparc_beta_mean", "sparc_beta_median",
+                  "sparc_beta_std", "sparc_beta_ci_lo", "sparc_beta_ci_hi",
+                  "sparc_ttest_p_vs_0p5"):
+            assert m in metrics
+
+    def test_lt_metrics_present(self):
+        if not _LT_CSV.exists():
+            pytest.skip("LT CSV not found.")
+        lt = _lt_block(_LT_CSV)
+        df = _build_summary_row(None, lt, None)
+        metrics = set(df["metric"])
+        for m in ("lt_N", "lt_beta", "lt_beta_se", "lt_corr_r", "lt_corr_p"):
+            assert m in metrics
+
+    def test_robustness_metrics_present(self, tmp_path):
+        sparc = self._sparc_dict(tmp_path)
+        rob = {
+            "N_robustness": 55, "beta_env": 0.2, "p_env_hc3": 0.02,
+            "delta_AIC": 5.1, "p_perm": 0.003,
+            "bootstrap_ci_lo": 1.8, "bootstrap_ci_hi": 8.7,
+        }
+        df = _build_summary_row(sparc, None, rob)
+        metrics = set(df["metric"])
+        for m in ("robustness_N", "robustness_beta_env", "robustness_p_env",
+                  "robustness_delta_AIC", "robustness_p_perm",
+                  "robustness_bootstrap_ci_lo", "robustness_bootstrap_ci_hi"):
+            assert m in metrics
+
+    def test_values_finite_for_real_data(self, tmp_path):
+        if not _LT_CSV.exists():
+            pytest.skip("LT CSV not found.")
+        sparc = self._sparc_dict(tmp_path)
+        lt = _lt_block(_LT_CSV)
+        df = _build_summary_row(sparc, lt, None)
+        for _, row in df.iterrows():
+            assert math.isfinite(float(row["value"])), (
+                f"metric '{row['metric']}' is not finite"
+            )
+
 
 class TestFormatFinalReport:
     def _make_all(self, tmp_path):
@@ -334,6 +479,27 @@ class TestFormatFinalReport:
             format_final_report(sparc, lt, None, None, None, None, cmp)
         )
         assert "0.5" in combined
+
+    def test_block_a_contains_ci(self, tmp_path):
+        sparc, lt, cmp = self._make_all(tmp_path)
+        combined = "\n".join(
+            format_final_report(sparc, lt, None, None, None, None, cmp)
+        )
+        assert "95% CI" in combined or "CI" in combined
+
+    def test_block_b_header_mentions_global_proxy(self, tmp_path):
+        sparc, lt, cmp = self._make_all(tmp_path)
+        combined = "\n".join(
+            format_final_report(sparc, lt, None, None, None, None, cmp)
+        )
+        assert "global proxy" in combined.lower() or "global observables" in combined.lower()
+
+    def test_block_d_title_uses_beta_like_observables(self, tmp_path):
+        sparc, lt, cmp = self._make_all(tmp_path)
+        combined = "\n".join(
+            format_final_report(sparc, lt, None, None, None, None, cmp)
+        )
+        assert "β-like observables" in combined or "beta-like" in combined.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -405,6 +571,23 @@ class TestRunFinalAnalysis:
         assert results["yang"] is None
         assert results["comparison"].empty
 
+    def test_robustness_key_is_none_without_yang(self, tmp_path):
+        p = _write(_make_sparc_catalog(n=20, beta=0.5), tmp_path / "f3.csv")
+        results = run_final_analysis(f3_catalog_path=p)
+        assert results["robustness"] is None
+
+    def test_robustness_key_populated_with_yang(self, tmp_path):
+        f3 = _write(_make_f3_catalog_with_mass(n=60), tmp_path / "f3.csv")
+        env = _write(_make_env_catalog("galaxy", n=60), tmp_path / "env.csv")
+        results = run_final_analysis(
+            f3_catalog_path=f3, env_catalog_path=env, n_perms=20, n_boot=20,
+        )
+        rob = results["robustness"]
+        assert rob is not None
+        for key in ("N_robustness", "beta_env", "p_env_hc3", "delta_AIC",
+                    "p_perm", "bootstrap_ci_lo", "bootstrap_ci_hi"):
+            assert key in rob
+
 
 # ---------------------------------------------------------------------------
 # CLI / main()
@@ -429,6 +612,24 @@ class TestMainCLI:
         assert (out_dir / "final_analysis.log").exists()
         assert (out_dir / "final_analysis.json").exists()
         assert (out_dir / "cross_dataset_beta.csv").exists()
+        assert (out_dir / "final_analysis_summary.csv").exists()
+
+    def test_summary_csv_has_metric_and_value_columns(self, tmp_path):
+        p = _write(_make_sparc_catalog(n=20), tmp_path / "f3.csv")
+        out_dir = tmp_path / "out"
+        main(["--f3-catalog", str(p), "--out", str(out_dir)])
+        df = pd.read_csv(out_dir / "final_analysis_summary.csv")
+        assert list(df.columns) == ["metric", "value"]
+        assert len(df) > 0
+
+    def test_summary_csv_contains_sparc_metrics(self, tmp_path):
+        p = _write(_make_sparc_catalog(n=20), tmp_path / "f3.csv")
+        out_dir = tmp_path / "out"
+        main(["--f3-catalog", str(p), "--out", str(out_dir)])
+        df = pd.read_csv(out_dir / "final_analysis_summary.csv")
+        metrics = set(df["metric"])
+        assert "sparc_N" in metrics
+        assert "sparc_beta_mean" in metrics
 
     def test_json_output_has_required_keys(self, tmp_path):
         p = _write(_make_sparc_catalog(n=20), tmp_path / "f3.csv")
@@ -438,6 +639,7 @@ class TestMainCLI:
             data = json.load(fh)
         assert "sparc" in data
         assert "lt" in data
+        assert "robustness" in data
 
     def test_sparc_and_yang(self, tmp_path):
         f3 = _write(_make_f3_catalog_with_mass(n=50), tmp_path / "f3.csv")

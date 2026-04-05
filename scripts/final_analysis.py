@@ -10,19 +10,15 @@ and writes a single cross-dataset summary:
       Reports: N, β_mean ± std, β_median, t-test p-value vs β = 0.5,
       and MOND-consistency flag.
 
-  Block B — LITTLE THINGS blind test + F3-equivalent β
+  Block B — LITTLE THINGS blind test + global proxy β
       Applies the BTFR and interpolation models to the LITTLE THINGS
       global dataset (data/little_things_global.csv) and also derives
-      a sample-level F3-equivalent slope using the global kinematic
-      quantities available (g_obs from Vflat and specific angular
-      momentum j):
+      an effective β estimator from global observables (note: this is
+      **not** the same radial F3 slope from SPARC; it is a related global
+      proxy constructed from sample-integrated quantities):
 
-          log(g_obs) = 3 · log(Vflat_km/s) − log(j_kpc·km/s) + C_unit
-
-      Then fits:  log(g_obs) = β_LT · log(g_bar) + intercept
-
-      Interpretation: β_LT ≈ 0.5 confirms that the LITTLE THINGS sample
-      is in the deep-MOND regime, consistent with SPARC.
+          log(g_obs) = β_proxy · log(g_bar) + intercept
+          with  g_obs = Vflat³ / j  (flat-regime identity at r_eff = j/Vflat)
 
   Block C — SPARC + Yang robustness (BLOQUE FINAL)
       If an environmental catalog with a `delta_mass` column is provided
@@ -32,9 +28,11 @@ and writes a single cross-dataset summary:
         - p_perm (stratified permutation)
         - ΔAIC 95 % CI (bootstrap)
 
-  Block D — Cross-dataset β comparison
-      Collects the β values from each dataset/method and prints a unified
-      comparison table highlighting consistency with MOND (β ≈ 0.5).
+  Block D — Cross-dataset comparison of β-like observables
+      Collects the β-related values from each dataset/method and prints a
+      unified comparison table.  Note that SPARC and LITTLE THINGS are not
+      measuring the same observable with the same construction, so the table
+      explicitly labels the method for each row.
 
 Usage
 -----
@@ -74,7 +72,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scipy.stats import linregress, spearmanr, ttest_1samp
+from scipy.stats import linregress, spearmanr, t as _t_dist, ttest_1samp
 
 # ---------------------------------------------------------------------------
 # Physics / unit constants
@@ -133,7 +131,7 @@ def _sparc_f3_block(f3_catalog_path: Path) -> dict:
     Returns
     -------
     dict with keys: dataset, n_galaxies, n_reliable, beta_mean, beta_median,
-                    beta_std, t_stat, p_value, consistent_mond
+                    beta_std, beta_ci_lo, beta_ci_hi, t_stat, p_value, consistent_mond
     """
     df = pd.read_csv(f3_catalog_path)
 
@@ -166,8 +164,13 @@ def _sparc_f3_block(f3_catalog_path: Path) -> dict:
         beta_std = float(rel_betas.std())
         t_stat, p_value = ttest_1samp(rel_betas.values, BETA_MOND)
         t_stat, p_value = float(t_stat), float(p_value)
+        # 95% confidence interval for the mean (two-sided t-interval)
+        _sem = beta_std / math.sqrt(n_reliable)
+        _ci = _t_dist.interval(0.95, df=n_reliable - 1, loc=beta_mean, scale=_sem)
+        beta_ci_lo, beta_ci_hi = float(_ci[0]), float(_ci[1])
     else:
         beta_mean = beta_median = beta_std = float("nan")
+        beta_ci_lo = beta_ci_hi = float("nan")
         t_stat = p_value = float("nan")
 
     consistent_mond = (p_value > ALPHA) if math.isfinite(p_value) else False
@@ -179,6 +182,8 @@ def _sparc_f3_block(f3_catalog_path: Path) -> dict:
         "beta_mean": beta_mean,
         "beta_median": beta_median,
         "beta_std": beta_std,
+        "beta_ci_lo": beta_ci_lo,
+        "beta_ci_hi": beta_ci_hi,
         "t_stat": t_stat,
         "p_value": p_value,
         "consistent_mond": consistent_mond,
@@ -229,7 +234,15 @@ def _lt_block(lt_csv_path: Path) -> dict:
     Computes:
     1. BTFR and interpolation model predictions (re-uses
        :mod:`scripts.blind_test_little_things` logic).
-    2. F3-equivalent β for the whole LT sample.
+    2. An effective β estimator derived from global observables (not the same
+       as the radial F3 slope from SPARC).  Specifically, it fits:
+
+           log(g_obs) = β_proxy · log(g_bar) + intercept
+
+       where  g_obs = Vflat³ / j  (flat-regime identity using specific
+       angular momentum j = R·Vflat).  This is a **global proxy** related to
+       F3 but constructed from sample-integrated quantities rather than
+       per-galaxy radial profiles.
 
     Parameters
     ----------
@@ -392,7 +405,7 @@ def _build_comparison_table(
     if lt is not None:
         rows.append({
             "dataset": "LITTLE THINGS",
-            "method": "F3-equiv from g_obs=Vflat³/j",
+            "method": "global proxy β (Vflat³/j, not radial F3)",
             "N": lt.get("n_galaxies", float("nan")),
             "beta": lt.get("beta_lt", float("nan")),
             "beta_std": lt.get("beta_lt_err", float("nan")),
@@ -440,11 +453,19 @@ def format_final_report(
     if sparc is None:
         lines.append("  [SKIPPED] No --f3-catalog provided.")
     else:
+        ci_lo = sparc.get("beta_ci_lo", float("nan"))
+        ci_hi = sparc.get("beta_ci_hi", float("nan"))
+        ci_s = (
+            f"[{ci_lo:.4f}, {ci_hi:.4f}]"
+            if math.isfinite(ci_lo) and math.isfinite(ci_hi)
+            else "N/A"
+        )
         lines += [
             f"  N galaxies (total)    : {sparc['n_galaxies']}",
             f"  N reliable β          : {sparc['n_reliable']}",
             f"  β mean ± std          : {sparc['beta_mean']:.4f} ± {sparc['beta_std']:.4f}",
             f"  β median              : {sparc['beta_median']:.4f}",
+            f"  β 95% CI (mean)       : {ci_s}",
             f"  t-test p (vs β=0.5)   : {sparc['p_value']:.4e}",
             f"  MOND-consistent       : {'✅ YES' if sparc['consistent_mond'] else '❌ NO'}",
         ]
@@ -454,7 +475,7 @@ def format_final_report(
     # ─── Block B ─────────────────────────────────────────────────────────
     lines += [
         "─" * 72,
-        "  BLOCK B — LITTLE THINGS blind test + F3-equivalent β",
+        "  BLOCK B — LITTLE THINGS blind test + global proxy β (Vflat³/j)",
         "─" * 72,
     ]
     if lt is None:
@@ -463,9 +484,10 @@ def format_final_report(
         lines += [
             f"  N galaxies            : {lt['n_galaxies']}",
             "",
-            f"  F3-equiv β (LT)       : {lt['beta_lt']:.4f} ± {lt['beta_lt_err']:.4f}",
-            f"  Pearson r             : {lt['beta_lt_r']:.4f}   (p = {lt['beta_lt_p']:.2e})",
-            f"  MOND-consistent       : {'✅ YES (|β−0.5| < 2σ)' if lt['consistent_mond'] else '⚠️  NO'}",
+            "  Effective β estimator from global observables (not radial F3):",
+            f"    β_proxy (Vflat³/j)  : {lt['beta_lt']:.4f} ± {lt['beta_lt_err']:.4f}",
+            f"    Pearson r           : {lt['beta_lt_r']:.4f}   (p = {lt['beta_lt_p']:.2e})",
+            f"    MOND-consistent     : {'✅ YES (|β−0.5| < 2σ)' if lt['consistent_mond'] else '⚠️  NO (intermediate regime)'}",
             "",
             "  Blind-test predictions:",
             f"    RMSE BTFR           : {lt['rmse_btfr']:.4f} dex",
@@ -519,7 +541,7 @@ def format_final_report(
     # ─── Block D ─────────────────────────────────────────────────────────
     lines += [
         "─" * 72,
-        "  BLOCK D — Cross-dataset β comparison",
+        "  BLOCK D — Cross-dataset comparison of β-like observables",
         "─" * 72,
     ]
     if comparison.empty:
@@ -545,6 +567,92 @@ def format_final_report(
 
     lines += ["", _SEP]
     return lines
+
+
+# ---------------------------------------------------------------------------
+# Robustness summary helpers
+# ---------------------------------------------------------------------------
+
+def _extract_robustness_summary(
+    reg: dict | None,
+    perm: dict | None,
+    boot: dict | None,
+) -> dict | None:
+    """Extract the key robustness metrics into a flat top-level dict.
+
+    This makes the most important SPARC × Yang results directly accessible
+    without having to drill into the reg/perm/boot sub-dicts.
+
+    Returns None when none of the three sub-dicts are available.
+
+    Keys
+    ----
+    N_robustness, beta_env, p_env_hc3, delta_AIC,
+    p_perm, bootstrap_ci_lo, bootstrap_ci_hi
+    """
+    if reg is None and perm is None and boot is None:
+        return None
+
+    nan = float("nan")
+    return {
+        "N_robustness": (reg or {}).get("n_galaxies", nan),
+        "beta_env": (reg or {}).get("beta_env", nan),
+        "p_env_hc3": (reg or {}).get("p_env", nan),
+        "delta_AIC": (reg or {}).get("delta_aic", nan),
+        "p_perm": (perm or {}).get("p_perm", nan),
+        "bootstrap_ci_lo": (boot or {}).get("ci_lo", nan),
+        "bootstrap_ci_hi": (boot or {}).get("ci_hi", nan),
+    }
+
+
+def _build_summary_row(
+    sparc: dict | None,
+    lt: dict | None,
+    robustness: dict | None,
+) -> pd.DataFrame:
+    """Build a single-row flat metrics DataFrame for CI / Zenodo.
+
+    All available scalar metrics from the three datasets are placed in one
+    row, making it easy to diff two runs or feed metrics into a dashboard.
+
+    Returns
+    -------
+    pd.DataFrame
+        One row, columns: metric, value.
+    """
+    nan = float("nan")
+    metrics: dict[str, float | int | str] = {}
+
+    if sparc is not None:
+        metrics["sparc_N"] = sparc.get("n_reliable", nan)
+        metrics["sparc_beta_mean"] = sparc.get("beta_mean", nan)
+        metrics["sparc_beta_median"] = sparc.get("beta_median", nan)
+        metrics["sparc_beta_std"] = sparc.get("beta_std", nan)
+        metrics["sparc_beta_ci_lo"] = sparc.get("beta_ci_lo", nan)
+        metrics["sparc_beta_ci_hi"] = sparc.get("beta_ci_hi", nan)
+        metrics["sparc_ttest_p_vs_0p5"] = sparc.get("p_value", nan)
+
+    if lt is not None:
+        metrics["lt_N"] = lt.get("n_galaxies", nan)
+        metrics["lt_beta"] = lt.get("beta_lt", nan)
+        metrics["lt_beta_se"] = lt.get("beta_lt_err", nan)
+        metrics["lt_corr_r"] = lt.get("beta_lt_r", nan)
+        metrics["lt_corr_p"] = lt.get("beta_lt_p", nan)
+        metrics["lt_rmse_btfr"] = lt.get("rmse_btfr", nan)
+        metrics["lt_rmse_interp"] = lt.get("rmse_interp", nan)
+
+    if robustness is not None:
+        metrics["robustness_N"] = robustness.get("N_robustness", nan)
+        metrics["robustness_beta_env"] = robustness.get("beta_env", nan)
+        metrics["robustness_p_env"] = robustness.get("p_env_hc3", nan)
+        metrics["robustness_delta_AIC"] = robustness.get("delta_AIC", nan)
+        metrics["robustness_p_perm"] = robustness.get("p_perm", nan)
+        metrics["robustness_bootstrap_ci_lo"] = robustness.get("bootstrap_ci_lo", nan)
+        metrics["robustness_bootstrap_ci_hi"] = robustness.get("bootstrap_ci_hi", nan)
+
+    return pd.DataFrame(
+        [{"metric": k, "value": v} for k, v in metrics.items()]
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -577,7 +685,8 @@ def run_final_analysis(
     Returns
     -------
     dict with keys:
-        sparc, lt, yang_flat, reg, perm, boot, comparison, report_lines
+        sparc, lt, yang_flat, reg, perm, boot, comparison, report_lines,
+        robustness  (flat dict of top-level robustness metrics, or None)
     """
     sparc: dict | None = None
     lt: dict | None = None
@@ -601,6 +710,9 @@ def run_final_analysis(
             seed=seed,
         )
 
+    # Build a flat top-level robustness summary for easy downstream consumption
+    robustness: dict | None = _extract_robustness_summary(reg, perm, boot)
+
     comparison = _build_comparison_table(sparc, lt)
     report_lines = format_final_report(sparc, lt, yang, reg, perm, boot, comparison)
 
@@ -611,6 +723,7 @@ def run_final_analysis(
         "reg": reg,
         "perm": perm,
         "boot": boot,
+        "robustness": robustness,
         "comparison": comparison,
         "report_lines": report_lines,
     }
@@ -728,7 +841,23 @@ def main(argv: list[str] | None = None) -> dict:
                 out_dir / "cross_dataset_beta.csv", index=False
             )
 
+        # Single-row flat summary for CI / Zenodo
+        summary_df = _build_summary_row(
+            results["sparc"], results["lt"], results.get("robustness")
+        )
+        if not summary_df.empty:
+            summary_df.to_csv(
+                out_dir / "final_analysis_summary.csv", index=False
+            )
+
         print(f"\n  Results written to {out_dir}/")
+        _written = ["final_analysis.log", "final_analysis.json"]
+        if not results["comparison"].empty:
+            _written.append("cross_dataset_beta.csv")
+        if not summary_df.empty:
+            _written.append("final_analysis_summary.csv")
+        for fname in _written:
+            print(f"    {fname}")
 
     return results
 
