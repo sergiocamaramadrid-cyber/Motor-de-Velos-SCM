@@ -93,34 +93,66 @@ class TestEquilibriumRadius:
     def test_positive_radius(self):
         assert equilibrium_radius(AU, 0.0) > 0.0
 
+    def test_finite_when_v_equals_v_sw(self):
+        """abs(v_rel)+1e-3 prevents division by zero at v = v_sw."""
+        R = equilibrium_radius(AU, 400e3)
+        assert math.isfinite(R) and R > 0.0
+
+    def test_symmetric_around_v_sw(self):
+        """Radius should be the same for equal-magnitude v_rel deviations."""
+        R_below = equilibrium_radius(AU, 400e3 - 1.0)
+        R_above = equilibrium_radius(AU, 400e3 + 1.0)
+        assert R_below == pytest.approx(R_above, rel=1e-3)
+
+    def test_large_v_rel_gives_smaller_radius(self):
+        """Larger |v_rel| → smaller equilibrium radius."""
+        R_slow = equilibrium_radius(AU, 0.0)         # v_rel = 400 km/s
+        R_fast = equilibrium_radius(AU, 1000e3)       # |v_rel| = 600 km/s
+        assert R_fast < R_slow
+
 
 class TestDragForce:
     def test_returns_tuple_of_three(self):
         out = drag_force(AU, 0.0)
         assert len(out) == 3
 
-    def test_zero_v_rel_when_v_equals_v_sw(self):
-        _, _, v_rel = drag_force(AU, 400e3)
-        assert v_rel == 0.0
+    def test_v_rel_is_signed(self):
+        """v_rel = v_sw - v: positive below v_sw, negative above."""
+        _, _, vr_slow = drag_force(AU, 0.0)
+        _, _, vr_fast = drag_force(AU, 500e3)
+        assert vr_slow > 0.0
+        assert vr_fast < 0.0
 
     def test_force_positive_when_v_less_than_v_sw(self):
+        """Below v_sw: drag is a thrust force (positive)."""
         F, _, _ = drag_force(AU, 0.0)
         assert F > 0.0
 
     def test_force_zero_when_v_equals_v_sw(self):
         F, _, _ = drag_force(AU, 400e3)
-        assert F == 0.0
+        assert F == pytest.approx(0.0, abs=1e-10)
+
+    def test_force_negative_when_v_greater_than_v_sw(self):
+        """Above v_sw: drag brakes the probe (negative)."""
+        F, _, _ = drag_force(AU, 500e3)
+        assert F < 0.0
+
+    def test_signed_drag_antisymmetric(self):
+        """F at v_sw + Δv ≈ –F at v_sw − Δv (for small Δv)."""
+        dv = 1.0
+        F_pos, _, _ = drag_force(AU, 400e3 - dv)
+        F_neg, _, _ = drag_force(AU, 400e3 + dv)
+        assert F_pos == pytest.approx(-F_neg, rel=1e-3)
 
     def test_extra_kwargs_ignored(self):
         F1, _, _ = drag_force(AU, 0.0)
         F2, _, _ = drag_force(AU, 0.0, P_ai=99.0)
         assert F1 == pytest.approx(F2, rel=1e-9)
 
-    def test_larger_r_smaller_force(self):
+    def test_larger_r_smaller_magnitude_force(self):
         F1, _, _ = drag_force(AU, 0.0)
         F5, _, _ = drag_force(5 * AU, 0.0)
-        # At larger r, rho is smaller; bubble grows but force still drops
-        assert F5 < F1
+        assert abs(F5) < abs(F1)
 
     def test_r_returned_is_equilibrium_radius(self):
         _, R, _ = drag_force(AU, 0.0)
@@ -155,7 +187,13 @@ class TestPowerBudget:
         assert b["P_net"] == pytest.approx(b["P_gen"] - b["P_rf"] - b["P_ai"], rel=1e-9)
 
     def test_p_gen_nonnegative(self):
+        """P_gen = |F·v_rel| is always non-negative."""
         b = power_budget(AU, 0.0)
+        assert b["P_gen"] >= 0.0
+
+    def test_p_gen_nonnegative_when_braking(self):
+        """Even in braking regime (v > v_sw), P_gen ≥ 0."""
+        b = power_budget(AU, 600e3)
         assert b["P_gen"] >= 0.0
 
     def test_custom_p_ai(self):
@@ -169,11 +207,19 @@ class TestPowerBudget:
 
 
 class TestBackEmfPower:
-    def test_nonnegative(self):
-        assert back_emf_power(AU, 0.0) >= 0.0
+    def test_positive_when_accelerating(self):
+        """v < v_sw → back-EMF power positive (energy extracted from wind)."""
+        assert back_emf_power(AU, 0.0) > 0.0
 
     def test_zero_when_v_equals_v_sw(self):
-        assert back_emf_power(AU, 400e3) == 0.0
+        assert back_emf_power(AU, 400e3) == pytest.approx(0.0, abs=1e-10)
+
+    def test_positive_in_braking_regime(self):
+        """v > v_sw: F < 0 and v_rel < 0; product F·v_rel is positive.
+
+        Power dissipated in the interaction is always non-negative.
+        """
+        assert back_emf_power(AU, 500e3) > 0.0
 
     def test_extra_kwargs_ignored(self):
         p1 = back_emf_power(AU, 0.0)
@@ -190,10 +236,16 @@ class TestAccelerationNet:
         a = acceleration_net(AU, 400e3)
         assert a == pytest.approx(-GM_SUN / AU ** 2, rel=1e-9)
 
-    def test_drag_adds_positive_contribution(self):
+    def test_drag_adds_positive_contribution_below_v_sw(self):
         a_with_drag = acceleration_net(AU, 0.0)
         a_grav_only = -GM_SUN / AU ** 2
         assert a_with_drag > a_grav_only
+
+    def test_drag_subtracts_above_v_sw(self):
+        """Above v_sw the signed drag brakes the probe, so a < gravity-only."""
+        a_braking = acceleration_net(AU, 500e3)
+        a_grav_only = -GM_SUN / AU ** 2
+        assert a_braking < a_grav_only
 
     def test_finite(self):
         assert math.isfinite(acceleration_net(AU, 30e3))
@@ -329,6 +381,29 @@ class TestRunSimulation:
         assert math.isfinite(res["r_AU"][-1])
         assert res["r_AU"][-1] > 1.0
 
+    def test_signed_drag_brakes_supersonic_probe(self):
+        """A probe launched faster than v_sw is decelerated toward v_sw."""
+        # Start at v0 = 600 km/s >> v_sw = 400 km/s
+        res = run_simulation(t_total_days=5, n_steps=500, v0=600e3)
+        # Net delta-v must be negative (braking)
+        delta_v = res["v_kms"][-1] - res["v0_kms"]
+        assert delta_v < 0.0
+
+    def test_terminal_velocity_bounded_by_v_sw(self):
+        """Probe starting below v_sw accelerates; starting above gets braked.
+
+        Over 15 days starting from rest, the probe should reach a significant
+        fraction of v_sw (drag pushes it toward the wind speed).
+        Over 5 days starting well above v_sw, the probe must be decelerated.
+        """
+        res_slow = run_simulation(t_total_days=15, n_steps=500, v0=10e3)
+        v_slow_final = res_slow["v_kms"][-1]
+        assert v_slow_final > 10.0, "Probe should have accelerated from rest"
+
+        res_fast = run_simulation(t_total_days=5, n_steps=500, v0=600e3)
+        v_fast_final = res_fast["v_kms"][-1]
+        assert v_fast_final < 600.0, "Supersonic probe should have been braked"
+
 
 # ---------------------------------------------------------------------------
 # 5. plot_results
@@ -375,6 +450,27 @@ class TestMain:
     def test_probe_moves_outward(self):
         res = main(["--no-plot", "--t-days", "30"])
         assert res["r_AU"][-1] > 1.0
+
+    def test_v_sw_flag_accepted(self):
+        """--v-sw changes the solar wind speed used in the simulation."""
+        res_slow = main(["--no-plot", "--t-days", "5", "--v-sw", "200"])
+        res_fast = main(["--no-plot", "--t-days", "5", "--v-sw", "800"])
+        # Faster wind → larger v_rel → more drag → probe moves farther
+        assert res_fast["r_AU"][-1] > res_slow["r_AU"][-1]
+
+    def test_v_sw_default_is_400(self):
+        """Default --v-sw corresponds to v_sw0 = 400 km/s."""
+        res_default = main(["--no-plot", "--t-days", "5"])
+        res_explicit = main(["--no-plot", "--t-days", "5", "--v-sw", "400"])
+        np.testing.assert_allclose(res_default["r_AU"], res_explicit["r_AU"], rtol=1e-6)
+
+    def test_cme_simulation_higher_v_rel(self):
+        """CME (v_sw = 800 km/s) delivers more impulse than nominal wind."""
+        res_nominal = main(["--no-plot", "--t-days", "10"])
+        res_cme = main(["--no-plot", "--t-days", "10", "--v-sw", "800"])
+        dv_nominal = res_nominal["v_kms"][-1] - res_nominal["v0_kms"]
+        dv_cme = res_cme["v_kms"][-1] - res_cme["v0_kms"]
+        assert dv_cme > dv_nominal
 
     def test_writes_output_files(self, tmp_path):
         out_file = str(tmp_path / "v3.png")

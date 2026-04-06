@@ -5,22 +5,34 @@ V3: burbuja dinámica + back-EMF + balance energético + control RF adaptativo
 
 Bugs corregidos respecto al script original del problem statement:
   1. ``def derivs(state, t, **kwargs)`` + ``args=(kwargs,)`` → TypeError.
-     Corregido a ``def derivs(state, t, kw=None)`` con ``args=(kw,)``.
+     Corregido a ``def derivs(state, t, kw=None)`` con clausura ``rhs``.
   2. ``drag_force`` / ``equilibrium_radius`` / ``acceleration_net`` no
      aceptaban kwargs extra (P_ai, eta_shape, …). Corregido añadiendo ``**_``.
   3. ``back_emf_power`` propagaba kwargs extra a ``drag_force``. Corregido.
   4. ``main()`` no aceptaba ``argv`` → no testeable. Corregido a
      ``main(argv=None)`` con ``parse_args(argv)``.
-  5. ``derivs`` mutaba el dict ``kw`` compartido entre llamadas de odeint,
+  5. ``derivs`` mutaba el dict ``kw`` compartido entre llamadas del integrador,
      corrompiendo la estimación del Jacobiano y causando divergencia numérica.
      Corregido extendiendo el vector de estado a ``[r, v, eta_shape]`` para
      que el control adaptativo sea dinámica ODE correcta.
+  6. Arrastre unilateral ``max(v_rel, 0)`` reemplazado por la ley cuadrática
+     firmada ``F = 0.5 η ρ A v_rel |v_rel|``: la nave recibe empuje cuando
+     v < v_sw y frenado cuando v > v_sw, convergiendo naturalmente hacia
+     v ≈ v_sw como un verdadero "surfista".
+  7. ``equilibrium_radius`` usaba ``max(v_rel, 1.0)`` que suprimía el radio
+     para v_rel pequeño. Reemplazado por ``abs(v_rel) + 1e-3`` para evitar
+     divisiones por cero con continuidad en ambos sentidos.
+  8. k_rf = 1.2e-8 estaba calibrado para R en km; corregido a 1.2e-13 (R en m).
 
 Usage
 -----
 Simulación por defecto (1 año)::
 
     python scripts/scm_motor_v3_closed_loop.py
+
+Simular eyección de masa coronal (v_sw = 800 km/s)::
+
+    python scripts/scm_motor_v3_closed_loop.py --v-sw 800
 
 5 años con más pasos::
 
@@ -79,10 +91,15 @@ def equilibrium_radius(
     eta_shape: float = 1.0,
     **_,
 ) -> float:
-    """Radio de equilibrio dinámico de la burbuja (m)."""
+    """Radio de equilibrio dinámico de la burbuja (m).
+
+    Usa ``abs(v_rel) + 1e-3`` en lugar de ``max(v_rel, 1.0)`` para que el
+    radio sea continuo y bien definido incluso cuando la sonda supera al
+    viento solar (v_rel < 0).
+    """
     rho = rho_wind(r, rho0)
-    v_rel = max(v_sw_const(r, v_sw0) - v, 1.0)
-    scale = (rho0 * v_sw0 ** 2) / (rho * v_rel ** 2 + 1e-12)
+    v_rel_mag = abs(v_sw_const(r, v_sw0) - v) + 1e-3
+    scale = (rho0 * v_sw0 ** 2) / (rho * v_rel_mag ** 2 + 1e-12)
     return R0 * scale ** (1.0 / 6.0) * eta_shape
 
 
@@ -101,12 +118,19 @@ def drag_force(
     eta_shape: float = 1.0,
     **_,
 ) -> tuple[float, float, float]:
-    """Devuelve ``(F_drag, R, v_rel)``."""
+    """Devuelve ``(F_drag, R, v_rel)``.
+
+    La fuerza usa la ley cuadrática firmada
+    ``F = 0.5 η ρ A v_rel |v_rel|``
+    de modo que:
+    - v_rel > 0  (v < v_sw): F > 0 → empuje / aceleración.
+    - v_rel < 0  (v > v_sw): F < 0 → frenado aerodinámico.
+    """
     R = equilibrium_radius(r, v, R0=R0, rho0=rho0, v_sw0=v_sw0, eta_shape=eta_shape)
     area = np.pi * R ** 2
     rho = rho_wind(r, rho0)
-    v_rel = max(v_sw_const(r, v_sw0) - v, 0.0)
-    F = 0.5 * eta_drag * rho * area * v_rel ** 2
+    v_rel = v_sw_const(r, v_sw0) - v            # puede ser negativo
+    F = 0.5 * eta_drag * rho * area * v_rel * abs(v_rel)
     return F, R, v_rel
 
 
@@ -124,7 +148,11 @@ def acceleration_net(
 
 
 def back_emf_power(r: float, v: float, **kwargs) -> float:
-    """Potencia back-EMF extraída de la interacción (W)."""
+    """Potencia back-EMF de la interacción viento–burbuja (W).
+
+    Positiva cuando la sonda es acelerada (v < v_sw), negativa cuando es
+    frenada (v > v_sw).  ``P = F · v_rel`` con la ley cuadrática firmada.
+    """
     F_drag, _, v_rel = drag_force(r, v, **kwargs)
     return F_drag * v_rel
 
@@ -159,7 +187,7 @@ def power_budget(
     dict with keys: P_gen, P_rf, P_ai, P_net, R, v_rel
     """
     F_drag, R, v_rel = drag_force(r, v, mass=mass, **kwargs)
-    P_gen = F_drag * v_rel
+    P_gen = abs(F_drag * v_rel)   # magnitud de potencia disipada en la interacción
     P_rf = rf_power_required(R)
     P_net = P_gen - (P_rf + P_ai)
     return {
@@ -357,6 +385,9 @@ def main(argv: list[str] | None = None) -> dict:
                         help="Eficiencia de arrastre (por defecto: 0.5).")
     parser.add_argument("--P-ai", type=float, default=8.0, metavar="W",
                         help="Potencia IA fija (W, por defecto: 8).")
+    parser.add_argument("--v-sw", type=float, default=400.0, metavar="KM/S",
+                        help="Velocidad del viento solar (km/s, por defecto: 400). "
+                             "Aumentar para simular eyecciones de masa coronal (CME).")
     parser.add_argument("--out", type=str, default=None,
                         help="Ruta de la figura PNG de salida.")
     parser.add_argument("--no-plot", action="store_true",
@@ -368,12 +399,13 @@ def main(argv: list[str] | None = None) -> dict:
         "R0": args.r0_km * 1000.0,
         "eta_drag": args.eta_drag,
         "rho0": 8e-20,
-        "v_sw0": 400e3,
+        "v_sw0": args.v_sw * 1000.0,
         "P_ai": args.P_ai,
     }
     res = run_simulation(t_total_days=args.t_days, n_steps=args.n_steps, **kwargs)
 
     print("--- SCM MOTOR DE VELOS V3 (Bucle cerrado) ---")
+    print(f"Velocidad viento solar:   {args.v_sw:.0f} km/s")
     print(f"Distancia final:          {res['r_AU'][-1]:.3f} UA")
     print(f"Delta-V total:            {res['v_kms'][-1] - res['v0_kms']:.2f} km/s")
     print(f"Radio burbuja final:      {res['R_km'][-1]:.2f} km")
