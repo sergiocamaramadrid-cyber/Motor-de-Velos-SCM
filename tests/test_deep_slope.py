@@ -7,6 +7,7 @@ deep-slope computation is correct.
 
 from __future__ import annotations
 
+import math
 import numpy as np
 import pandas as pd
 import pytest
@@ -306,3 +307,26 @@ class TestPipelineIntegration:
         }).to_csv(csv, index=False)
         result = main(["--csv", str(csv)])
         assert result["slope"] == pytest.approx(0.5, abs=0.05)
+
+
+def test_deep_slope_single_outlier_resistance():
+    # 25 points all in deep regime (log_gbar <= -10.5 << log(0.3*g0) ≈ -10.44)
+    log_gbar = np.linspace(-12.5, -10.5, 25)
+    intercept = -5.0
+    log_gobs = 0.5 * log_gbar + intercept
+
+    # Introduce a single strong outlier on the last point
+    log_gobs_with_outlier = log_gobs.copy()
+    log_gobs_with_outlier[-1] += 1.5
+
+    result = deep_slope(
+        log_gbar,
+        log_gobs_with_outlier,
+        g0=1.2e-10,
+        deep_threshold=0.3,
+    )
+
+    assert result["n_deep"] >= 2
+    assert math.isfinite(result["slope"])
+    # With 25 points the single outlier shifts slope by ~0.17, still within 0.2
+    assert abs(result["slope"] - 0.5) < 0.2
