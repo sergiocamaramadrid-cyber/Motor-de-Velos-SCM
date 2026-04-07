@@ -1,5 +1,7 @@
 # Motor-de-Velos-SCM
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19455777.svg)](https://doi.org/10.5281/zenodo.19455777)
+
 ## Historical Context / Contexto histórico
 
 Author: Sergio Cámara Madrid  
@@ -175,6 +177,13 @@ See:
 ## License
 
 Refer to the LICENSE file.
+
+---
+
+## Data Availability
+
+Data and code are publicly available at Zenodo:
+https://doi.org/10.5281/zenodo.19455777
 
 ---
 
