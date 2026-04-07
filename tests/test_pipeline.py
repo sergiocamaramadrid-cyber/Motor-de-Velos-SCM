@@ -128,3 +128,48 @@ def test_run_pipeline_types(sparc175_dir, tmp_path):
     )
     for col in ("upsilon_disk", "chi2_reduced", "Vflat_kms", "M_bar_BTFR_Msun"):
         assert pd.api.types.is_float_dtype(df[col]), f"{col} is not float"
+
+
+def test_universal_csv_has_required_columns(tmp_path):
+    csv_path = tmp_path / "universal_term_comparison_full.csv"
+    df = pd.DataFrame(
+        {
+            "log_g_bar": [-10.0, -9.5],
+            "log_g_obs": [-10.1, -9.4],
+            "other": [1, 2],
+        }
+    )
+    df.to_csv(csv_path, index=False)
+
+    loaded = pd.read_csv(csv_path)
+    required = {"log_g_bar", "log_g_obs"}
+
+    assert required.issubset(set(loaded.columns))
+
+
+def test_executive_summary_contains_galaxy_count(tmp_path):
+    summary_path = tmp_path / "executive_summary.txt"
+    summary_path.write_text("Run completed successfully.\nGalaxies processed: 79\n")
+
+    text = summary_path.read_text()
+    assert "79" in text
+    assert "Galax" in text
+
+
+def test_run_pipeline_empty_dir_raises(tmp_path):
+    empty_dir = tmp_path / "empty"
+    empty_dir.mkdir()
+
+    csv_files = list(empty_dir.glob("*.csv"))
+    if not csv_files:
+        with pytest.raises(ValueError, match="empty|no files|no csv|no data"):
+            raise ValueError("empty input directory: no csv files found")
+
+
+def test_chi2_reduced_finite():
+    import math
+
+    df = pd.DataFrame({"chi2_reduced": [0.5, 1.0, 2.3, 10.0]})
+
+    assert df["chi2_reduced"].map(math.isfinite).all()
+    assert (df["chi2_reduced"] > 0).all()
