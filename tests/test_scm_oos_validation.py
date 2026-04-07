@@ -475,7 +475,7 @@ class TestMainCLI:
         args = _parse_args([])
         assert args.n_splits == 100
 
-    def test_default_test_frac_is_030(self):
+    def test_default_test_frac_is_0_30(self):
         args = _parse_args([])
         assert args.test_frac == pytest.approx(0.30)
 
