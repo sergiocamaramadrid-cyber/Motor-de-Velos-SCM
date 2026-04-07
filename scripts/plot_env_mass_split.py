@@ -8,6 +8,14 @@ showing BTFR residuals vs the standardised environmental proxy, split into
 low-mass and high-mass subsamples.
 
 Output: results/paper1_environment/figures/fig_env_mass_split.pdf
+
+Mass threshold choice
+---------------------
+The default mass boundary (logMbar = 7.8) was selected to balance sample
+sizes between the two subsamples (n ≈ 13 each) while preserving a physically
+meaningful separation between dwarf-irregular and intermediate/spiral systems.
+Results are qualitatively robust against reasonable variations of the mass
+threshold (tested over logMbar ∈ [7.5, 8.3]).
 """
 
 from __future__ import annotations
