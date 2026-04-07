@@ -14,6 +14,9 @@ so the test runs entirely in memory / tmp without any external data download.
 
 from __future__ import annotations
 
+import pytest
+pytest.importorskip("pyarrow")
+
 import subprocess
 import sys
 from pathlib import Path

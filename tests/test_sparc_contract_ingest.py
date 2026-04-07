@@ -7,6 +7,9 @@ test runs without any real SPARC download.
 
 from __future__ import annotations
 
+import pytest
+pytest.importorskip("pyarrow")
+
 import subprocess
 import sys
 from pathlib import Path
