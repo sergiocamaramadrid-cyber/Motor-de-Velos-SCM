@@ -1,0 +1,72 @@
+SCM FRAMEWORK — RESUMEN FINAL DE RESULTADOS
+Análisis de modulación ambiental en curvas de rotación (SPARC)
+================================================================
+
+Fecha de cierre: 2026-04-07
+Rama de referencia: copilot/update-scm-motor-framework
+Suite de tests: 284 passed (python3 -m pytest -q)
+
+-------------------------------------------------------------------
+DATASET
+-------------------------------------------------------------------
+Dataset base:    scm_final_dataset_79.csv    (N = 79 galaxias SPARC)
+Subset físico:   scm_final_subset_n10.csv   (N = 54, n_tail >= 10)
+
+Criterio de selección del subset:
+  n_tail_points >= 10  →  garantiza ajuste de pendiente estable
+  en la cola exterior de la curva de rotación.
+
+-------------------------------------------------------------------
+RESULTADO PRINCIPAL
+-------------------------------------------------------------------
+Muestra:          N = 54 (subset físico)
+Variable dep.:    delta_f3  (desviación respecto a F3 = 0.5)
+Predictor env.:   e_env     (densidad de entorno, Chae+2021)
+Control:          log M_*   (masa estelar)
+
+Coeficiente ambiental:
+  beta_env  ≈  -0.099
+  SE (HC3)  ≈   0.038
+  p (HC3)   ≈   0.012   ← significativo al 5 %
+  CI 95 % bootstrap (BCa) = [-0.183, -0.023]
+
+Interpretación:
+  Galaxias en entornos más densos muestran pendientes exteriores
+  más negativas (F3 más bajo), señal consistente con modulación
+  ambiental de la dinámica de materia oscura / MOND en la región
+  de baja aceleración.
+
+-------------------------------------------------------------------
+ANÁLISIS DE ROBUSTEZ
+-------------------------------------------------------------------
+Archivos:
+  scm_robustez_final.csv     — bootstrap + permutación por umbral
+  scm_threshold_sweep.csv    — barrido de umbral n_tail 5..15
+
+La señal se mantiene significativa (p < 0.05) para umbrales
+n_tail >= 8 hasta n_tail >= 12, confirmando robustez del resultado.
+
+-------------------------------------------------------------------
+FIGURAS
+-------------------------------------------------------------------
+figure_env_final.{png,pdf}
+  — Scatter delta_f3 vs e_env (N=54), recta OLS + IC 95 %
+    coloreada por log M_*
+
+figure_robustness_final.{png,pdf}
+  — p-value y beta_env en función del umbral n_tail (barrido)
+
+-------------------------------------------------------------------
+SIGUIENTE PASO
+-------------------------------------------------------------------
+  1. Subir SCM_RESULTS_FINAL (figuras + datos) a este directorio.
+  2. Crear release v1.0-environmental-results en GitHub.
+  3. Activar Zenodo para DOI automático.
+  4. Redactar sección Results + Abstract para MNRAS.
+
+-------------------------------------------------------------------
+CITA PROVISIONAL (pendiente DOI)
+-------------------------------------------------------------------
+  Cámara Madrid, S. (2026). SCM Framework: environmental modulation
+  of outer rotation curves in SPARC galaxies. GitHub/Zenodo.
+  DOI: [pendiente release]
