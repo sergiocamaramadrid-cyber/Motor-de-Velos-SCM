@@ -2,6 +2,9 @@
 
 ## Dataset
 
+We restrict the analysis to a subsample with available environmental proxy
+measurements, resulting in N = 26 galaxies.
+
 26 LITTLE THINGS / SPARC galaxies  
 logMbar range: 5.8 – 8.4  
 Columns: `galaxy`, `delta_f3`, `logMbar`, `delta_mass`
@@ -38,6 +41,8 @@ between dwarf-irregular and intermediate/spiral systems.
 ## Robustness Table
 
 Signal is qualitatively robust across reasonable variations of the mass threshold.
+The behaviour of the low-mass subsample is sensitive to the exact mass threshold
+due to small sample size (N ≈ 13), and should be interpreted with caution.
 
 | Threshold | n_low | ρ_low | p_low | n_high | ρ_high | p_high |
 |-----------|-------|-------|-------|--------|--------|--------|
@@ -49,6 +54,14 @@ Signal is qualitatively robust across reasonable variations of the mass threshol
 
 > "Results are qualitatively robust against reasonable variations of the mass
 > threshold (tested over logMbar ∈ [7.5, 8.1])."
+
+## Central Result (paper text)
+
+> "Using a subsample of 26 galaxies with available environmental proxies, we
+> detect a statistically significant negative correlation between outer-disk
+> residuals and environment (ρ ≈ −0.57, p ≈ 0.002). This signal is robust
+> across reasonable variations of the mass threshold and indicates a
+> non-negligible environmental modulation of galaxy dynamics."
 
 ## Figure Caption (MNRAS-ready)
 
