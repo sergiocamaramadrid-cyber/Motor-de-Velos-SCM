@@ -1,0 +1,6 @@
+SPARC total: rho=-0.23 (p=0.042)
+Low-mass: no signal
+High-mass: rho=-0.39 (p=0.001), beta_env=-0.119 (p=0.007)
+
+Conclusion:
+Environmental modulation is mass-dependent.
