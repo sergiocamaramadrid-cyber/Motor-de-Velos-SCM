@@ -6,7 +6,7 @@ Plots delta_mass_std (environmental proxy, z-score of log_j) versus delta_f3
 (outer-slope residual = slope_tail - 0.5) with a Spearman correlation
 annotation and an OLS trend line.
 
-Output: LITTLE_THINGS_final.png (300 dpi) by default.
+Output: figure01_env_little_things.png + .pdf (300 dpi) by default.
 
 Public API
 ----------
@@ -47,7 +47,7 @@ DELTA_F3 = np.array([
     -0.4183, -0.3723,
 ])
 
-_OUT_DEFAULT = Path("LITTLE_THINGS_final.png")
+_OUT_DEFAULT = Path("figure01_env_little_things.png")
 
 
 # ---------------------------------------------------------------------------
@@ -105,6 +105,8 @@ def generate_figure(
     out_path = Path(out_path)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out_path, dpi=300)
+    pdf_path = out_path.with_suffix(".pdf")
+    fig.savefig(pdf_path, dpi=300)
     return fig
 
 
@@ -118,7 +120,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     p.add_argument(
         "--out", default=str(_OUT_DEFAULT),
-        help="Output PNG path (default: LITTLE_THINGS_final.png)",
+        help="Output PNG path (default: figure01_env_little_things.png); PDF saved alongside automatically.",
     )
     return p.parse_args(argv)
 
@@ -136,8 +138,9 @@ def main(argv: list[str] | None = None) -> dict:
 
     stats = compute_stats(x, y)
     stats["out_path"] = str(out_path)
+    stats["pdf_path"] = str(out_path.with_suffix(".pdf"))
     print(
-        f"Wrote figure → {out_path}  "
+        f"Wrote figure → {out_path} + {out_path.with_suffix('.pdf')}  "
         f"(Spearman rho={stats['rho']:.2f}, p={stats['p_val']:.3f})"
     )
     return stats

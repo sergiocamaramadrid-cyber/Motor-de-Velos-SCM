@@ -108,6 +108,12 @@ def test_compute_stats_custom_arrays():
     assert stats["n"] == 4
 
 
+def test_stats_regression_guard():
+    """Protect against silent changes to the hardcoded dataset."""
+    stats = compute_stats(DELTA_MASS_STD, DELTA_F3)
+    assert abs(stats["rho"] + 0.37) < 0.02
+
+
 # ---------------------------------------------------------------------------
 # generate_figure tests
 # ---------------------------------------------------------------------------
@@ -148,7 +154,18 @@ def test_generate_figure_title(tmp_path):
     plt.close(fig)
 
 
-def test_generate_figure_creates_parent_dirs(tmp_path):
+def test_generate_figure_saves_pdf(tmp_path):
+    """generate_figure must also save a sibling PDF."""
+    import matplotlib.pyplot as plt
+    out = tmp_path / "fig.png"
+    fig = generate_figure(DELTA_MASS_STD, DELTA_F3, out_path=out)
+    plt.close(fig)
+    pdf = tmp_path / "fig.pdf"
+    assert pdf.exists()
+    assert pdf.stat().st_size > 0
+
+
+
     import matplotlib.pyplot as plt
     out = tmp_path / "subdir" / "deep" / "fig.png"
     fig = generate_figure(DELTA_MASS_STD, DELTA_F3, out_path=out)
@@ -169,7 +186,7 @@ def test_main_returns_dict(tmp_path):
 def test_main_stats_keys(tmp_path):
     out = tmp_path / "out.png"
     result = main(["--out", str(out)])
-    for key in ("rho", "p_val", "ols_slope", "ols_intercept", "n", "out_path"):
+    for key in ("rho", "p_val", "ols_slope", "ols_intercept", "n", "out_path", "pdf_path"):
         assert key in result
 
 
@@ -177,6 +194,12 @@ def test_main_writes_file(tmp_path):
     out = tmp_path / "LITTLE_THINGS_final.png"
     main(["--out", str(out)])
     assert out.exists()
+
+
+def test_main_writes_pdf(tmp_path):
+    out = tmp_path / "figure01_env_little_things.png"
+    main(["--out", str(out)])
+    assert (tmp_path / "figure01_env_little_things.pdf").exists()
 
 
 def test_main_out_path_in_result(tmp_path):
