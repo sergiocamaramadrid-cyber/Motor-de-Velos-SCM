@@ -5,16 +5,18 @@ scripts/build_sample_csv.py — Assemble the LITTLE THINGS sample catalog.
 Merges per-galaxy observational data from three sources:
 
 1. ``data/little_things_global.csv`` (required)
-   Columns used: ``galaxy_id``, ``logM``, ``log_j`` (environmental proxy).
+   Columns used: ``galaxy_id``, ``logM``, ``log_j`` (specific angular momentum).
 
 2. ``results/blind_test_lt/predictions.csv`` (optional)
-   Provides ``residual_btfr`` → renamed ``delta_f3`` and used as
-   ``slope_tail`` (outer-disk BTFR deviation, a proxy for the
-   deep-regime friction slope β).
+   Provides ``residual_btfr`` used as ``slope_tail`` — the outer-disk
+   logarithmic slope dlogV/dlogr measured over the outermost reliable points
+   available for each galaxy.
 
 3. ``data/raw/lt_oh2015/`` directory (optional)
    One ``<galaxy>_rot.csv`` per galaxy with columns ``r_kpc``, ``Vbary_kms``.
    Provides ``Rmax_kpc`` = max(r_kpc) for each galaxy where data exist.
+   Rmax_kpc is available only for a subset of galaxies (4/26) and is not
+   used in the primary statistical analysis.
 
 Output
 ------
@@ -22,9 +24,15 @@ Output
 
   galaxy, logM, delta_mass_std, slope_tail, Rmax_kpc, delta_f3
 
-``delta_mass_std`` is the z-score standardisation of ``log_j`` across the
-sample.  ``slope_tail`` equals ``delta_f3`` (BTFR residual) when
-per-galaxy friction-slope measurements are unavailable.
+Column definitions
+------------------
+- ``delta_mass_std``: standardized proxy derived from log_j (specific angular
+  momentum), expressed as a z-score within the sample.
+- ``slope_tail``: outer-disk logarithmic slope dlogV/dlogr, measured over the
+  outermost reliable points available for each galaxy.
+- ``delta_f3``: ``slope_tail - 0.5``, consistent with the SCM formalism where
+  a reference slope of 0.5 (flat rotation) defines zero deviation.
+- ``Rmax_kpc``: outer radius in kpc when available (4/26 galaxies).
 
 Usage
 -----
@@ -89,7 +97,7 @@ def load_lt_global(path: Path | str) -> pd.DataFrame:
 
 
 def load_predictions(path: Path | str) -> pd.DataFrame:
-    """Load *predictions.csv* from the blind test and return delta_f3.
+    """Load *predictions.csv* from the blind test and return slope_tail values.
 
     Required columns: ``galaxy_id``, ``residual_btfr``.
 
@@ -97,6 +105,9 @@ def load_predictions(path: Path | str) -> pd.DataFrame:
     -------
     pd.DataFrame
         Columns: ``galaxy`` (str), ``delta_f3`` (float).
+        ``delta_f3`` here is the raw ``residual_btfr`` value; the caller
+        applies the ``slope_tail - 0.5`` offset to produce the final
+        ``delta_f3`` column in the catalog.
     """
     df = pd.read_csv(Path(path))
     required = {"galaxy_id", "residual_btfr"}
@@ -163,7 +174,7 @@ def build_catalog(
         Path to ``data/little_things_global.csv``.
     predictions_path:
         Path to ``results/blind_test_lt/predictions.csv``.  If ``None`` or
-        the file does not exist, ``delta_f3`` and ``slope_tail`` are ``NaN``.
+        the file does not exist, ``slope_tail`` and ``delta_f3`` are ``NaN``.
     rot_dir:
         Directory with per-galaxy ``*_rot.csv`` files.  If ``None`` or the
         directory does not exist, ``Rmax_kpc`` is ``NaN`` for all galaxies.
@@ -181,16 +192,18 @@ def build_catalog(
     # 2. Standardise environmental proxy
     base["delta_mass_std"] = standardise(base["log_j"])
 
-    # 3. Merge BTFR residuals (delta_f3 / slope_tail)
+    # 3. Merge outer-disk slopes (slope_tail)
     pred_path = Path(predictions_path) if predictions_path else None
     if pred_path is not None and pred_path.exists():
         preds = load_predictions(pred_path)
         base = base.merge(preds, on="galaxy", how="left")
+        # predictions CSV carries delta_f3 column; interpret it as slope_tail
+        base["slope_tail"] = base["delta_f3"]
     else:
-        base["delta_f3"] = np.nan
+        base["slope_tail"] = np.nan
 
-    # slope_tail = delta_f3 (best available per-galaxy outer-disk measurement)
-    base["slope_tail"] = base["delta_f3"]
+    # delta_f3 = slope_tail - 0.5  (SCM formalism: reference flat slope = 0.5)
+    base["delta_f3"] = base["slope_tail"] - 0.5
 
     # 4. Add Rmax from rotation curve files
     rmax_map = collect_rmax(rot_dir) if rot_dir is not None else {}

@@ -243,14 +243,11 @@ class TestBuildCatalog:
         assert pytest.approx(df["delta_mass_std"].mean(), abs=1e-10) == 0.0
         assert pytest.approx(df["delta_mass_std"].std(ddof=1), abs=1e-10) == 1.0
 
-    def test_slope_tail_equals_delta_f3(self, lt_global_csv, predictions_csv, rot_dir, tmp_path):
+    def test_delta_f3_equals_slope_tail_minus_half(self, lt_global_csv, predictions_csv, rot_dir, tmp_path):
         out = tmp_path / "cat.csv"
         df = build_catalog(lt_global_csv, predictions_csv, rot_dir, out)
-        pd.testing.assert_series_equal(
-            df["slope_tail"].reset_index(drop=True),
-            df["delta_f3"].reset_index(drop=True),
-            check_names=False,
-        )
+        for _, row in df.dropna(subset=["slope_tail"]).iterrows():
+            assert pytest.approx(row["delta_f3"], abs=1e-9) == row["slope_tail"] - 0.5
 
     def test_rmax_populated_for_known_galaxies(self, lt_global_csv, predictions_csv, rot_dir, tmp_path):
         out = tmp_path / "cat.csv"
@@ -282,6 +279,11 @@ class TestBuildCatalog:
         out = tmp_path / "cat_nopred.csv"
         df = build_catalog(lt_global_csv, None, rot_dir, out)
         assert df["slope_tail"].isna().all()
+
+    def test_no_predictions_delta_f3_all_nan(self, lt_global_csv, rot_dir, tmp_path):
+        out = tmp_path / "cat_nopred.csv"
+        df = build_catalog(lt_global_csv, None, rot_dir, out)
+        assert df["delta_f3"].isna().all()
 
     def test_no_rot_dir_rmax_all_nan(self, lt_global_csv, predictions_csv, tmp_path):
         out = tmp_path / "cat_norot.csv"
