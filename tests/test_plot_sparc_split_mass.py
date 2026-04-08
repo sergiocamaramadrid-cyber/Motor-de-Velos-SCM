@@ -319,6 +319,7 @@ class TestMainCLI:
     def test_default_csv_arg(self):
         args = _parse_args([])
         assert "sparc_subset.csv" in args.csv
+        assert Path(args.csv).is_absolute()
 
     def test_default_out_arg_is_png(self):
         args = _parse_args([])
@@ -337,3 +338,104 @@ class TestMainCLI:
         result = main(["--csv", str(csv), "--out", str(tmp_path / "fig.png")])
         assert "stats_low" in result
         assert "stats_high" in result
+
+
+# ---------------------------------------------------------------------------
+# 5. Integration: committed SPARC subset fixture
+# ---------------------------------------------------------------------------
+
+_REPO_ROOT = Path(__file__).parent.parent
+_SPARC_CSV = _REPO_ROOT / "data" / "sparc_subset.csv"
+
+# Expected values computed from the committed CSV (79 galaxies after dedup).
+_N_TOTAL = 79
+_N_LOW = 39
+_N_HIGH = 40
+_MEDIAN_LOGM = pytest.approx(10.6384, abs=1e-3)
+# High-mass panel shows a significant negative environment signal.
+_RHO_HIGH = pytest.approx(-0.489, abs=0.01)
+_P_HIGH = pytest.approx(0.0014, abs=0.001)
+_SLOPE_HIGH = pytest.approx(-0.160, abs=0.01)
+# Low-mass panel shows no significant signal.
+_RHO_LOW = pytest.approx(-0.150, abs=0.02)
+
+
+class TestSPARCSubsetIntegration:
+    """Regression guard: run the full pipeline on the committed SPARC CSV and
+    verify known numerical results.  Any accidental change to the data file or
+    the statistics logic will be caught here.
+    """
+
+    def test_fixture_csv_exists(self):
+        assert _SPARC_CSV.exists(), (
+            f"SPARC fixture not found: {_SPARC_CSV}\n"
+            "The file data/sparc_subset.csv must be present in the repository."
+        )
+
+    def test_fixture_has_expected_row_count(self):
+        df = pd.read_csv(_SPARC_CSV)
+        assert len(df) == _N_TOTAL
+
+    def test_fixture_has_required_columns(self):
+        df = pd.read_csv(_SPARC_CSV)
+        for col in ("galaxy", "logM", "delta_mass_std", "slope_tail"):
+            assert col in df.columns
+
+    def test_fixture_no_duplicates(self):
+        df = pd.read_csv(_SPARC_CSV)
+        assert df["galaxy"].duplicated().sum() == 0
+
+    def test_fixture_no_nulls_in_required_cols(self):
+        df = pd.read_csv(_SPARC_CSV)
+        for col in ("logM", "delta_mass_std", "slope_tail"):
+            assert df[col].isna().sum() == 0
+
+    def test_median_logM(self):
+        df = pd.read_csv(_SPARC_CSV)
+        assert float(df["logM"].median()) == _MEDIAN_LOGM
+
+    def test_subsample_sizes(self, tmp_path):
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        assert result["stats_low"]["n"] == _N_LOW
+        assert result["stats_high"]["n"] == _N_HIGH
+
+    def test_total_n_equals_79(self, tmp_path):
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        total = result["stats_low"]["n"] + result["stats_high"]["n"]
+        assert total == _N_TOTAL
+
+    def test_high_mass_rho_significant_negative(self, tmp_path):
+        """High-mass panel must show a significant negative environment signal."""
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        stats = result["stats_high"]
+        assert stats["rho"] == _RHO_HIGH
+        assert stats["rho"] < 0, "High-mass rho must be negative"
+        assert stats["p_spear"] < 0.01, "High-mass Spearman p must be < 0.01"
+
+    def test_high_mass_p_value(self, tmp_path):
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        assert result["stats_high"]["p_spear"] == _P_HIGH
+
+    def test_high_mass_ols_slope(self, tmp_path):
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        assert result["stats_high"]["ols_slope"] == _SLOPE_HIGH
+
+    def test_low_mass_rho(self, tmp_path):
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        assert result["stats_low"]["rho"] == _RHO_LOW
+
+    def test_low_mass_signal_not_significant(self, tmp_path):
+        """Low-mass panel must NOT show a significant correlation (p > 0.05)."""
+        result = main(["--csv", str(_SPARC_CSV), "--out", str(tmp_path / "fig.png")])
+        assert result["stats_low"]["p_spear"] > 0.05
+
+    def test_default_csv_path_points_to_fixture(self):
+        """The script default --csv must resolve to the committed fixture."""
+        args = _parse_args([])
+        assert Path(args.csv).resolve() == _SPARC_CSV.resolve()
+
+    def test_figure_files_created(self, tmp_path):
+        out = tmp_path / "SPARC_split_mass_environment.png"
+        main(["--csv", str(_SPARC_CSV), "--out", str(out)])
+        assert out.exists()
+        assert out.with_suffix(".pdf").exists()

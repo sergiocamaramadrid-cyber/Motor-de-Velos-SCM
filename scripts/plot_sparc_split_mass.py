@@ -45,6 +45,8 @@ from scipy.stats import linregress, spearmanr
 
 BETA_REF: float = 0.5          # SCM / MOND reference outer-disk slope
 _REQUIRED_COLS = {"slope_tail", "logM", "delta_mass_std"}
+_REPO_ROOT = Path(__file__).parent.parent
+_CSV_DEFAULT = str(_REPO_ROOT / "data" / "sparc_subset.csv")
 _OUT_DEFAULT = "SPARC_split_mass_environment.png"
 
 # ---------------------------------------------------------------------------
@@ -298,8 +300,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         )
     )
     parser.add_argument(
-        "--csv", default="sparc_subset.csv",
-        help="Path to per-galaxy catalog CSV (default: sparc_subset.csv).",
+        "--csv", default=_CSV_DEFAULT,
+        help="Path to per-galaxy catalog CSV (default: data/sparc_subset.csv).",
     )
     parser.add_argument(
         "--out", default=_OUT_DEFAULT,
