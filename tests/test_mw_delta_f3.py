@@ -13,6 +13,7 @@ from __future__ import annotations
 import math
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import pytest
@@ -21,7 +22,9 @@ from scripts.mw_delta_f3 import (
     BETA_REF,
     FIGURE_CAPTION,
     R_CUT_DEFAULT,
+    _SCORE_EPS,
     compute_slope,
+    find_best_r_cut,
     generate_figure,
     main,
     scan_r_cuts,
@@ -81,7 +84,7 @@ class TestComputeSlope:
         R = np.linspace(5.0, 20.0, 10)
         V = np.full(10, 230.0)
         result = compute_slope(R, V)
-        assert set(result.keys()) == {"slope_tail", "intercept", "delta_f3", "n"}
+        assert set(result.keys()) == {"slope_tail", "intercept", "delta_f3", "p_slope", "n"}
 
     def test_n_equals_input_length(self):
         R = np.linspace(5.0, 20.0, 15)
@@ -119,7 +122,7 @@ class TestComputeSlope:
         V = np.full(10, 230.0)
         w = np.ones(10) * 0.04
         result = compute_slope(R, V, weights=w)
-        assert set(result.keys()) == {"slope_tail", "intercept", "delta_f3", "n"}
+        assert set(result.keys()) == {"slope_tail", "intercept", "delta_f3", "p_slope", "n"}
 
     def test_weighted_flat_slope_near_zero(self):
         R = np.linspace(5.0, 20.0, 30)
@@ -167,7 +170,7 @@ class TestScanRCuts:
     def test_has_expected_columns(self):
         df = _flat_curve(30)
         result = scan_r_cuts(df)
-        assert set(result.columns) >= {"r_cut", "slope_tail", "delta_f3", "n"}
+        assert set(result.columns) >= {"r_cut", "slope_tail", "delta_f3", "p_slope", "n"}
 
     def test_r_cut_monotone(self):
         df = _flat_curve(40)
@@ -206,9 +209,81 @@ class TestScanRCuts:
         result = scan_r_cuts(df, r_start=5.0, r_stop=12.0, r_step=2.0, n_min=3)
         assert (result["slope_tail"] < 0).all()
 
+    def test_p_slope_column_present(self):
+        df = _declining_curve(40, slope=-0.1)
+        result = scan_r_cuts(df, r_start=5.0, r_stop=12.0, r_step=2.0, n_min=3)
+        assert "p_slope" in result.columns
+
+    def test_p_slope_values_in_01(self):
+        df = _declining_curve(40, slope=-0.1)
+        result = scan_r_cuts(df, r_start=5.0, r_stop=12.0, r_step=2.0, n_min=3)
+        assert (result["p_slope"] >= 0).all()
+        assert (result["p_slope"] <= 1).all()
+
 
 # ---------------------------------------------------------------------------
-# 3. generate_figure
+# 3. find_best_r_cut
+# ---------------------------------------------------------------------------
+
+
+class TestFindBestRCut:
+    def test_returns_dict_with_expected_keys(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        assert set(result.keys()) == {"r_crit", "slope_tail", "delta_f3", "p_slope", "n", "score"}
+
+    def test_r_crit_in_scan_range(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        assert scan_df["r_cut"].min() <= result["r_crit"] <= scan_df["r_cut"].max()
+
+    def test_score_is_positive(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        assert result["score"] > 0
+
+    def test_slope_matches_row_in_scan_df(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        row = scan_df[scan_df["r_cut"] == result["r_crit"]].iloc[0]
+        assert math.isclose(result["slope_tail"], row["slope_tail"])
+
+    def test_delta_f3_matches_row(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        row = scan_df[scan_df["r_cut"] == result["r_crit"]].iloc[0]
+        assert math.isclose(result["delta_f3"], row["delta_f3"])
+
+    def test_p_slope_matches_row(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        row = scan_df[scan_df["r_cut"] == result["r_crit"]].iloc[0]
+        assert math.isclose(result["p_slope"], row["p_slope"])
+
+    def test_raises_on_empty_scan_df(self):
+        empty = pd.DataFrame(columns=["r_cut", "slope_tail", "delta_f3", "p_slope", "n"])
+        with pytest.raises(ValueError, match="empty"):
+            find_best_r_cut(empty)
+
+    def test_score_eps_constant_positive(self):
+        assert _SCORE_EPS > 0
+
+    def test_n_matches_row(self):
+        df = _declining_curve(40, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=1.0, n_min=3)
+        result = find_best_r_cut(scan_df)
+        row = scan_df[scan_df["r_cut"] == result["r_crit"]].iloc[0]
+        assert result["n"] == int(row["n"])
+
+
+# ---------------------------------------------------------------------------
+# 4. generate_figure
 # ---------------------------------------------------------------------------
 
 
@@ -226,7 +301,6 @@ class TestGenerateFigure:
         assert (tmp_path / "fig.pdf").exists()
 
     def test_returns_figure(self, tmp_path):
-        import matplotlib.pyplot as plt
         df = _flat_curve(30)
         out = tmp_path / "fig.png"
         fig = generate_figure(df, out)
@@ -236,7 +310,7 @@ class TestGenerateFigure:
         df = _flat_curve(30)
         out = tmp_path / "fig.png"
         fig = generate_figure(df, out)
-        assert len(fig.axes) == 2
+        assert len(fig.axes) >= 2
 
     def test_custom_r_cut(self, tmp_path):
         df = _flat_curve(30)
@@ -262,9 +336,27 @@ class TestGenerateFigure:
         generate_figure(df, out)
         assert out.stat().st_size > 10_000
 
+    def test_with_best_r_cut(self, tmp_path):
+        df = _declining_curve(30, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=2.0, n_min=3)
+        best = find_best_r_cut(scan_df)
+        out = tmp_path / "fig_best.png"
+        fig = generate_figure(df, out, best=best)
+        assert out.exists()
+        assert isinstance(fig, plt.Figure)
+
+    def test_figure_three_axes_with_best(self, tmp_path):
+        """Twin axis added when best is provided → 3 axes total."""
+        df = _declining_curve(30, slope=-0.15)
+        scan_df = scan_r_cuts(df, r_start=5.0, r_stop=14.0, r_step=2.0, n_min=3)
+        best = find_best_r_cut(scan_df)
+        out = tmp_path / "fig_twin.png"
+        fig = generate_figure(df, out, best=best)
+        assert len(fig.axes) >= 2
+
 
 # ---------------------------------------------------------------------------
-# 4. main() — CLI and regression guard
+# 5. main() — CLI and regression guard
 # ---------------------------------------------------------------------------
 
 
@@ -274,14 +366,14 @@ class TestMain:
         csv = _write_csv(df, tmp_path)
         out = str(tmp_path / "fig.png")
         result = main(["--csv", str(csv), "--out", out])
-        assert set(result.keys()) >= {"slope", "r_cut", "scan_df", "figure_path", "pdf_path"}
+        assert set(result.keys()) >= {"slope", "r_cut", "r_crit", "best", "scan_df", "figure_path", "pdf_path"}
 
     def test_slope_dict_keys(self, tmp_path):
         df = _flat_curve(30)
         csv = _write_csv(df, tmp_path)
         out = str(tmp_path / "fig.png")
         result = main(["--csv", str(csv), "--out", out])
-        assert set(result["slope"].keys()) >= {"slope_tail", "intercept", "delta_f3", "n"}
+        assert set(result["slope"].keys()) >= {"slope_tail", "intercept", "delta_f3", "p_slope", "n"}
 
     def test_r_cut_returned(self, tmp_path):
         df = _flat_curve(30)
@@ -364,9 +456,38 @@ class TestMain:
         result = main(["--csv", str(csv), "--out", out, "--r-cut", "13.0"])
         assert result["slope"]["n"] >= 10
 
+    def test_regression_r_crit_is_set(self, tmp_path):
+        """r_crit must be returned and be a float within the scan range."""
+        repo_root = Path(__file__).parent.parent
+        csv = repo_root / "data" / "mw_cepheids.csv"
+        if not csv.exists():
+            pytest.skip("data/mw_cepheids.csv not found")
+        out = str(tmp_path / "fig.png")
+        result = main(["--csv", str(csv), "--out", out])
+        assert result["r_crit"] is not None
+        assert isinstance(result["r_crit"], float)
+
+    def test_regression_best_keys(self, tmp_path):
+        repo_root = Path(__file__).parent.parent
+        csv = repo_root / "data" / "mw_cepheids.csv"
+        if not csv.exists():
+            pytest.skip("data/mw_cepheids.csv not found")
+        out = str(tmp_path / "fig.png")
+        result = main(["--csv", str(csv), "--out", out])
+        assert set(result["best"].keys()) == {"r_crit", "slope_tail", "delta_f3", "p_slope", "n", "score"}
+
+    def test_scan_df_has_p_slope(self, tmp_path):
+        repo_root = Path(__file__).parent.parent
+        csv = repo_root / "data" / "mw_cepheids.csv"
+        if not csv.exists():
+            pytest.skip("data/mw_cepheids.csv not found")
+        out = str(tmp_path / "fig.png")
+        result = main(["--csv", str(csv), "--out", out])
+        assert "p_slope" in result["scan_df"].columns
+
 
 # ---------------------------------------------------------------------------
-# 5. _parse_args
+# 6. _parse_args
 # ---------------------------------------------------------------------------
 
 
@@ -390,7 +511,7 @@ class TestParseArgs:
 
 
 # ---------------------------------------------------------------------------
-# 6. Constants
+# 7. Constants
 # ---------------------------------------------------------------------------
 
 

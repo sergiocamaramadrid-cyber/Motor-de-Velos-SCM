@@ -54,6 +54,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from scipy.stats import linregress
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -66,9 +67,11 @@ BETA_REF: float = 0.5
 R_CUT_DEFAULT: float = 13.0
 
 R_START_DEFAULT: float = 8.0
-R_STOP_DEFAULT: float = 18.0
+R_STOP_DEFAULT: float = 20.0
 R_STEP_DEFAULT: float = 0.5
 N_MIN_DEFAULT: int = 5
+
+_SCORE_EPS: float = 1e-10
 
 _REQUIRED_COLS = {"R_kpc", "Vc_kms"}
 _REPO_ROOT = Path(__file__).parent.parent
@@ -117,6 +120,7 @@ def compute_slope(
         slope_tail    — d log Vc / d log R
         intercept     — log-space intercept (log10 Vc at log10 R = 0)
         delta_f3      — slope_tail − 0.5
+        p_slope       — two-sided p-value for H₀: slope = 0 (unweighted OLS)
         n             — number of data points
     """
     R = np.asarray(R, dtype=float)
@@ -130,8 +134,7 @@ def compute_slope(
 
     if weights is not None:
         w = np.asarray(weights, dtype=float)
-        # Weighted polyfit: numpy doesn't support weights in polyfit for degree>0
-        # Use explicit normal equations for degree-1 polynomial
+        # Weighted OLS via normal equations for degree-1 polynomial
         sw = w.sum()
         sx = (w * logR).sum()
         sy = (w * logV).sum()
@@ -147,10 +150,15 @@ def compute_slope(
 
     delta_f3 = float(slope_tail) - BETA_REF
 
+    # Unweighted p-value for H₀: slope = 0 via scipy linregress
+    lr = linregress(logR, logV)
+    p_slope = float(lr.pvalue)
+
     return {
         "slope_tail": float(slope_tail),
         "intercept": float(intercept),
         "delta_f3": delta_f3,
+        "p_slope": p_slope,
         "n": int(len(R)),
     }
 
@@ -162,7 +170,7 @@ def scan_r_cuts(
     r_step: float = R_STEP_DEFAULT,
     n_min: int = N_MIN_DEFAULT,
 ) -> pd.DataFrame:
-    """Scan outer-region cuts and return slope_tail/delta_f3 for each.
+    """Scan outer-region cuts and return slope_tail/delta_f3/p_slope for each.
 
     Parameters
     ----------
@@ -175,7 +183,7 @@ def scan_r_cuts(
 
     Returns
     -------
-    DataFrame with columns: r_cut, slope_tail, delta_f3, n.
+    DataFrame with columns: r_cut, slope_tail, delta_f3, p_slope, n.
     """
     has_err = "e_Vc" in df.columns
     rows = []
@@ -200,10 +208,55 @@ def scan_r_cuts(
                 "r_cut": float(r_cut),
                 "slope_tail": res["slope_tail"],
                 "delta_f3": res["delta_f3"],
+                "p_slope": res["p_slope"],
                 "n": res["n"],
             }
         )
     return pd.DataFrame(rows)
+
+
+def find_best_r_cut(scan_df: pd.DataFrame) -> dict:
+    """Find the R_cut that maximises the signal score in the radial scan.
+
+    The score rewards a steep negative slope, a large sample, and high
+    statistical significance::
+
+        score = |slope_tail| * sqrt(N) * (-log10(p_slope + eps))
+
+    Parameters
+    ----------
+    scan_df : DataFrame
+        Output of :func:`scan_r_cuts` (must have ``r_cut``, ``slope_tail``,
+        ``p_slope``, ``n`` columns).
+
+    Returns
+    -------
+    dict with keys:
+        r_crit      — R_cut with highest score
+        slope_tail  — slope at R_crit
+        delta_f3    — delta_f3 at R_crit
+        p_slope     — p-value at R_crit
+        n           — sample size at R_crit
+        score       — composite score at R_crit
+    """
+    if scan_df.empty:
+        raise ValueError("scan_df is empty; cannot find best R_cut.")
+
+    scores = (
+        scan_df["slope_tail"].abs()
+        * np.sqrt(scan_df["n"])
+        * (-np.log10(scan_df["p_slope"] + _SCORE_EPS))
+    )
+    idx = scores.idxmax()
+    row = scan_df.loc[idx]
+    return {
+        "r_crit": float(row["r_cut"]),
+        "slope_tail": float(row["slope_tail"]),
+        "delta_f3": float(row["delta_f3"]),
+        "p_slope": float(row["p_slope"]),
+        "n": int(row["n"]),
+        "score": float(scores[idx]),
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -215,6 +268,7 @@ def generate_figure(
     df: pd.DataFrame,
     out_path: str | Path,
     r_cut: float = R_CUT_DEFAULT,
+    best: dict | None = None,
 ) -> plt.Figure:
     """Generate the two-panel MW rotation-curve figure and save PNG + PDF.
 
@@ -225,7 +279,11 @@ def generate_figure(
     out_path : str or Path
         Destination PNG file.  A sibling PDF is saved automatically.
     r_cut : float
-        Outer-region radius cut in kpc.
+        Outer-region radius cut in kpc (used for left panel and as default
+        scan reference).
+    best : dict or None
+        Optional output of :func:`find_best_r_cut`.  If provided, the best
+        R_crit is highlighted on the right panel.
 
     Returns
     -------
@@ -289,7 +347,7 @@ def generate_figure(
     ax.set_title("Milky Way — Cepheid rotation curve", fontsize=11)
     ax.legend(fontsize=8)
 
-    # --- Right panel: slope_tail & delta_f3 vs r_cut ---
+    # --- Right panel: slope_tail & delta_f3 vs r_cut, with p_slope twin ---
     ax2 = axes[1]
     if not scan_df.empty:
         ax2.plot(scan_df["r_cut"], scan_df["slope_tail"], "o-",
@@ -299,14 +357,32 @@ def generate_figure(
         ax2.axhline(0, color="black", lw=0.8, ls=":")
         ax2.axvline(r_cut, color="gray", lw=0.8, ls="--", alpha=0.6,
                     label=f"Default cut ({r_cut:.0f} kpc)")
+
+        if best is not None:
+            ax2.axvline(best["r_crit"], color="darkorange", lw=1.5, ls="-",
+                        label=f"R_crit = {best['r_crit']:.1f} kpc")
+
+        # Twin axis for -log10(p_slope)
+        ax2b = ax2.twinx()
+        neg_log_p = -np.log10(scan_df["p_slope"] + _SCORE_EPS)
+        ax2b.plot(scan_df["r_cut"], neg_log_p, "^:", color="purple",
+                  ms=4, alpha=0.7, label=r"$-\log_{10}(p)$")
+        ax2b.set_ylabel(r"$-\log_{10}(p_\mathrm{slope})$", fontsize=9,
+                        color="purple")
+        ax2b.tick_params(axis="y", labelcolor="purple")
+
         ax2.set_xlabel("$R_\\mathrm{cut}$ (kpc)", fontsize=11)
         ax2.set_ylabel("Value", fontsize=11)
         ax2.set_title("Radial scan", fontsize=11)
-        ax2.legend(fontsize=8)
+
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        lines2b, labels2b = ax2b.get_legend_handles_labels()
+        ax2.legend(lines2 + lines2b, labels2 + labels2b, fontsize=7)
 
     fig.tight_layout()
     fig.savefig(out_path, dpi=150)
     fig.savefig(out_path.with_suffix(".pdf"))
+    plt.close(fig)
     return fig
 
 
@@ -340,8 +416,10 @@ def main(argv: list[str] | None = None) -> dict:
     Returns
     -------
     dict with keys:
-        slope          — compute_slope result dict
-        r_cut          — outer-region cut used
+        slope          — compute_slope result dict (at r_cut)
+        r_cut          — outer-region cut used for left panel
+        r_crit         — data-driven best R_cut from radial scan
+        best           — find_best_r_cut result dict
         scan_df        — DataFrame from scan_r_cuts
         figure_path    — Path to the saved PNG
         pdf_path       — Path to the saved PDF
@@ -379,21 +457,39 @@ def main(argv: list[str] | None = None) -> dict:
 
     slope_result = compute_slope(sub["R_kpc"].values, sub["Vc_kms"].values, weights)
     scan_df = scan_r_cuts(df)
+    best = find_best_r_cut(scan_df) if not scan_df.empty else None
 
     out_path = Path(args.out)
-    generate_figure(df, out_path, args.r_cut)
+    generate_figure(df, out_path, args.r_cut, best=best)
     pdf_path = out_path.with_suffix(".pdf")
 
     print("\nRESULTADO MW (Cefeidas)")
-    print(f"R_cut        = {args.r_cut:.1f} kpc")
+    print(f"R_cut        = {args.r_cut:.1f} kpc  (used for figure)")
     print(f"N (outer)    = {slope_result['n']}")
     print(f"slope_tail   = {slope_result['slope_tail']:.4f}")
+    print(f"p_slope      = {slope_result['p_slope']:.3e}")
     print(f"delta_F3_MW  = {slope_result['delta_f3']:.4f}")
-    print(f"Figure saved as '{out_path}' and '{pdf_path}'")
+
+    if best is not None:
+        print(f"\nRADIAL SCAN — R_crit (max score)")
+        print(f"R_crit       = {best['r_crit']:.1f} kpc")
+        print(f"slope_tail   = {best['slope_tail']:.4f}")
+        print(f"p_slope      = {best['p_slope']:.3e}")
+        print(f"delta_F3     = {best['delta_f3']:.4f}")
+        print(f"N            = {best['n']}")
+
+    print(f"\nSCAN TABLE (R_start={R_START_DEFAULT:.0f}, R_stop={R_STOP_DEFAULT:.0f} kpc):")
+    if not scan_df.empty:
+        print(scan_df.to_string(index=False,
+                                float_format=lambda x: f"{x:.4f}"))
+
+    print(f"\nFigure saved as '{out_path}' and '{pdf_path}'")
 
     return {
         "slope": slope_result,
         "r_cut": args.r_cut,
+        "r_crit": best["r_crit"] if best else None,
+        "best": best,
         "scan_df": scan_df,
         "figure_path": out_path,
         "pdf_path": pdf_path,
