@@ -139,6 +139,31 @@ The high-mass regime shows a significant negative environmental dependence; the
 low-mass regime does not.  Both results are protected by regression tests in
 `tests/test_plot_sparc_split_mass.py` (56 tests).
 
+### SPARC Subset — Mass Threshold Scan
+
+For a data-driven search of the optimal logM cut, use the threshold scan script.
+It sweeps logM cuts from 10.0 to 11.3 (step 0.05), computes Spearman ρ for
+galaxies with `logM ≥ m_cut`, and identifies the cut that maximises the
+composite signal score `|ρ| × √N × (−log₁₀ p)`.
+
+```bash
+python scripts/plot_sparc_mass_scan.py
+# or with explicit paths and custom range:
+python scripts/plot_sparc_mass_scan.py \
+  --csv data/sparc_subset.csv \
+  --out results/sparc_mass_scan.png \
+  --m-start 10.0 --m-stop 11.3 --m-step 0.05 --n-min 15
+```
+
+Key result on the committed 79-galaxy catalog:
+
+| logM cut | N  | ρ (Spearman) | p-value | Score |
+|---|---|---|---|---|
+| **10.05** (best) | 56 | **−0.48** | **1.8 × 10⁻⁴** | 13.46 |
+
+All 21 evaluated cuts show ρ < 0 and p < 0.05.  Results are protected by
+regression tests in `tests/test_plot_sparc_mass_scan.py` (51 tests).
+
 ---
 
 ### Deep-Regime Slope Diagnostic
