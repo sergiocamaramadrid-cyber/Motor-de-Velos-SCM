@@ -94,8 +94,9 @@ Notes:
 
 ## Data Policy
 
-Raw datasets (e.g., SPARC, LITTLE THINGS) are **not versioned**.  
+Raw datasets (e.g., full SPARC catalogue, LITTLE THINGS) are **not versioned**.  
 Generated results are **not versioned**.  
+Small curated fixtures (e.g., `data/sparc_subset.csv`, N = 79) **are versioned**.  
 Download and preprocessing scripts are provided for reproducibility.  
 See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
 
@@ -110,6 +111,35 @@ python scripts/process_sparc.py \
   --input data/SPARC/sparc_raw.csv \
   --out results/SPARC/rotation_curves-v1.0.csv
 ```
+
+### SPARC Subset — Split-by-Mass Environmental Analysis
+
+A curated subset of 79 SPARC galaxies (`data/sparc_subset.csv`) is committed to
+the repository for fully reproducible environmental analyses.  Duplicates have
+been removed; columns: `galaxy`, `logM`, `delta_mass_std`, `slope_tail`.
+
+Generate the two-panel δF₃ vs δ_mass,std figure split at the sample median of logM:
+
+```bash
+python scripts/plot_sparc_split_mass.py
+# or with explicit paths:
+python scripts/plot_sparc_split_mass.py \
+  --csv data/sparc_subset.csv \
+  --out results/SPARC_split_mass_environment.png
+```
+
+Key results (N = 79, median logM ≈ 10.64):
+
+| Subsample | N  | ρ (Spearman) | p-value |
+|---|---|---|---|
+| Low mass (logM < 10.64)  | 39 | −0.15 | 0.36 (n.s.) |
+| High mass (logM ≥ 10.64) | 40 | **−0.49** | **0.001** |
+
+The high-mass regime shows a significant negative environmental dependence; the
+low-mass regime does not.  Both results are protected by regression tests in
+`tests/test_plot_sparc_split_mass.py` (56 tests).
+
+---
 
 ### Deep-Regime Slope Diagnostic
 
