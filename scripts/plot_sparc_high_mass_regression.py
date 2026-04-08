@@ -55,6 +55,16 @@ from scipy.stats import spearmanr
 BETA_REF: float = 0.5
 M_CRIT_DEFAULT: float = 10.05
 
+#: Official figure caption for use in paper drafts and supplementary material.
+FIGURE_CAPTION: str = (
+    "Figure X. Environmental modulation of the outer rotation curve slope in the "
+    "high-mass regime (logM \u2265 10.05). Each point represents a galaxy from the "
+    "SPARC subset (N\u202f=\u202f56). The solid line shows the OLS fit with HC3 robust "
+    "errors. A negative slope is observed, indicating that galaxies in denser "
+    "environments exhibit more negative \u0394F\u2083 values. No equivalent correlation "
+    "is found in the low-mass regime."
+)
+
 _REQUIRED_COLS = {"slope_tail", "logM", "delta_mass_std"}
 _REPO_ROOT = Path(__file__).parent.parent
 _CSV_DEFAULT = str(_REPO_ROOT / "data" / "sparc_subset.csv")

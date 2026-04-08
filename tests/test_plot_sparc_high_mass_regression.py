@@ -19,6 +19,7 @@ import pytest
 
 from scripts.plot_sparc_high_mass_regression import (
     BETA_REF,
+    FIGURE_CAPTION,
     M_CRIT_DEFAULT,
     compute_stats,
     generate_figure,
@@ -246,6 +247,18 @@ class TestMain:
 
     def test_m_crit_default_is_10_05(self):
         assert M_CRIT_DEFAULT == pytest.approx(10.05)
+
+    def test_figure_caption_is_string(self):
+        assert isinstance(FIGURE_CAPTION, str)
+
+    def test_figure_caption_mentions_n56(self):
+        assert "56" in FIGURE_CAPTION
+
+    def test_figure_caption_mentions_hc3(self):
+        assert "HC3" in FIGURE_CAPTION
+
+    def test_figure_caption_mentions_negative_slope(self):
+        assert "negative" in FIGURE_CAPTION.lower()
 
     # ------------------------------------------------------------------
     # Regression guard — real data
