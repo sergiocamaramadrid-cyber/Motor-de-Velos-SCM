@@ -1,3 +1,23 @@
+# Archivos de datos
+
+## mw_cepheids.csv
+
+Muestra de Cefeidas de la Vía Láctea usada en el pipeline principal SCM.
+Columnas: `R_kpc`, `Vc_kms`, `e_Vc`, `source`.
+Generado a partir de Gaia DR3 + compilaciones de la literatura.
+Consumido por `scripts/mw_delta_f3.py`.
+
+## mw_gaia_master_AB.csv (no incluido)
+
+Archivo generado localmente en Colab a partir de consultas directas a Gaia DR3,
+usado únicamente para un test exploratorio de anisotropía hemisférica (hemisferio
+A vs. B en coordenadas galácticas).  **No forma parte del pipeline principal ni
+del conjunto de datos del paper.**  Se excluye del repositorio intencionalmente
+(véase `.gitignore`); puede regenerarse desde Gaia Archive si se necesita repetir
+el test.
+
+---
+
 # Datos SPARC
 
 Los datos del catálogo SPARC (Spitzer Photometry & Accurate Rotation Curves,

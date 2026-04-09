@@ -24,6 +24,8 @@ env/
 # Data (large files not tracked)
 data/SPARC/raw/
 data/SPARC/processed/
+# Local Colab exploratory file — Gaia DR3 hemispheric anisotropy test; not part of the paper pipeline
+data/mw_gaia_master_AB.csv
 
 # Generated analysis outputs (created by running analysis scripts)
 results/littlethings_dust/
