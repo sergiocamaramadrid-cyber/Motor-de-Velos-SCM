@@ -1,0 +1,54 @@
+{
+  "input_csv": "results/paper1_environment/data/galaxy_catalog_with_env.csv",
+  "n_total_clean": 155,
+  "columns": {
+    "mass_col": "logMbar",
+    "env_col": "env_proxy",
+    "slope_col": "slope_tail"
+  },
+  "cuts": {
+    "low_cut": 10.0,
+    "high_cut": 10.1
+  },
+  "low_regime": {
+    "label": "low_mass",
+    "threshold_rule": "logMbar < 10.0",
+    "n": 34,
+    "rho_spearman": -0.08999236058059586,
+    "p_value": 0.6127565629645503
+  },
+  "high_regime": {
+    "label": "high_mass",
+    "threshold_rule": "logMbar > 10.1",
+    "n": 117,
+    "rho_spearman": 0.11864406779661016,
+    "p_value": 0.20264272590844218
+  },
+  "fisher_comparison": {
+    "z1": -0.09023648605746865,
+    "z2": 0.11920551172249907,
+    "se_diff": 0.20255861951714232,
+    "z_stat": -1.0339821542980197,
+    "p_two_sided": 0.30114450606407583,
+    "n1": 34,
+    "n2": 117
+  },
+  "bootstrap_high": {
+    "n_boot": 10000,
+    "rho_observed": 0.11864406779661016,
+    "ci95_low": -0.0668735345581328,
+    "ci95_high": 0.29913527506324256,
+    "frac_negative": 0.1042
+  },
+  "hc3_high": {
+    "available": true,
+    "n": 117,
+    "beta_env": 0.2624770981307411,
+    "beta_env_se_hc3": 0.1701348352941314,
+    "beta_env_t_hc3": 1.5427592925162397,
+    "beta_env_p_hc3": 0.122889189725917,
+    "r2": 0.02004136644477139,
+    "adj_r2": 0.01151998702255208
+  },
+  "scan_csv": "results/scm_tr/mass_scan.csv"
+}

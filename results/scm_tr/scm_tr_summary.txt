@@ -1,0 +1,30 @@
+SCM-TR regime test summary
+================================
+
+Low-mass regime
+  Rule: logMbar < 10.0
+  N: 34
+  Spearman rho: -0.089992
+  p-value: 0.612757
+
+High-mass regime
+  Rule: logMbar > 10.1
+  N: 117
+  Spearman rho: 0.118644
+  p-value: 0.202643
+
+Fisher comparison
+  z_stat: -1.033982
+  p_two_sided: 0.301145
+
+Bootstrap (high-mass regime)
+  n_boot: 10000
+  rho_observed: 0.118644
+  CI95: [-0.066874, 0.299135]
+  frac_negative: 0.104200
+
+HC3 robust OLS (high-mass regime)
+  beta_env: 0.262477
+  beta_env_se_hc3: 0.170135
+  beta_env_p_hc3: 0.122889
+  r2: 0.020041
