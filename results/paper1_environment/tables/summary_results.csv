@@ -1,0 +1,4 @@
+subset,n,rho_spearman,p_spearman,mass_threshold
+global,79,-0.2839,0.011225,
+low_mass,48,-0.1079,0.4654,logM < 10.6
+high_mass,31,-0.3968,0.0271,logM >= 10.6
