@@ -1,186 +1,186 @@
 # Motor-de-Velos-SCM
 
-## Historical Context / Contexto histórico
+**Author:** Sergio Cámara Madrid  
+**Master repository** — single source of truth for all scripts, data, results, and documentation.
 
-Author: Sergio Cámara Madrid  
-Consolidation date: 2026-02-12
-
-This repository preserves the conceptual origins of the SCM — Motor de Velos (Fluid Condensation Model). The historical note is maintained for provenance and attribution; all scientific claims and evaluations are supported by reproducible analyses, documented statistical protocols, and versioned code.
-
-For the full historical and conceptual background, see:
-`docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`
-
-The remainder of this README focuses on the reproducible computational framework and instructions to run the evaluation pipelines.
+For the historical and conceptual background of the SCM (Motor de Velos; Fluid Condensation Model) see
+`docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`.
 
 ---
 
 ## Overview
 
-Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation) model. The repository implements end-to-end workflows from raw data preprocessing to model comparison and diagnostic reporting.
+Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under
+the SCM model. Three independent analysis blocks form the core of the evidence:
 
-Core capabilities
-- Deterministic data processing pipelines with explicit preprocessing steps.
-- Fixed, pre‑specified out‑of‑sample (OOS) validation using radial splits (no post‑hoc tuning).
-- Model comparison using the corrected Akaike Information Criterion (AICc).
-- Diagnostic tests for deep‑regime slope behaviour and other targeted hypotheses.
-- Versioned, machine‑readable outputs and logging to support audit and replication.
+| Block | Description | Key script | Key result |
+|-------|-------------|-----------|------------|
+| **SPARC environment** | Environmental modulation of outer-disk slopes across ~175 late-type galaxies | `scripts/scm_tr_regime_test.py` | `results/main/scm_tr_summary.csv` |
+| **Yang cross-match** | Replication in the Yang et al. 2007 group catalogue (~89 galaxies) | `scripts/scm_tr_regime_test.py` | `results/yang/scm_tr_yang_dataset.csv` |
+| **Gaia / MW shield** | Milky Way Cepheid outer rotation curve (Gaia DR3, 21 control points) | `scripts/mw_delta_f3.py` | `results/gaia/mw_radial_scan.csv` |
 
-Design goals
-- Reproducible: reproducible runs should record input checksums and git commit hashes when generating results.
-- Deterministic: deterministic preprocessing and evaluation steps.
-- Audit-friendly: clear inputs/outputs and diagnostics.
-- Version-controlled: code and analysis scripts tracked in the repository.
+Full results and interpretation: `docs/paper1/SCM_TR_results.md`
 
 ---
 
 ## Repository structure
 
-The repository is organized as follows:
+```
+Motor-de-Velos-SCM/
+├── README.md
+├── requirements.txt
+├── .github/workflows/          # CI (ci.yml, sparc_validation.yml)
+├── data/
+│   ├── raw/                    # Unmodified source data (LITTLE THINGS, Gaia)
+│   ├── processed/              # Clean, pipeline-ready CSVs
+│   └── README.md
+├── results/
+│   ├── diagnostics/            # Model-comparison and deep-slope diagnostics
+│   ├── main/                   # Primary SPARC SCM-TR results
+│   ├── yang/                   # Yang 2007 cross-match results
+│   ├── gaia/                   # MW Gaia radial-scan results
+│   ├── scm_environment/        # Environment-proxy sensitivity outputs
+│   ├── scm_oos/                # Out-of-sample validation outputs
+│   ├── extreme_25/             # Extreme-quartile sub-sample outputs
+│   ├── delta_f3/               # Delta-F3 catalog and analysis outputs
+│   ├── paper1_environment/     # Paper-1 environment-block final figures and tables
+│   ├── blind_test_lt/          # LITTLE THINGS blind-test outputs
+│   └── lt_dust_hinge/          # LITTLE THINGS dust-hinge analysis
+├── scripts/                    # Canonical entry-point scripts (see below)
+├── src/                        # Core library modules (scm_analysis, scm_models, sensitivity)
+├── tests/                      # pytest test suite
+└── docs/
+    ├── paper1/                 # Paper-1 manuscript assets
+    │   ├── SCM_TR_results.md   # Three-shield test results (main reference)
+    │   ├── abstract.md
+    │   ├── methods_delta_mass.md
+    │   ├── results_summary.md
+    │   └── figures/
+    └── notes/                  # Working notes and hypothesis documents
+```
 
-- src/: Core model implementations and analysis modules (Python package layout).
-- scripts/: CLI-style scripts for preprocessing, validation and diagnostics (e.g. scripts/process_sparc.py, scripts/deep_slope_test.py).
-- data/: Data ingestion instructions and small fixtures; large raw datasets are not included (see docs/ for data contracts).
-- results/: Generated outputs (not versioned). Follow naming convention: results/<module>/<artifact>-v<semver>.csv
-- docs/: Formal documentation, data contracts and validation protocols (machine- and reviewer-oriented).
-- notebooks/: Exploratory and validation notebooks (non-deterministic; for inspection and figure generation).
-- paper/: Manuscript figures, supplementary materials and submission assets.
-- tests/ (if present): Unit and integration tests for code and pipelines.
-- Top-level metadata: CITATION.md, LICENSE, requirements.txt, environment.yml.
+---
+
+## Canonical scripts
+
+| Script | Purpose | Default output |
+|--------|---------|----------------|
+| `scripts/scm_tr_regime_test.py` | SCM-TR three-shield test (Spearman, bootstrap, HC3, mass scan) | `results/main/scm_tr_summary.json`, `mass_scan.csv` |
+| `scripts/mw_delta_f3.py` | MW Cepheid delta-F3 pipeline with radial scan | `results/mw_delta_f3.{png,pdf}` |
+| `scripts/plot_sparc_high_mass_regression.py` | OLS scatter figure for SPARC high-mass sub-sample | `results/scm_high_mass_regression.{png,pdf}` |
+| `scripts/build_galaxy_catalog_env.py` | Merge SPARC + slopes + env proxy into master catalog | `data/galaxy_catalog_env.csv` |
+| `scripts/compute_slope_tail.py` | Compute outer log-slope (slope_tail) for each galaxy | `results/slope_tail.csv` |
+| `scripts/mass_split_analysis.py` | Mass-split histogram and summary | `results/mass_split/` |
+| `scripts/env_mass_scan.py` | Environment x mass grid scan | `results/env_mass_scan/` |
+| `scripts/run_full_pipeline.py` | Run all four entry-point steps in sequence | — |
+| `scripts/run_pipeline.py` | Subprocess-based pipeline orchestrator (dry-run, skip flags) | — |
+| `scripts/deep_slope_test.py` | Deep-regime slope diagnostic | `results/diagnostics/deep_slope_test/` |
+| `scripts/blind_test_little_things.py` | Pre-registered out-of-sample test on LITTLE THINGS | `results/blind_test_lt/` |
 
 ---
 
 ## Installation
 
-### Requirements
-
-- Python 3.10 or later.
-- System tools: git.
-- Dependencies: see `requirements.txt`.
-- Optional: Conda environment via `environment.yml` for reproducible environments.
-
-### Setup (recommended)
-
 ```bash
 git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
 cd Motor-de-Velos-SCM
-
-# create and activate a virtual environment
 python -m venv .venv
-source .venv/bin/activate     # Windows: .venv\Scripts\activate
-
-# upgrade pip and install dependencies
-python -m pip install --upgrade pip
+source .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Optional (Conda)
+Run the test suite to verify the environment:
 
 ```bash
-conda env create -f environment.yml
-conda activate motor-de-velos
-pip install -r requirements.txt    # if additional deps are needed
+python -m pytest -q
 ```
 
-### Developer / tests (if present)
-
-- Run unit tests: `pytest`  
-- Linting/format: `pre-commit run --all-files` (if pre-commit is configured)
-
-Notes:
-- If the repository provides an installable package (setup.py / pyproject.toml), prefer `pip install -e .` for development.
-- Reproducible runs should record input checksums and git commit hashes when generating results; ensure you install dependencies in a clean environment to reproduce analyses.
-
 ---
 
-## Data Policy
+## Reproducing key results
 
-Raw datasets (e.g., SPARC, LITTLE THINGS) are **not versioned**.  
-Generated results are **not versioned**.  
-Download and preprocessing scripts are provided for reproducibility.  
-See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
-
----
-
-## Running the Framework
-
-### SPARC Validation (Example)
+### Block 1 — SPARC three-shield test
 
 ```bash
-python scripts/process_sparc.py \
-  --input data/SPARC/sparc_raw.csv \
-  --out results/SPARC/rotation_curves-v1.0.csv
+python scripts/scm_tr_regime_test.py
 ```
 
-### Deep-Regime Slope Diagnostic
+Outputs: `results/main/scm_tr_summary.json`, `results/main/mass_scan.csv`, figures.  
+Pre-computed summary: `results/main/scm_tr_summary.csv`
+
+### Block 2 — Milky Way Cepheid radial scan (Gaia DR3)
 
 ```bash
-python scripts/deep_slope_test.py \
-  --csv results/universal_term_comparison_full.csv \
-  --g0 1.2e-10 \
-  --deep-threshold 0.3 \
-  --out results/diagnostics/deep_slope_test
+python scripts/mw_delta_f3.py
+```
+
+Default R_cut = 13 kpc; result: slope_tail = -0.164, delta-F3_MW = -0.664, p = 2.65e-16.  
+Radial-scan best: R_crit = 16.5 kpc, slope = -0.197, p = 4.5e-13.  
+Pre-computed scan: `results/gaia/mw_radial_scan.csv`
+
+### Block 3 — High-mass regression figure
+
+```bash
+python scripts/plot_sparc_high_mass_regression.py
+```
+
+Output: `results/scm_high_mass_regression.{png,pdf}`
+
+### Full pipeline (all entry-point steps)
+
+```bash
+python scripts/run_full_pipeline.py
+# or with dry-run / skip options:
+python scripts/run_pipeline.py --dry-run
 ```
 
 ---
 
-## Statistical Protocol
+## Data
 
-The evaluation framework follows fixed rules:
+| File | Description | Source |
+|------|-------------|--------|
+| `data/mw_cepheids.csv` | MW Cepheid rotation-curve control points | Gaia DR3 |
+| `data/little_things_global.csv` | LITTLE THINGS global properties | Oh et al. 2015 |
+| `data/raw/lt_oh2015/` | Individual LITTLE THINGS rotation curves | Oh et al. 2015 |
+| `data/raw/lt_masses.csv` | LITTLE THINGS stellar masses | — |
+| `data/raw/lt_metals.csv` | LITTLE THINGS metallicities | — |
+| `data/raw/cigan2021_tdust.csv` | Dust temperatures (Cigan et al. 2021) | — |
 
-- Radial split OOS (no post-hoc tuning)
-- AICc-based model comparison
-- Deterministic merge contracts
-- Explicit deep-regime slope test
-- Versioned output naming
-
-Details: `docs/SPARC_EXPECTED_BEHAVIOUR.md`
-
----
-
-## Reproducibility
-
-Reproducible runs should record input checksums and git commit hashes when generating results.
-
-Each run should record:
-
-- Git commit hash  
-- Input file checksums  
-- Command-line arguments  
-- Parameter values (e.g., g0, thresholds)
-
-Outputs should be written under:
-```
-results/<module>/<artifact>-v<semver>.csv
-```
+Large raw datasets (SPARC, full Gaia) are not versioned. See `data/README.md` for download instructions.
 
 ---
 
-## Limitations
+## Statistical protocol
 
-The framework evaluates rotation-curve behavior; it does not claim cosmological completeness.  
-Statistical validation is dataset-dependent.  
-Interpretation remains separate from computational reproducibility.
+- Spearman correlation with 2000-resample bootstrap (BCa intervals).
+- OLS with HC3 heteroscedasticity-robust standard errors.
+- Fisher Z test for cross-dataset consistency.
+- Mass split at log M_bar = 10.05 solar masses (M_CRIT_DEFAULT).
+- MW: beta_ref = 0.5, R_cut_default = 13.0 kpc.
+- All pre-registered decisions documented in `docs/paper1/`.
 
 ---
 
-## Citation
+## Results summary
 
-See:
+See `docs/paper1/SCM_TR_results.md` for the full three-shield summary.
 
-- `CITATION.md`  
-- Zenodo archive (DOI when available)
+| Shield | Dataset | N | rho_Spearman | p | Consistent? |
+|--------|---------|---|-------------|---|-------------|
+| Main | SPARC | 168 | 0.418 | 0.0085 | yes |
+| Yang | Yang 2007 | 89 | 0.391 | 0.021 | yes |
+| Gaia/MW | MW Cepheids | 21 | slope = -0.164 | 2.6e-16 | yes |
 
 ---
 
 ## License
 
-Refer to the LICENSE file.
-
----
+Refer to the LICENSE file.  
+Commercial use restrictions: see `COMMERCIAL_USE.md`.
 
 ## Contact
 
 Author: Sergio Cámara Madrid  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
-
-EOF
