@@ -335,7 +335,7 @@ Residual vs env_proxy:
 # ---------------------------------------------------------------------------
 
 
-def main(argv=None) -> dict:
+def main(argv: list[str] | None = None) -> dict:
     """Orchestrate the full environmental analysis pipeline."""
     parser = argparse.ArgumentParser(
         description="Environmental correlation analysis for SPARC outer slopes."
