@@ -76,10 +76,19 @@ jobs:
           python scripts/f3_catalog_analysis.py \
             --catalog results/f3_catalog_real.csv
 
+      - name: Generate provenance token
+        if: steps.f3run.outcome == 'success'
+        run: |
+          python scripts/run_token.py \
+            --out results/run_token.json \
+            --inputs results/f3_catalog_real.csv
+
       - name: Upload F3 physical results
         if: steps.f3run.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: f3-catalog-real-${{ github.sha }}
-          path: results/f3_catalog_real.csv
+          path: |
+            results/f3_catalog_real.csv
+            results/run_token.json
           retention-days: 90
