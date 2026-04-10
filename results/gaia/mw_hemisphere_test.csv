@@ -1,0 +1,10 @@
+stat,value
+r_min_kpc,5.0
+n_north,1300.0
+n_south,1309.0
+mean_vc_north_kms,225.8513123232275
+mean_vc_south_kms,225.65613680806115
+delta_kms,0.19517551516634057
+boot_median_kms,0.19529170670897145
+ci_lo_kms,-0.26685543895702823
+ci_hi_kms,0.6751958978218928
