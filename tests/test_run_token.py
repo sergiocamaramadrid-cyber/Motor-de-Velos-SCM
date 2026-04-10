@@ -57,6 +57,24 @@ class TestGitHash:
             result = run_token._git_hash()
         assert result == "abc123"
 
+    def test_override_skips_git(self):
+        override_sha = "a" * 40
+        with mock.patch("subprocess.run") as mock_run:
+            result = run_token._git_hash(override=override_sha)
+        mock_run.assert_not_called()
+        assert result == override_sha
+
+    def test_override_strips_whitespace(self):
+        result = run_token._git_hash(override="  deadbeef  ")
+        assert result == "deadbeef"
+
+    def test_none_override_uses_git(self):
+        fake = mock.MagicMock()
+        fake.stdout = "cafebabe\n"
+        with mock.patch("subprocess.run", return_value=fake):
+            result = run_token._git_hash(override=None)
+        assert result == "cafebabe"
+
 
 # ---------------------------------------------------------------------------
 # _sha256_file
@@ -155,6 +173,30 @@ class TestCreateToken:
         missing = str(tmp_path / "no_such_file.csv")
         token = run_token.create_token(inputs=[missing])
         assert token["checksums"][missing] == "not_found"
+
+    def test_fail_if_missing_raises(self, tmp_path):
+        missing = str(tmp_path / "no_such_file.csv")
+        with pytest.raises(FileNotFoundError, match="no_such_file.csv"):
+            run_token.create_token(inputs=[missing], fail_if_missing=True)
+
+    def test_fail_if_missing_ok_when_file_exists(self, tmp_path):
+        f = tmp_path / "present.csv"
+        f.write_bytes(b"data")
+        token = run_token.create_token(inputs=[str(f)], fail_if_missing=True)
+        assert token["checksums"][str(f)] != "not_found"
+
+    def test_git_hash_override_used_in_token(self):
+        override = "b" * 40
+        with mock.patch("subprocess.run") as mock_run:
+            token = run_token.create_token(git_hash_override=override)
+        mock_run.assert_not_called()
+        assert token["git_hash"] == override
+
+    def test_git_hash_override_reflected_in_token_id(self):
+        override = "c" * 40
+        token = run_token.create_token(git_hash_override=override)
+        expected_id = _expected_token_id(override, token["timestamp"])
+        assert token["token_id"] == expected_id
 
     def test_multiple_inputs(self, tmp_path):
         f1 = tmp_path / "a.csv"
@@ -286,3 +328,35 @@ class TestMain:
         result = run_token.main(["--out", str(out)])
         saved = json.loads(out.read_text(encoding="utf-8"))
         assert saved["token_id"] == result["token_id"]
+
+    def test_git_hash_cli_arg(self, tmp_path):
+        override = "d" * 40
+        out = str(tmp_path / "tok.json")
+        with mock.patch("subprocess.run") as mock_run:
+            result = run_token.main(["--out", out, "--git-hash", override])
+        mock_run.assert_not_called()
+        assert result["git_hash"] == override
+
+    def test_fail_if_missing_cli_exits(self, tmp_path):
+        missing = str(tmp_path / "ghost.csv")
+        out = str(tmp_path / "tok.json")
+        with pytest.raises(SystemExit) as exc_info:
+            run_token.main([
+                "--out", out,
+                "--git-hash", "abc",
+                "--fail-if-missing",
+                "--inputs", missing,
+            ])
+        assert exc_info.value.code == 1
+
+    def test_fail_if_missing_cli_no_exit_when_present(self, tmp_path):
+        f = tmp_path / "real.csv"
+        f.write_bytes(b"ok")
+        out = str(tmp_path / "tok.json")
+        result = run_token.main([
+            "--out", out,
+            "--git-hash", "abc",
+            "--fail-if-missing",
+            "--inputs", str(f),
+        ])
+        assert result["checksums"][str(f)] != "not_found"

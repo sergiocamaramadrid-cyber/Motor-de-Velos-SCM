@@ -54,8 +54,14 @@ from typing import Sequence
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-def _git_hash() -> str:
-    """Return the full SHA-1 of the current HEAD commit, or ``"unknown"``."""
+def _git_hash(override: str | None = None) -> str:
+    """Return the full SHA-1 of the current HEAD commit, or ``"unknown"``.
+
+    If *override* is provided (e.g. ``$GITHUB_SHA`` passed from a workflow),
+    it is returned directly without invoking git.
+    """
+    if override:
+        return override.strip()
     try:
         result = subprocess.run(
             ["git", "rev-parse", "HEAD"],
@@ -87,7 +93,11 @@ def _make_token_id(git_hash: str, timestamp: str) -> str:
 # Public API
 # ---------------------------------------------------------------------------
 
-def create_token(inputs: Sequence[str | Path] | None = None) -> dict:
+def create_token(
+    inputs: Sequence[str | Path] | None = None,
+    git_hash_override: str | None = None,
+    fail_if_missing: bool = False,
+) -> dict:
     """Create and return a run-provenance token.
 
     Parameters
@@ -95,13 +105,20 @@ def create_token(inputs: Sequence[str | Path] | None = None) -> dict:
     inputs:
         Optional sequence of file paths.  A SHA-256 checksum is computed for
         each existing file and stored under ``token["checksums"]``.
+    git_hash_override:
+        If supplied, used as ``git_hash`` instead of running ``git rev-parse
+        HEAD``.  Useful when the caller already knows the commit SHA (e.g.
+        ``$GITHUB_SHA`` in CI).
+    fail_if_missing:
+        When *True* and an *inputs* path does not exist, raise
+        :class:`FileNotFoundError` instead of recording ``"not_found"``.
 
     Returns
     -------
     dict with keys ``token_id``, ``git_hash``, ``timestamp``, and (if
     *inputs* was provided) ``checksums``.
     """
-    git_hash = _git_hash()
+    git_hash = _git_hash(override=git_hash_override)
     timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     token_id = _make_token_id(git_hash, timestamp)
 
@@ -118,6 +135,10 @@ def create_token(inputs: Sequence[str | Path] | None = None) -> dict:
             if path.is_file():
                 checksums[str(path)] = _sha256_file(path)
             else:
+                if fail_if_missing:
+                    raise FileNotFoundError(
+                        f"Input file not found: {path}"
+                    )
                 checksums[str(path)] = "not_found"
         token["checksums"] = checksums
 
@@ -169,9 +190,36 @@ def main(argv: list[str] | None = None) -> dict:
         metavar="FILE",
         help="Input files whose SHA-256 checksums are recorded in the token.",
     )
+    parser.add_argument(
+        "--git-hash",
+        metavar="SHA",
+        default=None,
+        help=(
+            "Override the git commit hash (e.g. pass ${{ github.sha }} from a "
+            "workflow).  When omitted, the value is read via 'git rev-parse HEAD'."
+        ),
+    )
+    parser.add_argument(
+        "--fail-if-missing",
+        action="store_true",
+        default=False,
+        help=(
+            "Exit with code 1 if any --inputs file does not exist.  "
+            "Without this flag missing files are recorded as 'not_found'."
+        ),
+    )
     args = parser.parse_args(argv)
 
-    token = create_token(inputs=args.inputs)
+    try:
+        token = create_token(
+            inputs=args.inputs,
+            git_hash_override=args.git_hash,
+            fail_if_missing=args.fail_if_missing,
+        )
+    except FileNotFoundError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     out_path = save_token(token, args.out)
     print(f"Token written to: {out_path}", file=sys.stderr)
     print(json.dumps(token, indent=2))

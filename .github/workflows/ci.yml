@@ -81,6 +81,8 @@ jobs:
         run: |
           python scripts/run_token.py \
             --out results/run_token.json \
+            --git-hash ${{ github.sha }} \
+            --fail-if-missing \
             --inputs results/f3_catalog_real.csv
 
       - name: Upload F3 physical results

@@ -51,6 +51,8 @@ jobs:
         run: |
           python scripts/run_token.py \
             --out results/run_token.json \
+            --git-hash ${{ github.sha }} \
+            --fail-if-missing \
             --inputs data/SPARC/sparc_full.csv results/results_overview.json
 
       - name: Upload Artifacts
