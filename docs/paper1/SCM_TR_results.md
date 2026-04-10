@@ -76,6 +76,36 @@ Interpretation:
 
 > The environmental signal remains significant in the high-mass regime after controlling for mass, showing that the trend is not reducible to baryonic mass alone.
 
+### 3.3.1 Figures
+
+The two main figures for this paper are located at:
+
+```
+results/paper1_environment/figures/figure_env_correlation.png
+results/paper1_environment/figures/figure_env_correlation.pdf
+results/paper1_environment/figures/figure_env_residual_split.png
+results/paper1_environment/figures/figure_env_residual_split.pdf
+```
+
+LaTeX inclusion:
+
+```latex
+\begin{figure*}
+\centering
+\includegraphics[width=0.45\textwidth]{figure_env_correlation.pdf}
+\includegraphics[width=0.45\textwidth]{figure_env_residual_split.pdf}
+\caption{
+Environmental modulation of the outer slope in SPARC galaxies.
+Left: raw relation showing signal only in high-mass regime.
+Right: residuals after removing mass dependence, confirming the environmental signal persists only at high mass.
+}
+\end{figure*}
+```
+
+Key result in one line:
+
+> The environmental signal is not universal but emerges only above a critical baryonic mass scale, remaining significant after controlling for mass.
+
 ### 3.4 Yang validation
 
 The same qualitative structure is recovered with the Yang-like estimator:
