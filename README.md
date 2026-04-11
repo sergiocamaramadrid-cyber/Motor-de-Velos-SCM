@@ -178,6 +178,36 @@ Refer to the LICENSE file.
 
 ---
 
+## SCM PDF Report
+
+Generate a reproducible PDF summary (HC3 OLS + bootstrap IC95% + permutation p-value):
+
+```bash
+python scripts/generate_scm_framework_report.py \
+  --input data/scm_tr_yang_dataset.csv \
+  --output results/reports/scm_report.pdf
+```
+
+Optional arguments:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--mass-cut` | `10.5` | log-mass threshold for high-mass subsample |
+| `--bootstrap` | `2000` | bootstrap resamples for CI95% |
+| `--permutations` | `5000` | permutation draws for p-value |
+
+**Column compatibility**
+
+| Role | Accepted column names |
+|------|-----------------------|
+| mass | `logM`, `logMbar` |
+| target | `F3_SCM`, `slope_tail`, `F3` |
+| environment | `env_proxy` (required) |
+
+> ⚠️ SPARC data without an environmental proxy cannot run the full SCM model.
+
+---
+
 ## Contact
 
 Author: Sergio Cámara Madrid  
