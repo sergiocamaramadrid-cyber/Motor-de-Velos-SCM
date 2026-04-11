@@ -305,18 +305,6 @@ class TestGenerarFiguraEstatica:
 
 
 class TestCrearAnimacionBurbuja:
-    pillow_available = pytest.mark.skipif(
-        not _pillow_ok(), reason="pillow no instalado"
-    ) if False else None  # se evalúa abajo
-
-    @staticmethod
-    def _pillow_ok():
-        try:
-            import PIL  # noqa: F401
-            return True
-        except ImportError:
-            return False
-
     @pytest.mark.skipif(
         not __import__("importlib").util.find_spec("PIL"),
         reason="pillow no instalado",
