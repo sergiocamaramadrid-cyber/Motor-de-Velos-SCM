@@ -101,8 +101,8 @@ def generate_figure(
     ax.plot(cuts, yvals, color="steelblue", lw=2, marker="o", ms=4)
     ax.axvline(threshold, color="crimson", ls="--", lw=1.4, label=f"log M = {threshold}")
     ax.axhline(-np.log10(0.05), color="gray", ls=":", lw=1.2, label="p = 0.05")
-    ax.set_xlabel(r"$\log\,M_{\rm cut}$", fontsize=13)
-    ax.set_ylabel(r"$-\log_{10}(p)$", fontsize=13)
+    ax.set_xlabel(r"$\log\,M_{\rm bar}$ (cut)", fontsize=13)
+    ax.set_ylabel(r"$-\log_{10}(p\text{-value})$", fontsize=13)
     ax.set_title("Mass-threshold scan", fontsize=13)
     ax.legend(fontsize=10)
 
