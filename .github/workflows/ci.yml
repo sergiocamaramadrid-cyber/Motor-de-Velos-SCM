@@ -83,3 +83,11 @@ jobs:
           name: f3-catalog-real-${{ github.sha }}
           path: results/f3_catalog_real.csv
           retention-days: 90
+
+      - name: Upload per-galaxy summary CSV
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: per-galaxy-summary-${{ github.sha }}
+          path: results/per_galaxy_summary.csv
+          retention-days: 90
