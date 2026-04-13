@@ -473,10 +473,10 @@ def generate_figure(
     ax.fill_between(x_fit, y_ci_low, y_ci_high, color="C1",
                     alpha=0.15, zorder=2, label="95 % boot CI")
 
-    sign = "−" if p_value < 0.001 else f"{p_value:.3f}"
+    p_str = "< 0.001" if p_value < 0.001 else f"{p_value:.3f}"
     ax.text(
         0.97, 0.97,
-        f"ρ = {spearman_rho:.3f}  p = {p_value:.3f}  n = {len(x)}",
+        f"ρ = {spearman_rho:.3f}  p = {p_str}  n = {len(x)}",
         transform=ax.transAxes,
         ha="right", va="top", fontsize=10,
     )

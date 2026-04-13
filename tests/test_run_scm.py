@@ -290,9 +290,7 @@ class TestPermutationTest:
 
     def test_strong_signal_low_p(self):
         x = np.linspace(0.5, 3.5, 50)
-        y = -0.5 * x + rng_val.normal(0, 0.02, 50) if False else (
-            -0.5 * x + np.random.default_rng(0).normal(0, 0.02, 50)
-        )
+        y = -0.5 * x + np.random.default_rng(0).normal(0, 0.02, 50)
         df = pd.DataFrame({"env_proxy": x, "F3_SCM": y})
         res = permutation_test(df, n_perm=500, seed=0)
         assert res["p_value"] < 0.05
