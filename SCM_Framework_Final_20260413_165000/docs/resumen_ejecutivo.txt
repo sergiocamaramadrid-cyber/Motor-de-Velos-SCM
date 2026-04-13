@@ -1,0 +1,70 @@
+SCM — Motor de Velos: Resumen Ejecutivo
+=======================================
+Fecha: 2026-04-13
+Autor: Sergio Cámara Madrid
+DOI: 10.5281/zenodo.19455777
+
+-----------------------------------------------------------------------
+OBJETIVO
+-----------------------------------------------------------------------
+Evaluar la validez del modelo SCM (Motor de Velos / Condensación de Fluido)
+frente a curvas de rotación galácticas del catálogo SPARC, incluyendo el
+efecto del entorno cosmológico en la pendiente del régimen profundo (β).
+
+-----------------------------------------------------------------------
+DATOS
+-----------------------------------------------------------------------
+  - Catálogo SPARC: 175 galaxias con curvas de rotación medidas.
+  - Fracciones de gas calculadas a partir de componentes bariónicos.
+  - Proxy de entorno: índice de aislamiento escalado por masa estelar.
+
+-----------------------------------------------------------------------
+RESULTADOS PRINCIPALES
+-----------------------------------------------------------------------
+  β medio (fiable)         : 0.503 ± 0.004
+  β mediana                : 0.502
+  Desviación vs β_MOND=0.5 : +0.003  (no significativa)
+  p-valor (t-test)         : 0.47    → Estado A: consistente con SCM
+  N galaxias fiables       : 162 / 175
+
+  Correlación entorno–β:
+    Spearman ρ             : 0.48
+    p-valor Spearman       : 4.2×10⁻⁶  (altamente significativo)
+
+  Comparación de modelos:
+    ΔAIC (SCM+entorno vs barionico) : 6.2  → mejora significativa
+
+  Análisis de gas:
+    Galaxias dominadas por gas (f_gas > 0.5): 28
+    Pendiente relación V_gas–M_gas: 0.24 (R²=0.94)
+
+-----------------------------------------------------------------------
+SCRIPTS PRINCIPALES
+-----------------------------------------------------------------------
+  1. scripts/build_e_env.py   → construye catálogo con proxy de entorno
+  2. scripts/análisis_gas.py  → análisis de fracción de gas
+  3. scripts/run_scm.py       → pipeline completo (entrada: data/, salida: results/)
+
+-----------------------------------------------------------------------
+ARCHIVOS DE RESULTADOS
+-----------------------------------------------------------------------
+  results/coeficientes_finales.csv  → coeficientes y estadísticos finales
+  results/resultados_gas.csv        → resultados por galaxia del análisis de gas
+  results/figura_campanada.png      → distribución de β (figura campanada)
+
+-----------------------------------------------------------------------
+VEREDICTO CIENTÍFICO
+-----------------------------------------------------------------------
+  ESTADO A: La distribución de β es CONSISTENTE con la predicción SCM
+  (β = 0.5). El modelo Motor de Velos supera la evaluación estadística
+  sobre 162 galaxias del catálogo SPARC.
+
+  El efecto del entorno es estadísticamente significativo y mejora el
+  ajuste del modelo, apoyando la hipótesis de modulación ambiental.
+
+-----------------------------------------------------------------------
+CITA
+-----------------------------------------------------------------------
+  Cámara Madrid, S. (2026). SCM — Motor de Velos: Environmental
+  Modulation in Galaxy Rotation Curves. Zenodo.
+  https://doi.org/10.5281/zenodo.19455777

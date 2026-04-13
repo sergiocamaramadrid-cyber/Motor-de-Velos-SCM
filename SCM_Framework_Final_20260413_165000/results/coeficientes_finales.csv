@@ -1,0 +1,14 @@
+parametro,valor,error,unidades,descripcion
+beta_medio,0.52144,0.0032947899502588215,adimensional,Pendiente media del regimen profundo (F3)
+beta_mediana,0.5175000000000001,,adimensional,Mediana de beta en galaxias fiables
+beta_std,0.023297683164133005,,adimensional,Desviacion tipica de beta
+delta_mond,0.021440000000000015,0.0032947899502588215,adimensional,Diferencia respecto a beta_MOND=0.5
+t_stat,6.507243351982361,,adimensional,Estadistico t (H0: beta=0.5)
+p_valor,3.848747396673632e-08,,adimensional,p-valor bilateral vs beta=0.5
+N_fiables,50.0,,galaxias,Numero de galaxias con beta fiable
+N_total,50.0,,galaxias,Total en catalogo
+scm_slope,0.5331962528752956,0.04987788530990863,adimensional,Pendiente ajuste SCM (log g_obs vs log g_bar)
+scm_intercept,7.859583616993728,,adimensional,Ordenada en origen ajuste SCM
+scm_r_value,0.8391716896176786,,adimensional,Coeficiente de correlacion ajuste SCM
+spearman_rho_env,0.9492591860562305,,adimensional,Spearman rho (env_proxy vs beta)
+p_valor_spearman_env,9.250662897782239e-26,,adimensional,p-valor correlacion entorno-beta
