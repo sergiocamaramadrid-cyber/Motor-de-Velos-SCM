@@ -20,6 +20,7 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+!notebooks/scm_reproducible.ipynb
 
 # Data (large files not tracked)
 data/SPARC/raw/
