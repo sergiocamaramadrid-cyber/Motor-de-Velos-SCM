@@ -29,9 +29,9 @@ Puedes ejecutar el análisis completo directamente en Google Colab:
   - Correlación en alta masa
   - Análisis de residuos
   - Test de robustez:
-    - Bootstrap
-    - Permutación
-    - Control de outliers
+    - Bootstrap (1000 iterations)
+    - Permutación (5000 iterations)
+    - Control de outliers (jackknife leave-one-out)
 - Genera figuras automáticamente
 - Emite veredicto final
 
@@ -53,9 +53,23 @@ results/scm_master_final.csv
 
 Debe contener al menos:
 
-- logMbar
-- slope_tail
-- env_proxy
+**Columnas obligatorias:**
+
+| Columna | Descripción |
+|---------|-------------|
+| `logMbar` | Logaritmo de la masa bariónica (M☉) |
+| `slope_tail` | Pendiente de la curva de rotación exterior |
+| `env_proxy` | Proxy ambiental (distancia al grupo/clúster, Mpc) |
+
+**Columnas adicionales (opcionales):**
+
+| Columna | Descripción |
+|---------|-------------|
+| `delta_f3` | ΔF3 normalizado respecto a baja masa |
+| `logMstar` | Logaritmo de la masa estelar (M☉) |
+| `v_flat` | Velocidad plana (km/s) |
+| `distance_mpc` | Distancia a la galaxia (Mpc) |
+| `morphology` | Tipo morfológico (Hubble) |
 
 ---
 
