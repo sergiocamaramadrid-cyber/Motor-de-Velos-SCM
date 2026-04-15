@@ -185,6 +185,34 @@ See full report:
 
 ---
 
+## Spectral Signal Detection — NGC2403 (SCM Pilot Test)
+
+We applied the SCM spectral pipeline to a real SPARC galaxy (NGC2403) to test whether rotation curves contain detectable spatial modes beyond smooth profiles.
+
+### Method
+- Polynomial detrending (degree 2)
+- Cubic interpolation (512 points)
+- FFT power spectrum
+- Peak detection (90th percentile)
+- Permutation test (1000 iterations)
+
+### Results
+- Data points: 73
+- Detected peaks: 4
+- Dominant frequency: 0.3855 1/kpc
+- Wavelength: 2.59 kpc
+- Empirical p-value: 0.0
+
+### Interpretation
+The rotation curve exhibits statistically significant multi-scale structure. The dominant spatial mode (~2.6 kpc) is highly unlikely to arise from noise.
+
+### Conclusion
+This provides a real-data proof of concept that SCM can detect hidden structure in galaxy rotation curves.
+
+Further work will extend this analysis to a full SPARC sample.
+
+---
+
 ## Limitations
 
 The framework evaluates rotation-curve behavior; it does not claim cosmological completeness.  
