@@ -1,4 +1,69 @@
-# Motor-de-Velos-SCM
+# Framework SCM – Motor de Velos
+
+Environmental modulation in galaxy outer rotation slopes
+
+---
+
+## 🔬 Descripción
+
+El Framework SCM (Motor de Velos) es un sistema reproducible diseñado para detectar y analizar la dependencia ambiental en la dinámica externa de galaxias.
+
+El resultado principal es la detección de una señal ambiental robusta en galaxias de alta masa (logM ≥ 10.6), que no se explica únicamente por masa bariónica ni contenido de gas.
+
+---
+
+## 🚀 Reproducibilidad (One-click)
+
+Puedes ejecutar el análisis completo directamente en Google Colab:
+
+<a href="https://colab.research.google.com/github/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/blob/main/notebooks/scm_reproducible.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg"></a>
+
+---
+
+## 📊 Qué hace el notebook
+
+- Carga datos desde el repositorio
+- Calcula ΔF3 (pendiente externa)
+- Ejecuta:
+  - Mass threshold scan
+  - Correlación en alta masa
+  - Análisis de residuos
+  - Test de robustez:
+    - Bootstrap
+    - Permutación
+    - Control de outliers
+- Genera figuras automáticamente
+- Emite veredicto final
+
+---
+
+## 🧠 Filosofía
+
+> El objetivo no es demostrar el resultado, sino permitir que cualquiera pueda verificarlo por sí mismo.
+
+---
+
+## 📁 Datos
+
+Archivo principal:
+
+```
+results/scm_master_final.csv
+```
+
+Debe contener al menos:
+
+- logMbar
+- slope_tail
+- env_proxy
+
+---
+
+## 📘 Documento del proceso
+
+Este repositorio está acompañado de un libro que documenta el proceso completo de creación del Framework SCM, desde su origen hasta su validación.
+
+---
 
 ## Historical Context / Contexto histórico
 
@@ -178,9 +243,31 @@ Refer to the LICENSE file.
 
 ---
 
+## 🔗 Enlaces
+
+GitHub:  
+https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
+
+Zenodo (DOI):  
+https://doi.org/10.5281/zenodo.19455777
+
+---
+
+## 👤 Autor
+
+Sergio Cámara Madrid  
+San Fernando, Cádiz – España  
+📧 sergiocamaramadrid@gmail.com
+
+---
+
+## 📜 Licencia
+
+Uso libre para investigación y verificación.
+
+---
+
 ## Contact
 
 Author: Sergio Cámara Madrid  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
-
-EOF
