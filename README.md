@@ -156,6 +156,13 @@ results/<module>/<artifact>-v<semver>.csv
 
 ---
 
+## New: Multi-Scale Signal Analysis (SCM v1.1)
+
+See:  
+[`docs/SCM_signal_extraction_report.md`](docs/SCM_signal_extraction_report.md)
+
+---
+
 ## Limitations
 
 The framework evaluates rotation-curve behavior; it does not claim cosmological completeness.  
