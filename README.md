@@ -163,6 +163,28 @@ See:
 
 ---
 
+## New: Multi-Scale Signal Analysis (SCM v1.1)
+
+The SCM framework has been extended to explore signal detection across parameter space.
+
+Key findings:
+
+- The environmental signal is not universal
+- It emerges only above a baryonic mass threshold
+- Gas content (MHI) amplifies the signal
+- Structural parameters (Rdisk, Rmax) do not act as primary modulators
+
+A multi-scale scan reveals that:
+
+> The signal exists globally but is only observable within specific regimes.
+
+This supports a non-uniform, scale-dependent interpretation of galaxy dynamics.
+
+See full report:
+[docs/SCM_multiscale_signal_analysis_v1_1.md](docs/SCM_multiscale_signal_analysis_v1_1.md)
+
+---
+
 ## Limitations
 
 The framework evaluates rotation-curve behavior; it does not claim cosmological completeness.  
