@@ -198,10 +198,10 @@ We applied the SCM spectral pipeline to a real SPARC galaxy (NGC2403) to test wh
 
 ### Results
 - Data points: 73
-- Detected peaks: 4
+- Detected peaks: 4 (above the 90th percentile; analysis focuses on the dominant mode)
 - Dominant frequency: 0.3855 1/kpc
 - Wavelength: 2.59 kpc
-- Empirical p-value: 0.0
+- Empirical p-value: p_emp < 0.001 (1000 permutations)
 
 ### Interpretation
 The rotation curve exhibits statistically significant multi-scale structure. The dominant spatial mode (~2.6 kpc) is highly unlikely to arise from noise.
@@ -210,6 +210,8 @@ The rotation curve exhibits statistically significant multi-scale structure. The
 This provides a real-data proof of concept that SCM can detect hidden structure in galaxy rotation curves.
 
 Further work will extend this analysis to a full SPARC sample.
+
+> This is a single-galaxy proof of concept; no claim of universality is made at this stage.
 
 ---
 
