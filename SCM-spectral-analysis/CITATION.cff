@@ -1,0 +1,32 @@
+cff-version: 1.2.0
+title: "SCM-spectral-analysis: Spectral Index Analysis of Galaxy Rotation Curves under the Motor de Velos SCM"
+message: "If you use this dataset or code, please cite it as below."
+type: software
+
+authors:
+
+- family-names: "Cámara Madrid"
+  given-names: "Sergio"
+
+identifiers:
+
+- type: doi
+  value: "10.5281/zenodo.19455777"
+
+repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
+
+keywords:
+
+- astrophysics
+- galaxy dynamics
+- rotation curves
+- spectral analysis
+- power spectrum
+- Motor de Velos
+- SCM
+- fluid condensation model
+- reproducibility
+
+license: "MIT"
+
+date-released: 2026-04-16
