@@ -93,6 +93,37 @@ Notes:
 
 ---
 
+## Data
+
+This project uses the **SPARC** database (Lelli et al. 2016) — 175 disk galaxies
+with Spitzer photometry and accurate rotation curves.
+
+### Download
+
+```
+http://astroweb.cwru.edu/SPARC/
+```
+
+Download `SPARC_Lelli2016c.mrt` and the `rotmod/` folder, then place them in:
+
+```
+data/SPARC/
+  rotmod/                  # per-galaxy rotation curve files (.dat)
+  SPARC_Lelli2016c.mrt     # main photometric + kinematic catalog
+```
+
+Processed intermediate files are written to `data/processed/` by the pipeline
+scripts and are not versioned (regenerate with `python scripts/run_full_pipeline.py`).
+
+### Reference
+
+Lelli, F., McGaugh, S. S., & Schombert, J. M. (2016).  
+*SPARC: Mass Models for 175 Disk Galaxies with Spitzer Photometry and Accurate Rotation Curves.*  
+The Astronomical Journal, 152(6), 157.  
+https://doi.org/10.3847/0004-6256/152/6/157
+
+---
+
 ## Data Policy
 
 Raw datasets (e.g., SPARC, LITTLE THINGS) are **not versioned**.  
