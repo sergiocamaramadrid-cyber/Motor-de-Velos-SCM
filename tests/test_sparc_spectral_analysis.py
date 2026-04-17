@@ -535,7 +535,6 @@ class TestMain:
     def test_default_out_path(self):
         args = _parse_args(["--sparc-dir", "data/SPARC"])
         assert "sparc_spectral_catalog.csv" in args.out
-        assert "spectral" in args.out
 
     def test_quiet_flag_suppresses_output(self, tmp_path, capsys):
         r, v = _flat_curve()
