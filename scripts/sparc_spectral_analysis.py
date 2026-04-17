@@ -404,12 +404,6 @@ def _plot_galaxy_panel(
     summary = (
         f"galaxy:          {galaxy}\n"
         f"n_peaks:         {features['n_peaks']}\n"
-        f"lambda_dom_kpc:  {lambda_dom:.2f}\n" if np.isfinite(lambda_dom)
-        else f"lambda_dom_kpc:  NaN\n"
-    )
-    summary = (
-        f"galaxy:          {galaxy}\n"
-        f"n_peaks:         {features['n_peaks']}\n"
     )
     if np.isfinite(lambda_dom):
         summary += f"lambda_dom_kpc:  {lambda_dom:.2f}\n"
