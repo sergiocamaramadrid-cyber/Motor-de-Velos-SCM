@@ -164,12 +164,25 @@ Interpretation remains separate from computational reproducibility.
 
 ---
 
+## Versions
+
+| Tag | Name | Description |
+|-----|------|-------------|
+| [v1.0-paper1-environment](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/releases/tag/v1.0-paper1-environment) | Initial environmental analysis | First reproducible dataset and pipeline: SPARC outer slopes (ΔF₃), baryonic mass, environmental proxy, OOS validation (100 splits). Main result: mass is necessary but not sufficient — an environmental term is required. |
+| [v1.1](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/releases/tag/v1.1) | Environmental analysis + Milky Way | Added Gaia Cepheid MW analysis (slope_tail ≈ −0.15 to −0.20), full OOS generalization (100% success rate), and Spearman ρ ≈ −0.57 (p ≈ 0.003) in the extreme SPARC sample. |
+| [v1.1.0](https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/releases/tag/v1.1.0) | Multi-scale signal analysis | Extended to multi-scale signal exploration: mass-threshold scan, gas-content modulation (MHI), and multi-variable analysis. Key finding: the environmental signal emerges only above a baryonic mass threshold. |
+
+---
+
 ## Citation
 
-See:
+See `CITATION.cff` for machine-readable citation metadata.
 
-- `CITATION.md`  
-- Zenodo archive (DOI when available)
+**DOI (Zenodo):** [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19455777.svg)](https://doi.org/10.5281/zenodo.19455777)
+
+To cite this work:
+
+> Cámara Madrid, Sergio. *SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves*. Zenodo. https://doi.org/10.5281/zenodo.19455777
 
 ---
 
