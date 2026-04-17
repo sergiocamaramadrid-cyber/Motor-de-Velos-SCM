@@ -7,15 +7,18 @@ into a single per-galaxy CSV (the "galaxy signal table").
 Output columns
 --------------
 galaxy        — galaxy name
-logMbar       — log10 total baryonic mass (Mstar + Mgas) in Msun
-Mgas          — gas mass (1.33 × M_HI) in 1e9 Msun; NaN if unavailable
+logMbar       — log10(0.5·L36 + 1.33·MHI) in Msun; NaN if both absent
+Mgas          — gas mass 1.33 × M_HI in 1e9 Msun; NaN if MHI unavailable
 Rmax          — maximum observed radius (kpc)
 Vmax          — maximum observed circular velocity (km/s)
-slope_tail    — log-log slope β of g_obs vs g_bar in the outer half of radial points
-delta_f3      — slope_tail minus the deep-regime reference value (default BETA_REF = 0.5)
+slope_tail    — log-log slope of g_obs vs g_bar for r ≥ 0.7·Rmax;
+                NaN when fewer than MIN_OUTER_POINTS qualify
+delta_f3      — slope_tail − 0.5 (BETA_REF); NaN when slope_tail is NaN
 env_proxy     — environmental density proxy; NaN if not provided
-width_kpc     — approximate disk diameter = 2.5 × R_d (kpc); NaN if R_d unavailable
-thickness_kpc — approximate disk thickness = 0.1 × R_d (kpc); NaN if R_d unavailable
+width_kpc     — 2.5 × Rdisk (kpc); NaN if Rdisk absent
+thickness_kpc — 0.1 × Rdisk (kpc); NaN if Rdisk absent
+outer_fit_ok  — True when slope_tail is finite (≥ MIN_OUTER_POINTS points)
+n_tail_points — number of radial points used for the slope_tail fit (int)
 
 Usage
 -----
@@ -34,16 +37,15 @@ With optional environmental proxy CSV (columns: galaxy, env_proxy)::
 
 Notes
 -----
+* ``logMbar`` = log10(0.5·L36 + 1.33·MHI) where L36 is in 1e9 Lsun and
+  MHI in 1e9 Msun.  Missing components are treated as zero only when the
+  other component is present; if both are absent, logMbar is NaN.
+* ``slope_tail`` uses ``upsilon_disk = 1.0`` and ``upsilon_bulge = 1.0``
+  (fixed) for g_bar computation.  The outer regime is defined by
+  r ≥ 0.7·Rmax (purely radial criterion, independent of g_bar).
 * ``width_kpc`` and ``thickness_kpc`` use the exponential disk scale radius
-  R_d from the SPARC catalog (``Rdisk`` column).  The approximation
-  ``thickness ≈ 0.1 × R_d`` is declared as an order-of-magnitude estimate;
-  see Kregel, van der Kruit & de Grijs (2002) for empirical thickness scaling.
-* ``logMbar`` uses a fixed stellar mass-to-light ratio *upsilon* (default 0.5
-  in solar units at 3.6 μm) applied to the SPARC L36 column (1e9 Lsun).
-  Gas mass is 1.33 × M_HI (HI + He), both in units of 1e9 Msun.
-* ``slope_tail`` is computed with ``upsilon_disk = 1.0`` (fixed) to avoid
-  requiring a full SCM minimisation.  For publication-quality β values,
-  use ``generate_f3_catalog.py`` which fits upsilon_disk per galaxy.
+  Rdisk from the SPARC catalog.  The approximation thickness ≈ 0.1·Rdisk
+  is an order-of-magnitude estimate; see Kregel et al. (2002).
 """
 
 from __future__ import annotations
@@ -61,18 +63,20 @@ from scipy.stats import linregress
 # ---------------------------------------------------------------------------
 
 BETA_REF: float = 0.5           # deep-regime reference slope (MOND / SCM)
-UPSILON_DEFAULT: float = 0.5    # 3.6 μm mass-to-light ratio (solar units)
+UPSILON_DEFAULT: float = 0.5    # 3.6 μm mass-to-light ratio for logMbar
 HE_CORRECTION: float = 1.33     # HI → total gas (helium included)
-A0_DEFAULT: float = 1.2e-10     # characteristic acceleration (m/s²)
-DEEP_THRESHOLD_DEFAULT: float = 0.3   # outer-regime: g_bar < threshold × a0
 _KPC_TO_M: float = 3.085_677_581e19   # 1 kpc in metres
 
+# Outer regime: r >= OUTER_FRAC * Rmax
+OUTER_FRAC: float = 0.7
+
 # Minimum number of outer points needed for a meaningful slope fit
-MIN_OUTER_POINTS: int = 2
+MIN_OUTER_POINTS: int = 4
 
 OUTPUT_COLUMNS = [
     "galaxy", "logMbar", "Mgas", "Rmax", "Vmax",
     "slope_tail", "delta_f3", "env_proxy", "width_kpc", "thickness_kpc",
+    "outer_fit_ok", "n_tail_points",
 ]
 
 _GALAXY_TABLE_CANDIDATES = [
@@ -165,11 +169,12 @@ def load_sparc_properties(sparc_dir: str | Path) -> pd.DataFrame:
 
 def _compute_gbar(r_kpc: np.ndarray, v_gas: np.ndarray,
                   v_disk: np.ndarray, v_bul: np.ndarray,
-                  upsilon_disk: float = 1.0) -> np.ndarray:
+                  upsilon_disk: float = 1.0,
+                  upsilon_bulge: float = 1.0) -> np.ndarray:
     """Compute g_bar (baryonic centripetal acceleration) in m/s².
 
     Uses the quadrature-sum baryonic velocity:
-        V_bar² = upsilon_disk × V_disk² + 0.7 × V_bul² + V_gas²
+        V_bar² = upsilon_disk × V_disk² + upsilon_bulge × V_bul² + V_gas²
 
     Parameters
     ----------
@@ -178,7 +183,9 @@ def _compute_gbar(r_kpc: np.ndarray, v_gas: np.ndarray,
     v_gas, v_disk, v_bul : arrays
         Velocity contributions (km/s).
     upsilon_disk : float
-        Disk stellar mass-to-light ratio.
+        Disk stellar mass-to-light ratio (default 1.0).
+    upsilon_bulge : float
+        Bulge stellar mass-to-light ratio (default 1.0).
 
     Returns
     -------
@@ -186,7 +193,7 @@ def _compute_gbar(r_kpc: np.ndarray, v_gas: np.ndarray,
         g_bar in m/s² at each radial point.
     """
     vbar2 = (upsilon_disk * v_disk**2
-             + 0.7 * v_bul**2
+             + upsilon_bulge * v_bul**2
              + v_gas**2)
     vbar2 = np.maximum(vbar2, 0.0)
     r_safe = np.maximum(r_kpc, 1e-10)
@@ -195,9 +202,8 @@ def _compute_gbar(r_kpc: np.ndarray, v_gas: np.ndarray,
 
 def compute_rotation_stats(
     rc: pd.DataFrame,
-    a0: float = A0_DEFAULT,
-    deep_threshold: float = DEEP_THRESHOLD_DEFAULT,
     upsilon_disk: float = 1.0,
+    upsilon_bulge: float = 1.0,
 ) -> dict:
     """Compute per-galaxy rotation-curve summary statistics.
 
@@ -206,19 +212,18 @@ def compute_rotation_stats(
     rc : pd.DataFrame
         Rotation-curve data with columns
         ``r``, ``v_obs``, ``v_gas``, ``v_disk``, ``v_bul`` (km/s, kpc).
-    a0 : float
-        Characteristic acceleration (m/s²).
-    deep_threshold : float
-        Outer-regime threshold: radial points with
-        ``g_bar < deep_threshold × a0`` are used for the slope fit.
     upsilon_disk : float
-        Disk mass-to-light ratio for g_bar computation.
+        Disk mass-to-light ratio for g_bar computation (default 1.0).
+    upsilon_bulge : float
+        Bulge mass-to-light ratio for g_bar computation (default 1.0).
 
     Returns
     -------
     dict
         Keys: ``Rmax`` (kpc), ``Vmax`` (km/s), ``slope_tail``
-        (log-log β, or NaN if fewer than ``MIN_OUTER_POINTS`` outer points).
+        (log-log β of g_obs vs g_bar for r ≥ 0.7·Rmax, or NaN if fewer
+        than ``MIN_OUTER_POINTS`` qualify), ``outer_fit_ok`` (bool),
+        ``n_tail_points`` (int).
     """
     r = rc["r"].values
     v_obs = rc["v_obs"].values
@@ -229,21 +234,30 @@ def compute_rotation_stats(
     Rmax = float(np.max(r)) if len(r) > 0 else float("nan")
     Vmax = float(np.max(v_obs)) if len(v_obs) > 0 else float("nan")
 
-    g_bar = _compute_gbar(r, v_gas, v_disk, v_bul, upsilon_disk)
+    g_bar = _compute_gbar(r, v_gas, v_disk, v_bul, upsilon_disk, upsilon_bulge)
     g_obs = v_obs**2 * 1e6 / (np.maximum(r, 1e-10) * _KPC_TO_M)
 
     valid = (g_bar > 0) & (g_obs > 0)
-    outer_mask = valid & (g_bar < deep_threshold * a0)
+    outer_mask = valid & (r >= OUTER_FRAC * Rmax)
 
-    if outer_mask.sum() < MIN_OUTER_POINTS:
+    n_tail_points = int(outer_mask.sum())
+    if n_tail_points < MIN_OUTER_POINTS:
         slope_tail = float("nan")
+        outer_fit_ok = False
     else:
         log_gbar = np.log10(g_bar[outer_mask])
         log_gobs = np.log10(g_obs[outer_mask])
         result = linregress(log_gbar, log_gobs)
         slope_tail = float(result.slope)
+        outer_fit_ok = True
 
-    return {"Rmax": Rmax, "Vmax": Vmax, "slope_tail": slope_tail}
+    return {
+        "Rmax": Rmax,
+        "Vmax": Vmax,
+        "slope_tail": slope_tail,
+        "outer_fit_ok": outer_fit_ok,
+        "n_tail_points": n_tail_points,
+    }
 
 
 def _load_rotation_curve(sparc_dir: Path, galaxy: str) -> pd.DataFrame | None:
@@ -274,8 +288,6 @@ def build_signal_table(
     env_csv: str | Path | None = None,
     upsilon: float = UPSILON_DEFAULT,
     beta_ref: float = BETA_REF,
-    a0: float = A0_DEFAULT,
-    deep_threshold: float = DEEP_THRESHOLD_DEFAULT,
     verbose: bool = True,
 ) -> pd.DataFrame:
     """Build the per-galaxy physical signal table and write it to *out*.
@@ -290,13 +302,10 @@ def build_signal_table(
         Optional CSV with columns ``galaxy`` and ``env_proxy``.
     upsilon : float
         Stellar mass-to-light ratio at 3.6 μm (solar units) used for
-        ``logMbar`` computation.  Does not affect ``slope_tail``.
+        ``logMbar = log10(upsilon·L36 + 1.33·MHI)``.
+        Does not affect ``slope_tail`` (which always uses upsilon_disk=1.0).
     beta_ref : float
         Deep-regime reference slope for ``delta_f3 = slope_tail - beta_ref``.
-    a0 : float
-        Characteristic acceleration (m/s²) for the outer-regime cut.
-    deep_threshold : float
-        Threshold fraction of *a0* defining the outer regime.
     verbose : bool
         Print progress if True.
 
@@ -347,9 +356,7 @@ def build_signal_table(
                 print(f"  [skip] {name}: rotation curve not found")
             continue
 
-        stats = compute_rotation_stats(
-            rc, a0=a0, deep_threshold=deep_threshold
-        )
+        stats = compute_rotation_stats(rc)
         record = {
             "galaxy": name,
             "logMbar": row["logMbar"],
@@ -364,6 +371,8 @@ def build_signal_table(
                           if not np.isnan(row["Rdisk"]) else np.nan),
             "thickness_kpc": (0.1 * row["Rdisk"]
                               if not np.isnan(row["Rdisk"]) else np.nan),
+            "outer_fit_ok": stats["outer_fit_ok"],
+            "n_tail_points": stats["n_tail_points"],
         }
         records.append(record)
         if verbose:
@@ -432,16 +441,6 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         help=f"Deep-regime reference β for delta_f3 (default: {BETA_REF}).",
     )
     parser.add_argument(
-        "--a0", type=float, default=A0_DEFAULT,
-        help=f"Characteristic acceleration in m/s² (default: {A0_DEFAULT:.2e}).",
-    )
-    parser.add_argument(
-        "--deep-threshold", type=float, default=DEEP_THRESHOLD_DEFAULT,
-        dest="deep_threshold",
-        help=(f"Outer-regime threshold as fraction of a0 "
-              f"(default: {DEEP_THRESHOLD_DEFAULT})."),
-    )
-    parser.add_argument(
         "--quiet", action="store_true",
         help="Suppress progress output.",
     )
@@ -457,8 +456,6 @@ def main(argv: list[str] | None = None) -> dict:
         env_csv=args.env_csv,
         upsilon=args.upsilon,
         beta_ref=args.beta_ref,
-        a0=args.a0,
-        deep_threshold=args.deep_threshold,
         verbose=not args.quiet,
     )
     n_slope = int(df["slope_tail"].notna().sum()) if not df.empty else 0

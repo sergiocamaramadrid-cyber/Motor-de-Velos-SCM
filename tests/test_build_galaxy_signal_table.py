@@ -17,6 +17,7 @@ from scripts.build_galaxy_signal_table import (
     BETA_REF,
     HE_CORRECTION,
     MIN_OUTER_POINTS,
+    OUTER_FRAC,
     OUTPUT_COLUMNS,
     UPSILON_DEFAULT,
     _KPC_TO_M,
@@ -222,7 +223,9 @@ class TestComputeRotationStats:
     def test_returns_dict_with_correct_keys(self):
         rc = _flat_rc()
         result = compute_rotation_stats(rc)
-        assert set(result.keys()) == {"Rmax", "Vmax", "slope_tail"}
+        assert set(result.keys()) == {
+            "Rmax", "Vmax", "slope_tail", "outer_fit_ok", "n_tail_points"
+        }
 
     def test_rmax_is_max_radius(self):
         rc = _flat_rc(r_max=18.0, n_pts=20)
@@ -251,7 +254,8 @@ class TestComputeRotationStats:
         )
 
     def test_slope_tail_nan_when_too_few_outer_points(self):
-        """With high velocities, no points enter the deep regime."""
+        """With only 5 total radial points, at most 2 satisfy r >= 0.7*Rmax,
+        which is below MIN_OUTER_POINTS → slope_tail must be NaN."""
         r = np.linspace(1.0, 10.0, 5)
         rc = pd.DataFrame({
             "r":       r,
@@ -289,6 +293,81 @@ class TestComputeRotationStats:
         result = compute_rotation_stats(rc)
         assert isinstance(result["Rmax"], float)
         assert isinstance(result["Vmax"], float)
+
+    def test_outer_fit_ok_true_when_enough_points(self):
+        """A curve with many outer points should yield outer_fit_ok=True."""
+        rc = _flat_rc(n_pts=40)
+        result = compute_rotation_stats(rc)
+        assert result["outer_fit_ok"] is True
+        assert math.isfinite(result["slope_tail"])
+
+    def test_outer_fit_ok_false_when_too_few_points(self):
+        """Fewer than MIN_OUTER_POINTS outer points → outer_fit_ok=False."""
+        r = np.linspace(1.0, 10.0, 5)  # 0.7*Rmax=7.0; outer: 2 pts < 4
+        rc = pd.DataFrame({
+            "r":       r,
+            "v_obs":   np.full(5, 2.0),
+            "v_obs_err": np.full(5, 0.05),
+            "v_gas":   0.5 * np.ones(5),
+            "v_disk":  1.5 * np.ones(5),
+            "v_bul":   np.zeros(5),
+        })
+        result = compute_rotation_stats(rc)
+        assert result["outer_fit_ok"] is False
+        assert math.isnan(result["slope_tail"])
+
+    def test_n_tail_points_correct(self):
+        """n_tail_points equals number of valid points with r >= 0.7*Rmax."""
+        r = np.linspace(1.0, 10.0, 20)
+        rmax = r[-1]
+        expected_outer = int((r >= OUTER_FRAC * rmax).sum())
+        rc = pd.DataFrame({
+            "r":       r,
+            "v_obs":   np.full(20, 2.0),
+            "v_obs_err": np.full(20, 0.05),
+            "v_gas":   0.5 * np.ones(20),
+            "v_disk":  1.5 * np.ones(20),
+            "v_bul":   np.zeros(20),
+        })
+        result = compute_rotation_stats(rc)
+        assert result["n_tail_points"] == expected_outer
+
+    def test_outer_regime_uses_0_7_rmax(self):
+        """Outer regime is exactly r >= 0.7 * Rmax (OUTER_FRAC = 0.7)."""
+        assert OUTER_FRAC == 0.7
+        r = np.linspace(1.0, 10.0, 30)
+        rmax = r[-1]
+        threshold = OUTER_FRAC * rmax
+        rc = pd.DataFrame({
+            "r":       r,
+            "v_obs":   np.full(30, 2.0),
+            "v_obs_err": np.full(30, 0.05),
+            "v_gas":   0.5 * np.ones(30),
+            "v_disk":  1.5 * np.ones(30),
+            "v_bul":   np.zeros(30),
+        })
+        result = compute_rotation_stats(rc)
+        expected_n = int((r >= threshold).sum())
+        assert result["n_tail_points"] == expected_n
+
+    def test_n_tail_points_is_int(self):
+        rc = _flat_rc()
+        result = compute_rotation_stats(rc)
+        assert isinstance(result["n_tail_points"], int)
+
+    def test_upsilon_disk_default_is_1(self):
+        """compute_rotation_stats uses upsilon_disk=1.0 by default."""
+        rc = _flat_rc()
+        r1 = compute_rotation_stats(rc, upsilon_disk=1.0)
+        r2 = compute_rotation_stats(rc)
+        assert r1["slope_tail"] == r2["slope_tail"]
+
+    def test_upsilon_bulge_default_is_1(self):
+        """compute_rotation_stats uses upsilon_bulge=1.0 by default."""
+        rc = _flat_rc()
+        r1 = compute_rotation_stats(rc, upsilon_bulge=1.0)
+        r2 = compute_rotation_stats(rc)
+        assert r1["slope_tail"] == r2["slope_tail"]
 
 
 # ---------------------------------------------------------------------------
@@ -491,26 +570,57 @@ class TestBuildSignalTable:
         assert captured.out == ""
 
     def test_slope_tail_nan_when_no_deep_points(self, tmp_path):
-        """Galaxies with very high velocities get slope_tail = NaN."""
-        names = ["Fast"]
+        """Galaxies with too few outer radial points get slope_tail = NaN."""
+        names = ["Sparse"]
         pd.DataFrame({
             "Galaxy": names, "D": [10.0], "Inc": [45.0],
-            "L36": [1.0], "Vflat": [500.0], "e_Vflat": [5.0],
+            "L36": [1.0], "Vflat": [2.0], "e_Vflat": [0.1],
             "MHI": [0.5], "Rdisk": [2.0],
         }).to_csv(tmp_path / "SPARC_Lelli2016c.csv", index=False)
-        r = np.linspace(1.0, 10.0, 10)
+        # 6 total points: r=linspace(1,10,6); 0.7*Rmax=7; outer: 2 pts < 4
+        r = np.linspace(1.0, 10.0, 6)
         rc = pd.DataFrame({
-            "r": r, "v_obs": np.full(10, 500.0),
-            "v_obs_err": np.full(10, 5.0),
-            "v_gas": np.full(10, 200.0), "v_disk": np.full(10, 300.0),
-            "v_bul": np.zeros(10),
-            "SBdisk": np.zeros(10), "SBbul": np.zeros(10),
+            "r": r, "v_obs": np.full(6, 2.0),
+            "v_obs_err": np.full(6, 0.1),
+            "v_gas": np.full(6, 0.5), "v_disk": np.full(6, 1.5),
+            "v_bul": np.zeros(6),
+            "SBdisk": np.zeros(6), "SBbul": np.zeros(6),
         })
-        rc.to_csv(tmp_path / "Fast_rotmod.dat", sep=" ", index=False, header=False)
+        rc.to_csv(tmp_path / "Sparse_rotmod.dat", sep=" ", index=False, header=False)
         out = tmp_path / "signal.csv"
         df = build_signal_table(tmp_path, out, verbose=False)
         assert df["slope_tail"].isna().all()
         assert df["delta_f3"].isna().all()
+        assert (df["outer_fit_ok"] == False).all()  # noqa: E712
+        assert (df["n_tail_points"] < MIN_OUTER_POINTS).all()
+
+    def test_outer_fit_ok_column_present(self, tmp_path):
+        _make_sparc_dir(tmp_path)
+        out = tmp_path / "signal.csv"
+        df = build_signal_table(tmp_path, out, verbose=False)
+        assert "outer_fit_ok" in df.columns
+
+    def test_n_tail_points_column_present(self, tmp_path):
+        _make_sparc_dir(tmp_path)
+        out = tmp_path / "signal.csv"
+        df = build_signal_table(tmp_path, out, verbose=False)
+        assert "n_tail_points" in df.columns
+
+    def test_outer_fit_ok_true_for_normal_curves(self, tmp_path):
+        """Standard 30-point curves should yield outer_fit_ok=True."""
+        _make_sparc_dir(tmp_path, n_pts=30)
+        out = tmp_path / "signal.csv"
+        df = build_signal_table(tmp_path, out, verbose=False)
+        assert df["outer_fit_ok"].all()
+
+    def test_n_tail_points_positive_for_normal_curves(self, tmp_path):
+        _make_sparc_dir(tmp_path, n_pts=30)
+        out = tmp_path / "signal.csv"
+        df = build_signal_table(tmp_path, out, verbose=False)
+        assert (df["n_tail_points"] >= MIN_OUTER_POINTS).all()
+
+    def test_min_outer_points_is_4(self):
+        assert MIN_OUTER_POINTS == 4
 
 
 # ---------------------------------------------------------------------------
