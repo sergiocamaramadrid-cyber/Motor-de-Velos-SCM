@@ -1,175 +1,153 @@
-https://colab.research.google.com/github/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/blob/main/notebooks/scm_reproducible.ipynb
-# Motor-de-Velos-SCM
+[![Open in Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/blob/main/notebooks/scm_reproducible.ipynb)
 
-## Historical Context / Contexto histórico
+# SCM – Motor de Velos
 
-Author: Sergio Cámara Madrid  
-Consolidation date: 2026-02-12
+## Environmental Modulation of Outer Galaxy Dynamics
 
-This repository preserves the conceptual origins of the SCM — Motor de Velos (Fluid Condensation Model). The historical note is maintained for provenance and attribution; all scientific claims and evaluations are supported by reproducible analyses, documented statistical protocols, and versioned code.
-
-For the full historical and conceptual background, see:
-`docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md`
-
-The remainder of this README focuses on the reproducible computational framework and instructions to run the evaluation pipelines.
+We analyze SPARC galaxies (N = 79) and find that the outer slope of galaxy rotation curves is not universal.
 
 ---
 
-## Overview
+## Main Result
 
-Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation) model. The repository implements end-to-end workflows from raw data preprocessing to model comparison and diagnostic reporting.
+![Figure 1 – Outer slope vs environmental density](figure_paper_final.png)
 
-Core capabilities
-- Deterministic data processing pipelines with explicit preprocessing steps.
-- Fixed, pre‑specified out‑of‑sample (OOS) validation using radial splits (no post‑hoc tuning).
-- Model comparison using the corrected Akaike Information Criterion (AICc).
-- Diagnostic tests for deep‑regime slope behaviour and other targeted hypotheses.
-- Versioned, machine‑readable outputs and logging to support audit and replication.
-
-Design goals
-- Reproducible: reproducible runs should record input checksums and git commit hashes when generating results.
-- Deterministic: deterministic preprocessing and evaluation steps.
-- Audit-friendly: clear inputs/outputs and diagnostics.
-- Version-controlled: code and analysis scripts tracked in the repository.
+**Figure 1** — Outer slope of galaxy rotation curves as a function of environmental density (Yang proxy). Points are color-coded by baryonic mass. A clear structure emerges: higher environmental density correlates with lower outer slopes, while higher mass shifts galaxies toward higher slopes.
 
 ---
 
-## Repository structure
+## Key Results
 
-The repository is organized as follows:
+### 1. Environmental Effect (Yang et al. proxy)
+- Spearman ρ ≈ **−0.365**
+- p ≈ **9.3 × 10⁻⁴**
 
-- src/: Core model implementations and analysis modules (Python package layout).
-- scripts/: CLI-style scripts for preprocessing, validation and diagnostics (e.g. scripts/process_sparc.py, scripts/deep_slope_test.py).
-- data/: Data ingestion instructions and small fixtures; large raw datasets are not included (see docs/ for data contracts).
-- results/: Generated outputs (not versioned). Follow naming convention: results/<module>/<artifact>-v<semver>.csv
-- docs/: Formal documentation, data contracts and validation protocols (machine- and reviewer-oriented).
-- notebooks/: Exploratory and validation notebooks (non-deterministic; for inspection and figure generation).
-- paper/: Manuscript figures, supplementary materials and submission assets.
-- tests/ (if present): Unit and integration tests for code and pipelines.
-- Top-level metadata: CITATION.md, LICENSE, requirements.txt, environment.yml.
+→ Higher environmental density → **lower outer slope**
+
+---
+
+### 2. Mass Effect
+- Spearman ρ ≈ **+0.406**
+- p ≈ **2.0 × 10⁻⁴**
+
+→ Higher mass → **higher outer slope**
+
+---
+
+### 3. Radial Scale (Rmax)
+- Spearman ρ ≈ **+0.378**
+- p ≈ **6.0 × 10⁻⁴**
+
+→ Larger galaxies → **higher slope**
+
+---
+
+### 4. Gas Contribution
+- Weak / non-significant in combined models
+- Acts as a **secondary modulator**, not a driver
+
+---
+
+## Combined Interpretation
+
+The outer slope is not governed by a single parameter but emerges from a coupled system:
+
+```
+slope_tail ≈ + mass − environment + scale
+```
+
+---
+
+## Multi-Dataset Validation
+
+### SPARC (main sample)
+- Clear mass and environment trends
+
+### LITTLE THINGS (low-mass regime)
+- Inverted behavior:
+  - velocity vs slope → negative correlation
+- Indicates **regime transition**
+
+### Gaia (Milky Way)
+- No global slope detected
+- Signal diluted due to mixed populations
+
+---
+
+## Physical Interpretation
+
+- **Mass → internal gravitational driver**
+- **Environment → external modulation / suppression**
+- **Scale → geometric structure**
+- **Gas → local dynamical adjustment**
+
+This supports a **non-universal outer regime**.
+
+---
+
+## Core Insight
+
+The apparent scatter in galaxy dynamics is not noise but the result of **mixed physical contributions**.
+
+This framework "dissipates the fog" by separating:
+
+- internal structure (mass)
+- external influence (environment)
+- geometric scale
+
+---
+
+## Figures
+
+### Environment vs slope
+![Environment vs slope](figure_env_vs_slope.png)
+
+### Mass vs slope
+![Mass vs slope](figure_mass_vs_slope.png)
+
+### Combined (mass-colored)
+![Combined – mass-colored](figure_env_mass_combined.png)
+
+---
+
+## Repository Structure
+
+- `src/`: Core model implementations and analysis modules.
+- `scripts/`: CLI-style analysis and pipeline scripts.
+- `data/`: Data fixtures and catalog files (large raw datasets not versioned).
+- `results/`: Generated outputs. Naming convention: `results/<module>/<artifact>-v<semver>.csv`
+- `docs/`: Formal documentation, data contracts and validation protocols.
+- `notebooks/`: Exploratory and validation notebooks.
+- `tests/`: Unit and integration tests.
 
 ---
 
 ## Installation
 
-### Requirements
-
-- Python 3.10 or later.
-- System tools: git.
-- Dependencies: see `requirements.txt`.
-- Optional: Conda environment via `environment.yml` for reproducible environments.
-
-### Setup (recommended)
-
 ```bash
 git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
 cd Motor-de-Velos-SCM
-
-# create and activate a virtual environment
 python -m venv .venv
 source .venv/bin/activate     # Windows: .venv\Scripts\activate
-
-# upgrade pip and install dependencies
-python -m pip install --upgrade pip
+pip install --upgrade pip
 pip install -r requirements.txt
 ```
 
-### Optional (Conda)
-
-```bash
-conda env create -f environment.yml
-conda activate motor-de-velos
-pip install -r requirements.txt    # if additional deps are needed
-```
-
-### Developer / tests (if present)
-
-- Run unit tests: `pytest`  
-- Linting/format: `pre-commit run --all-files` (if pre-commit is configured)
-
-Notes:
-- If the repository provides an installable package (setup.py / pyproject.toml), prefer `pip install -e .` for development.
-- Reproducible runs should record input checksums and git commit hashes when generating results; ensure you install dependencies in a clean environment to reproduce analyses.
+Run tests: `pytest`
 
 ---
 
 ## Data Policy
 
 Raw datasets (e.g., SPARC, LITTLE THINGS) are **not versioned**.  
-Generated results are **not versioned**.  
 Download and preprocessing scripts are provided for reproducibility.  
-See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for formal data contract.
-
----
-
-## Running the Framework
-
-### SPARC Validation (Example)
-
-```bash
-python scripts/process_sparc.py \
-  --input data/SPARC/sparc_raw.csv \
-  --out results/SPARC/rotation_curves-v1.0.csv
-```
-
-### Deep-Regime Slope Diagnostic
-
-```bash
-python scripts/deep_slope_test.py \
-  --csv results/universal_term_comparison_full.csv \
-  --g0 1.2e-10 \
-  --deep-threshold 0.3 \
-  --out results/diagnostics/deep_slope_test
-```
-
----
-
-## Statistical Protocol
-
-The evaluation framework follows fixed rules:
-
-- Radial split OOS (no post-hoc tuning)
-- AICc-based model comparison
-- Deterministic merge contracts
-- Explicit deep-regime slope test
-- Versioned output naming
-
-Details: `docs/SPARC_EXPECTED_BEHAVIOUR.md`
-
----
-
-## Reproducibility
-
-Reproducible runs should record input checksums and git commit hashes when generating results.
-
-Each run should record:
-
-- Git commit hash  
-- Input file checksums  
-- Command-line arguments  
-- Parameter values (e.g., g0, thresholds)
-
-Outputs should be written under:
-```
-results/<module>/<artifact>-v<semver>.csv
-```
-
----
-
-## Limitations
-
-The framework evaluates rotation-curve behavior; it does not claim cosmological completeness.  
-Statistical validation is dataset-dependent.  
-Interpretation remains separate from computational reproducibility.
+See `docs/SPARC_EXPECTED_BEHAVIOUR.md` for the formal data contract.
 
 ---
 
 ## Citation
 
-See:
-
-- `CITATION.md`  
-- Zenodo archive (DOI when available)
+See `CITATION.cff` and the Zenodo archive (DOI when available).
 
 ---
 
@@ -179,9 +157,9 @@ Refer to the LICENSE file.
 
 ---
 
-## Contact
+## Author
 
-Author: Sergio Cámara Madrid  
+Sergio Cámara Madrid  
+Independent Researcher  
+Framework: **SCM – Motor de Velos**  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
-
-EOF
