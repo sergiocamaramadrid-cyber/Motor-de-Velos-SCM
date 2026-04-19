@@ -1,0 +1,8 @@
+{
+  "rho": -0.135,
+  "p": 0.000527,
+  "n": 656,
+  "logM_min": 10.0,
+  "method": "Spearman rank correlation between delta_mass_std and OLS mass-controlled residual spectral power",
+  "dataset": "spectral_dataset_final.csv"
+}
