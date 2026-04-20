@@ -59,6 +59,8 @@ import pandas as pd
 CATALOG_DEFAULT = "data/galaxy_catalog_with_env.csv"
 ACC_DEFAULT = "results/universal_term_comparison_full.csv"
 N_BINS_DEFAULT = 3
+OUTER_FRAC_DEFAULT = 0.7
+MIN_OUTER_POINTS = 2
 
 CATALOG_REQUIRED = {"galaxy", "logM"}
 ACC_REQUIRED = {"galaxy", "r_kpc", "g_bar", "g_obs", "log_g_bar", "log_g_obs"}
@@ -241,6 +243,68 @@ def compute_rar_mass_bins(merged: pd.DataFrame,
 
 
 # ---------------------------------------------------------------------------
+# f_DM outer-tail computation
+# ---------------------------------------------------------------------------
+
+def compute_fdm_per_galaxy(acc: pd.DataFrame,
+                           r_fraction: float = OUTER_FRAC_DEFAULT) -> pd.DataFrame:
+    """Compute mean f_DM in the outer tail (r > r_fraction * r_max) per galaxy.
+
+    The dark-matter fraction is defined as::
+
+        f_DM = 1 - g_bar / g_obs
+
+    where ``g_bar`` and ``g_obs`` are the mean baryonic and observed
+    centripetal accelerations over the outer radial points.
+
+    Parameters
+    ----------
+    acc : pd.DataFrame
+        Per-radial-point acceleration table with columns
+        ``galaxy``, ``r_kpc``, ``g_bar``, ``g_obs``.
+    r_fraction : float
+        Fraction of each galaxy's maximum radius that defines the outer tail.
+        Points with ``r_kpc > r_fraction * r_max`` are used (default 0.7).
+
+    Returns
+    -------
+    pd.DataFrame
+        One row per galaxy with columns:
+        ``galaxy``, ``r_max_kpc``, ``n_outer_points``,
+        ``f_DM_out``, ``g_bar_out``, ``g_obs_out``.
+        Galaxies with fewer than :data:`MIN_OUTER_POINTS` outer points or
+        physically invalid accelerations are omitted.
+    """
+    results = []
+
+    for galaxy, grp in acc.groupby("galaxy"):
+        r_max = grp["r_kpc"].max()
+        outer = grp[grp["r_kpc"] > r_fraction * r_max]
+
+        if len(outer) < MIN_OUTER_POINTS:
+            continue
+
+        g_bar_out = float(outer["g_bar"].mean())
+        g_obs_out = float(outer["g_obs"].mean())
+
+        if g_obs_out <= 0 or g_bar_out < 0:
+            continue
+
+        f_DM_out = 1.0 - (g_bar_out / g_obs_out)
+
+        results.append({
+            "galaxy": galaxy,
+            "r_max_kpc": float(r_max),
+            "n_outer_points": int(len(outer)),
+            "f_DM_out": f_DM_out,
+            "g_bar_out": g_bar_out,
+            "g_obs_out": g_obs_out,
+        })
+
+    return pd.DataFrame(results)
+
+
+# ---------------------------------------------------------------------------
 # Report formatting
 # ---------------------------------------------------------------------------
 
@@ -320,6 +384,7 @@ def main(argv: list[str] | None = None) -> dict:
         acc_columns     — list of acceleration CSV column names
         n_galaxies      — number of distinct galaxies in the merged table
         bins            — list of mass-bin statistics dicts
+        fdm             — DataFrame of per-galaxy outer-tail f_DM values
     """
     args = _parse_args(argv)
 
@@ -329,9 +394,9 @@ def main(argv: list[str] | None = None) -> dict:
     # Print shapes and columns — mirrors the exploratory pattern from the
     # original notebook (pd.DataFrame.shape / .columns) so callers can
     # quickly verify the loaded data.
-    print(catalog.shape, acc.shape)
-    print(list(catalog.columns))
-    print(list(acc.columns))
+    print(acc.shape)
+    print(acc.columns.tolist())
+    print(acc.head())
 
     merged = merge_catalog_acc(catalog, acc)
     bins = compute_rar_mass_bins(merged, n_bins=args.n_bins)
@@ -342,6 +407,16 @@ def main(argv: list[str] | None = None) -> dict:
     for line in report_lines:
         print(line)
 
+    # Compute f_DM in the outer tail per galaxy and merge with catalog
+    fdm = compute_fdm_per_galaxy(acc)
+    full = catalog.merge(fdm, on="galaxy", how="inner")
+
+    print(f"\nGalaxias con f_DM calculado: {len(full)}")
+    if not full.empty:
+        cols = [c for c in ["galaxy", "logMbar", "env_proxy", "f_DM_out"]
+                if c in full.columns]
+        print(full[cols].to_string())
+
     if args.out:
         out_dir = Path(args.out)
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -350,6 +425,7 @@ def main(argv: list[str] | None = None) -> dict:
             "\n".join(report_lines) + "\n", encoding="utf-8"
         )
         pd.DataFrame(bins).to_csv(out_dir / "mass_bins.csv", index=False)
+        fdm.to_csv(out_dir / "fdm_per_galaxy.csv", index=False)
         print(f"\n  Results written to {out_dir}")
 
     return {
@@ -360,6 +436,7 @@ def main(argv: list[str] | None = None) -> dict:
         "acc_columns": list(acc.columns),
         "n_galaxies": int(merged["galaxy"].nunique()),
         "bins": bins,
+        "fdm": fdm,
     }
 
 

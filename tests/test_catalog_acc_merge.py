@@ -18,6 +18,7 @@ from scripts.catalog_acc_merge import (
     load_acc,
     merge_catalog_acc,
     compute_rar_mass_bins,
+    compute_fdm_per_galaxy,
     format_report,
     main,
     CATALOG_DEFAULT,
@@ -25,6 +26,8 @@ from scripts.catalog_acc_merge import (
     N_BINS_DEFAULT,
     CATALOG_REQUIRED,
     ACC_REQUIRED,
+    OUTER_FRAC_DEFAULT,
+    MIN_OUTER_POINTS,
 )
 
 
@@ -411,6 +414,179 @@ class TestComputeRarMassBins:
 
 
 # ---------------------------------------------------------------------------
+# compute_fdm_per_galaxy
+# ---------------------------------------------------------------------------
+
+class TestComputeFdmPerGalaxy:
+    """Tests for compute_fdm_per_galaxy."""
+
+    def _acc(self, n_gal=5, n_pts=20, r_max=15.0):
+        """Build a synthetic acc DataFrame with well-separated radial ranges."""
+        rng = np.random.default_rng(42)
+        names = [f"G{i:04d}" for i in range(n_gal)]
+        rows = []
+        for name in names:
+            r = np.linspace(0.5, r_max, n_pts)
+            g_bar = rng.uniform(1e-12, 1e-9, n_pts)
+            g_obs = g_bar * rng.uniform(1.5, 3.0, n_pts)
+            for k in range(n_pts):
+                rows.append({
+                    "galaxy": name,
+                    "r_kpc": float(r[k]),
+                    "g_bar": float(g_bar[k]),
+                    "g_obs": float(g_obs[k]),
+                    "log_g_bar": float(np.log10(g_bar[k])),
+                    "log_g_obs": float(np.log10(g_obs[k])),
+                })
+        return pd.DataFrame(rows)
+
+    def test_returns_dataframe(self):
+        acc = self._acc()
+        result = compute_fdm_per_galaxy(acc)
+        assert isinstance(result, pd.DataFrame)
+
+    def test_one_row_per_galaxy(self):
+        acc = self._acc(n_gal=5)
+        result = compute_fdm_per_galaxy(acc)
+        assert result["galaxy"].nunique() == len(result)
+
+    def test_required_columns(self):
+        acc = self._acc()
+        result = compute_fdm_per_galaxy(acc)
+        for col in ("galaxy", "r_max_kpc", "n_outer_points",
+                    "f_DM_out", "g_bar_out", "g_obs_out"):
+            assert col in result.columns, f"Missing column: {col}"
+
+    def test_n_outer_points_positive(self):
+        acc = self._acc()
+        result = compute_fdm_per_galaxy(acc)
+        assert (result["n_outer_points"] >= MIN_OUTER_POINTS).all()
+
+    def test_r_max_kpc_correct(self):
+        acc = self._acc(n_gal=3, r_max=20.0)
+        result = compute_fdm_per_galaxy(acc)
+        assert not result.empty
+        np.testing.assert_allclose(result["r_max_kpc"].values,
+                                   np.full(len(result), 20.0), atol=1e-6)
+
+    def test_fdm_formula(self):
+        """f_DM_out = 1 - g_bar_out / g_obs_out."""
+        acc = self._acc(n_gal=3)
+        result = compute_fdm_per_galaxy(acc)
+        expected = 1.0 - result["g_bar_out"] / result["g_obs_out"]
+        np.testing.assert_allclose(result["f_DM_out"].values,
+                                   expected.values, rtol=1e-10)
+
+    def test_fdm_between_minus_inf_and_one(self):
+        """For g_obs > g_bar > 0, f_DM should be in (0, 1)."""
+        acc = self._acc()
+        result = compute_fdm_per_galaxy(acc)
+        assert (result["f_DM_out"] < 1.0).all()
+
+    def test_known_fdm_value(self):
+        """When g_obs = 2*g_bar at every outer point, f_DM = 0.5."""
+        n_pts = 20
+        r = np.linspace(0.5, 10.0, n_pts)
+        g_bar = np.full(n_pts, 1e-11)
+        g_obs = g_bar * 2.0
+        df = pd.DataFrame({
+            "galaxy": ["G0000"] * n_pts,
+            "r_kpc": r,
+            "g_bar": g_bar,
+            "g_obs": g_obs,
+            "log_g_bar": np.log10(g_bar),
+            "log_g_obs": np.log10(g_obs),
+        })
+        result = compute_fdm_per_galaxy(df, r_fraction=0.7)
+        assert len(result) == 1
+        assert abs(result.iloc[0]["f_DM_out"] - 0.5) < 1e-10
+
+    def test_empty_input_returns_empty(self):
+        empty = pd.DataFrame(
+            columns=["galaxy", "r_kpc", "g_bar", "g_obs",
+                     "log_g_bar", "log_g_obs"]
+        )
+        result = compute_fdm_per_galaxy(empty)
+        assert isinstance(result, pd.DataFrame)
+        assert len(result) == 0
+
+    def test_too_few_outer_points_skipped(self):
+        """Galaxy with only 1 outer point should be omitted."""
+        # 10 points, r_fraction=0.9 → only the last point is outer
+        n_pts = 10
+        r = np.linspace(1.0, 10.0, n_pts)
+        g_bar = np.full(n_pts, 1e-11)
+        g_obs = g_bar * 2.0
+        df = pd.DataFrame({
+            "galaxy": ["G0000"] * n_pts,
+            "r_kpc": r,
+            "g_bar": g_bar,
+            "g_obs": g_obs,
+            "log_g_bar": np.log10(g_bar),
+            "log_g_obs": np.log10(g_obs),
+        })
+        result = compute_fdm_per_galaxy(df, r_fraction=0.99)
+        assert len(result) == 0
+
+    def test_r_fraction_controls_outer_region(self):
+        """Lower r_fraction includes more points as outer."""
+        acc = self._acc(n_gal=1, n_pts=20)
+        res_tight = compute_fdm_per_galaxy(acc, r_fraction=0.9)
+        res_loose = compute_fdm_per_galaxy(acc, r_fraction=0.1)
+        if not res_tight.empty and not res_loose.empty:
+            assert (res_loose["n_outer_points"] >= res_tight["n_outer_points"]).all()
+
+    def test_custom_r_fraction(self):
+        n_pts = 20
+        r = np.linspace(1.0, 10.0, n_pts)
+        g_bar = np.full(n_pts, 1e-11)
+        g_obs = g_bar * 3.0
+        df = pd.DataFrame({
+            "galaxy": ["G0000"] * n_pts,
+            "r_kpc": r,
+            "g_bar": g_bar,
+            "g_obs": g_obs,
+            "log_g_bar": np.log10(g_bar),
+            "log_g_obs": np.log10(g_obs),
+        })
+        result = compute_fdm_per_galaxy(df, r_fraction=0.5)
+        assert len(result) == 1
+        assert abs(result.iloc[0]["f_DM_out"] - (1.0 - 1.0 / 3.0)) < 1e-10
+
+    def test_multiple_galaxies_all_returned(self):
+        acc = self._acc(n_gal=7, n_pts=20)
+        result = compute_fdm_per_galaxy(acc)
+        assert len(result) == 7
+
+    def test_n_outer_points_matches_expectation(self):
+        """With r in [0.5, 10] and r_fraction=0.7, outer starts at r > 7.0."""
+        n_pts = 20
+        r = np.linspace(0.5, 10.0, n_pts)
+        # r_fraction * r_max = 0.7 * 10 = 7.0 → points where r > 7.0
+        expected_outer = int((r > 7.0).sum())
+        g_bar = np.full(n_pts, 1e-11)
+        g_obs = g_bar * 2.0
+        df = pd.DataFrame({
+            "galaxy": ["G0000"] * n_pts,
+            "r_kpc": r,
+            "g_bar": g_bar,
+            "g_obs": g_obs,
+            "log_g_bar": np.log10(g_bar),
+            "log_g_obs": np.log10(g_obs),
+        })
+        result = compute_fdm_per_galaxy(df, r_fraction=0.7)
+        if not result.empty:
+            assert result.iloc[0]["n_outer_points"] == expected_outer
+
+    def test_default_r_fraction_equals_outer_frac_default(self):
+        """Default r_fraction must match the module constant."""
+        import inspect
+        sig = inspect.signature(compute_fdm_per_galaxy)
+        default = sig.parameters["r_fraction"].default
+        assert default == OUTER_FRAC_DEFAULT
+
+
+# ---------------------------------------------------------------------------
 # format_report
 # ---------------------------------------------------------------------------
 
@@ -486,7 +662,7 @@ class TestMain:
         result = main(["--catalog", str(cat_p), "--acc", str(acc_p)])
         required = {
             "catalog_shape", "acc_shape", "merged_shape",
-            "catalog_columns", "acc_columns", "n_galaxies", "bins",
+            "catalog_columns", "acc_columns", "n_galaxies", "bins", "fdm",
         }
         assert required <= set(result.keys())
 
@@ -523,6 +699,7 @@ class TestMain:
         assert (out / "merged.csv").exists()
         assert (out / "report.txt").exists()
         assert (out / "mass_bins.csv").exists()
+        assert (out / "fdm_per_galaxy.csv").exists()
 
     def test_merged_csv_has_logmbar(self, tmp_path):
         cat_p = _make_catalog(tmp_path, n=4)
@@ -567,6 +744,21 @@ class TestMain:
         acc_p = _make_acc(tmp_path, galaxies=[f"G{i:04d}" for i in range(5)])
         result = main(["--catalog", str(cat_p), "--acc", str(acc_p)])
         assert isinstance(result["bins"], list)
+
+    def test_fdm_key_is_dataframe(self, tmp_path):
+        cat_p = _make_catalog(tmp_path, n=5)
+        acc_p = _make_acc(tmp_path, galaxies=[f"G{i:04d}" for i in range(5)])
+        result = main(["--catalog", str(cat_p), "--acc", str(acc_p)])
+        assert isinstance(result["fdm"], pd.DataFrame)
+
+    def test_fdm_csv_has_f_dm_out(self, tmp_path):
+        cat_p = _make_catalog(tmp_path, n=4)
+        acc_p = _make_acc(tmp_path, galaxies=[f"G{i:04d}" for i in range(4)])
+        out = tmp_path / "out"
+        main(["--catalog", str(cat_p), "--acc", str(acc_p), "--out", str(out)])
+        fdm_df = pd.read_csv(out / "fdm_per_galaxy.csv")
+        assert "f_DM_out" in fdm_df.columns
+        assert "galaxy" in fdm_df.columns
 
 
 # ---------------------------------------------------------------------------
