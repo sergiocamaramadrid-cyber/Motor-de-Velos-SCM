@@ -122,6 +122,37 @@ python scripts/deep_slope_test.py \
   --out results/diagnostics/deep_slope_test
 ```
 
+### Mechanism Analysis — H1/H2/H3 (v2.1.0)
+
+Tests three physical mechanisms behind the environmental signal in rotation-curve tails:
+
+- **H1** — Dark-matter fraction: high env_proxy → higher f_DM_out → flatter tail slope.
+- **H2** — Disk-size effect: compact disks (small Rdisk/Rmax) sample deeper potential → steeper tail.
+- **H3** — Residual baryonic mass signal after controlling for env_proxy and f_DM_out.
+
+Run the full pipeline:
+
+```bash
+python scripts/scm_mechanism_analysis.py \
+  --catalog data/galaxy_catalog_with_env.csv \
+  --sparc-dir data/SPARC \
+  --out results/mechanism \
+  --n-perm 1000
+```
+
+Key results (N=79 SPARC galaxies):
+
+| Metric | Value |
+|---|---|
+| ρ(env\_proxy, slope\_tail) | −0.093 (p=0.025) |
+| ρ(logMbar, f\_DM\_out) | −0.644 (p<0.001) |
+| ρ(f\_DM\_out, slope\_tail) | −0.435 (p<0.001) |
+| ΔAIC (SCM+H1 vs Base) | 2.34 |
+| f\_DM = 0.5 crossing | logMbar = 10.39 |
+| Optimal model | slope\_tail ~ env\_proxy + logMbar + f\_DM\_out |
+
+Outputs written to `results/mechanism/`: `dataset.csv`, `correlations.csv`, `model_comparison.csv`, `permutation_test.csv`, `h1_diagnostic.{png,pdf}`, `env_robustness.{png,pdf}`.
+
 ---
 
 ## Statistical Protocol
