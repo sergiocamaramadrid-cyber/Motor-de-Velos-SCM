@@ -1,0 +1,20 @@
+================================================================
+  Motor de Velos SCM — Catalog × Acceleration Merge
+================================================================
+  Catalog  : data/galaxy_catalog_with_env.csv
+  Acc CSV  : results/universal_term_comparison_full.csv
+
+  Catalog  : shape=(20, 3)
+  Catalog columns : ['galaxy', 'logMbar', 'env_proxy']
+  Acc CSV  : shape=(3500, 6)
+  Acc columns     : ['galaxy', 'r_kpc', 'g_bar', 'g_obs', 'log_g_bar', 'log_g_obs']
+
+  Merged   : shape=(400, 8)
+  Galaxies in merge: 20
+
+  Mass-binned RAR statistics
+  ------------------------------------------------------------
+  logMbar [8.60, 9.53]  n_gal=7  n_pts=140  env=-0.572  log(g_obs/g_bar)=+0.0777
+  logMbar [9.53, 10.47]  n_gal=6  n_pts=120  env=0.027  log(g_obs/g_bar)=+0.0715
+  logMbar [10.47, 11.40]  n_gal=7  n_pts=140  env=0.521  log(g_obs/g_bar)=+0.0697
+================================================================
