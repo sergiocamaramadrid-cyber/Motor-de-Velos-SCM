@@ -3,15 +3,16 @@ title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curv
 message: "If you use this dataset or code, please cite it as below."
 type: software
 
-version: "2.1.0"
+version: "2.2.0"
 
 abstract: >
   Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate
   galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation)
-  model. Version 2.1.0 adds the mechanism analysis pipeline (H1/H2/H3) that
-  tests dark-matter fraction, disk-size, and baryonic-mass effects as drivers
-  of the environmental signal in rotation-curve tails, using N=79 SPARC
-  galaxies with OLS HC3 regressions and AIC model comparison.
+  model. Version 2.2.0 formalises E_SCM = log10(MHI/Rdisk^2) as the canonical
+  environmental proxy, adds Leave-One-Out generalization tests (RMSE_LOO=0.1464,
+  rho_LOO=0.410, p=0.0002, beats permutation null p95=0.1623), and rejects the
+  dark-matter halo-dominance hypothesis H1 (f_DM_out p=0.51, DELTA_AIC=-1.62).
+  N=79 SPARC galaxies; OLS HC3 regressions; AIC model comparison.
 
 authors:
 
@@ -34,6 +35,9 @@ keywords:
 - environmental effects
 - dark matter fraction
 - mechanism analysis
+- generalization test
+- leave-one-out cross-validation
+- HI surface density
 - reproducibility
 
 license: "MIT"
