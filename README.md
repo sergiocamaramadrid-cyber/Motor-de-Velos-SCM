@@ -1,6 +1,19 @@
 https://colab.research.google.com/github/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/blob/main/notebooks/scm_reproducible.ipynb
 # Motor-de-Velos-SCM
 
+## Main Result
+
+The SCM observable does not define a universal law. Instead, it introduces a **regime-dependent structural modulation**:
+
+- No significant signal in low-mass galaxies (logMbar < 10)
+- Strong, significant signal in high-mass systems (β ≈ -0.14, p ≈ 0.0036)
+- Progressive flattening of the mass–slope relation across E_SCM bins
+- No significant global interaction term → non-linear, regime-based behavior
+
+This indicates that E_SCM acts as a **secondary structural descriptor**, not a primary driver.
+
+---
+
 ## Historical Context / Contexto histórico
 
 Author: Sergio Cámara Madrid  
