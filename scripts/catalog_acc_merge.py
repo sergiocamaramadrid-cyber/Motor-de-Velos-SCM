@@ -243,6 +243,52 @@ def compute_rar_mass_bins(merged: pd.DataFrame,
 
 
 # ---------------------------------------------------------------------------
+# Catalog-vs-acceleration overlap diagnostics
+# ---------------------------------------------------------------------------
+
+def compute_catalog_overlap(catalog: pd.DataFrame,
+                             acc: pd.DataFrame) -> dict:
+    """Compute galaxy-name overlap between the catalog and acceleration tables.
+
+    Parameters
+    ----------
+    catalog : pd.DataFrame
+        Galaxy catalog with at least a ``galaxy`` column.
+    acc : pd.DataFrame
+        Per-radial-point acceleration table with at least a ``galaxy`` column.
+
+    Returns
+    -------
+    dict with keys:
+        n_catalog        — number of distinct galaxies in the catalog
+        n_acc            — number of distinct galaxies in the acceleration table
+        n_overlap        — galaxies present in both datasets
+        n_only_catalog   — galaxies only in the catalog (no acceleration data)
+        n_only_acc       — galaxies only in the acceleration table (no catalog)
+        overlap          — sorted list of overlapping galaxy names
+        only_catalog     — sorted list of catalog-only galaxy names
+        only_acc         — sorted list of acc-only galaxy names
+    """
+    galaxies_cat = set(catalog["galaxy"])
+    galaxies_acc = set(acc["galaxy"])
+
+    overlap = galaxies_cat & galaxies_acc
+    only_cat = galaxies_cat - galaxies_acc
+    only_acc = galaxies_acc - galaxies_cat
+
+    return {
+        "n_catalog": len(galaxies_cat),
+        "n_acc": len(galaxies_acc),
+        "n_overlap": len(overlap),
+        "n_only_catalog": len(only_cat),
+        "n_only_acc": len(only_acc),
+        "overlap": sorted(overlap),
+        "only_catalog": sorted(only_cat),
+        "only_acc": sorted(only_acc),
+    }
+
+
+# ---------------------------------------------------------------------------
 # f_DM outer-tail computation
 # ---------------------------------------------------------------------------
 
@@ -385,6 +431,7 @@ def main(argv: list[str] | None = None) -> dict:
         n_galaxies      — number of distinct galaxies in the merged table
         bins            — list of mass-bin statistics dicts
         fdm             — DataFrame of per-galaxy outer-tail f_DM values
+        overlap         — dict from compute_catalog_overlap
     """
     args = _parse_args(argv)
 
@@ -397,6 +444,16 @@ def main(argv: list[str] | None = None) -> dict:
     print(acc.shape)
     print(acc.columns.tolist())
     print(acc.head())
+
+    # Overlap diagnostic
+    ov = compute_catalog_overlap(catalog, acc)
+    print(f"\nGalaxias en catálogo:          {ov['n_catalog']}")
+    print(f"Galaxias en acc:               {ov['n_acc']}")
+    print(f"Solapamiento:                  {ov['n_overlap']}")
+    print(f"Solo en catálogo (sin f_DM):   {ov['n_only_catalog']}")
+    print(f"Solo en acc (sin slope_tail):  {ov['n_only_acc']}")
+    if ov["only_catalog"]:
+        print(f"Galaxias que perderías: {ov['only_catalog']}")
 
     merged = merge_catalog_acc(catalog, acc)
     bins = compute_rar_mass_bins(merged, n_bins=args.n_bins)
@@ -426,6 +483,10 @@ def main(argv: list[str] | None = None) -> dict:
         )
         pd.DataFrame(bins).to_csv(out_dir / "mass_bins.csv", index=False)
         fdm.to_csv(out_dir / "fdm_per_galaxy.csv", index=False)
+        # Write overlap summary as a two-column (key, value) CSV
+        ov_rows = [{"key": k, "value": v}
+                   for k, v in ov.items() if not isinstance(v, list)]
+        pd.DataFrame(ov_rows).to_csv(out_dir / "overlap.csv", index=False)
         print(f"\n  Results written to {out_dir}")
 
     return {
@@ -437,6 +498,7 @@ def main(argv: list[str] | None = None) -> dict:
         "n_galaxies": int(merged["galaxy"].nunique()),
         "bins": bins,
         "fdm": fdm,
+        "overlap": ov,
     }
 
 

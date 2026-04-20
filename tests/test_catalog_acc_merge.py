@@ -19,6 +19,7 @@ from scripts.catalog_acc_merge import (
     merge_catalog_acc,
     compute_rar_mass_bins,
     compute_fdm_per_galaxy,
+    compute_catalog_overlap,
     format_report,
     main,
     CATALOG_DEFAULT,
@@ -587,6 +588,132 @@ class TestComputeFdmPerGalaxy:
 
 
 # ---------------------------------------------------------------------------
+# compute_catalog_overlap
+# ---------------------------------------------------------------------------
+
+class TestComputeCatalogOverlap:
+    """Tests for compute_catalog_overlap."""
+
+    def _catalog(self, names):
+        return pd.DataFrame({
+            "galaxy": names,
+            "logMbar": np.zeros(len(names)),
+        })
+
+    def _acc(self, names):
+        rows = []
+        for name in names:
+            rows.append({
+                "galaxy": name,
+                "r_kpc": 1.0,
+                "g_bar": 1e-11,
+                "g_obs": 2e-11,
+                "log_g_bar": -11.0,
+                "log_g_obs": -10.7,
+            })
+        return pd.DataFrame(rows)
+
+    def test_returns_dict(self):
+        cat = self._catalog(["A", "B", "C"])
+        acc = self._acc(["B", "C", "D"])
+        result = compute_catalog_overlap(cat, acc)
+        assert isinstance(result, dict)
+
+    def test_required_keys(self):
+        cat = self._catalog(["A", "B"])
+        acc = self._acc(["B", "C"])
+        result = compute_catalog_overlap(cat, acc)
+        for key in ("n_catalog", "n_acc", "n_overlap",
+                    "n_only_catalog", "n_only_acc",
+                    "overlap", "only_catalog", "only_acc"):
+            assert key in result, f"Missing key: {key}"
+
+    def test_full_overlap(self):
+        names = ["A", "B", "C"]
+        cat = self._catalog(names)
+        acc = self._acc(names)
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_overlap"] == 3
+        assert result["n_only_catalog"] == 0
+        assert result["n_only_acc"] == 0
+        assert result["overlap"] == sorted(names)
+
+    def test_no_overlap(self):
+        cat = self._catalog(["A", "B"])
+        acc = self._acc(["C", "D"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_overlap"] == 0
+        assert result["n_only_catalog"] == 2
+        assert result["n_only_acc"] == 2
+
+    def test_partial_overlap(self):
+        cat = self._catalog(["A", "B", "C"])
+        acc = self._acc(["B", "C", "D"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_overlap"] == 2
+        assert result["n_only_catalog"] == 1
+        assert result["n_only_acc"] == 1
+        assert "A" in result["only_catalog"]
+        assert "D" in result["only_acc"]
+
+    def test_n_catalog_correct(self):
+        cat = self._catalog(["A", "B", "C", "D"])
+        acc = self._acc(["C"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_catalog"] == 4
+
+    def test_n_acc_correct(self):
+        cat = self._catalog(["A"])
+        acc = self._acc(["X", "Y", "Z"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_acc"] == 3
+
+    def test_overlap_sorted(self):
+        cat = self._catalog(["C", "A", "B"])
+        acc = self._acc(["B", "A"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["overlap"] == sorted(result["overlap"])
+
+    def test_only_catalog_sorted(self):
+        cat = self._catalog(["Z", "M", "A"])
+        acc = self._acc(["M"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["only_catalog"] == sorted(result["only_catalog"])
+
+    def test_only_acc_sorted(self):
+        cat = self._catalog(["A"])
+        acc = self._acc(["Z", "B", "M"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["only_acc"] == sorted(result["only_acc"])
+
+    def test_empty_catalog(self):
+        cat = pd.DataFrame({"galaxy": [], "logMbar": []})
+        acc = self._acc(["A", "B"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_catalog"] == 0
+        assert result["n_overlap"] == 0
+        assert result["n_only_acc"] == 2
+
+    def test_empty_acc(self):
+        cat = self._catalog(["A", "B"])
+        acc = pd.DataFrame(columns=["galaxy", "r_kpc", "g_bar",
+                                    "g_obs", "log_g_bar", "log_g_obs"])
+        result = compute_catalog_overlap(cat, acc)
+        assert result["n_acc"] == 0
+        assert result["n_overlap"] == 0
+        assert result["n_only_catalog"] == 2
+
+    def test_counts_consistent(self):
+        cat = self._catalog(["A", "B", "C", "D"])
+        acc = self._acc(["C", "D", "E"])
+        result = compute_catalog_overlap(cat, acc)
+        assert (result["n_overlap"] + result["n_only_catalog"]
+                == result["n_catalog"])
+        assert (result["n_overlap"] + result["n_only_acc"]
+                == result["n_acc"])
+
+
+# ---------------------------------------------------------------------------
 # format_report
 # ---------------------------------------------------------------------------
 
@@ -662,7 +789,8 @@ class TestMain:
         result = main(["--catalog", str(cat_p), "--acc", str(acc_p)])
         required = {
             "catalog_shape", "acc_shape", "merged_shape",
-            "catalog_columns", "acc_columns", "n_galaxies", "bins", "fdm",
+            "catalog_columns", "acc_columns", "n_galaxies", "bins",
+            "fdm", "overlap",
         }
         assert required <= set(result.keys())
 
@@ -700,6 +828,7 @@ class TestMain:
         assert (out / "report.txt").exists()
         assert (out / "mass_bins.csv").exists()
         assert (out / "fdm_per_galaxy.csv").exists()
+        assert (out / "overlap.csv").exists()
 
     def test_merged_csv_has_logmbar(self, tmp_path):
         cat_p = _make_catalog(tmp_path, n=4)
@@ -759,6 +888,23 @@ class TestMain:
         fdm_df = pd.read_csv(out / "fdm_per_galaxy.csv")
         assert "f_DM_out" in fdm_df.columns
         assert "galaxy" in fdm_df.columns
+
+    def test_overlap_key_is_dict(self, tmp_path):
+        cat_p = _make_catalog(tmp_path, n=5)
+        acc_p = _make_acc(tmp_path, galaxies=[f"G{i:04d}" for i in range(5)])
+        result = main(["--catalog", str(cat_p), "--acc", str(acc_p)])
+        assert isinstance(result["overlap"], dict)
+        assert "n_overlap" in result["overlap"]
+
+    def test_overlap_csv_has_key_column(self, tmp_path):
+        cat_p = _make_catalog(tmp_path, n=4)
+        acc_p = _make_acc(tmp_path, galaxies=[f"G{i:04d}" for i in range(4)])
+        out = tmp_path / "out"
+        main(["--catalog", str(cat_p), "--acc", str(acc_p), "--out", str(out)])
+        ov_df = pd.read_csv(out / "overlap.csv")
+        assert "key" in ov_df.columns
+        assert "value" in ov_df.columns
+        assert "n_overlap" in ov_df["key"].values
 
 
 # ---------------------------------------------------------------------------
