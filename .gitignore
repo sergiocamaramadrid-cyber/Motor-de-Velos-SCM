@@ -21,14 +21,29 @@ env/
 .ipynb_checkpoints/
 *.ipynb
 
+# Colab working directories
+content/
+
+# Temporary / scratch files
+*.tmp
+*.bak
+*.orig
+
+# Logs
+*.log
+
 # Data (large files not tracked)
 data/SPARC/raw/
 data/SPARC/processed/
+data/raw/
 
-# Generated analysis outputs (created by running analysis scripts)
-results/littlethings_dust/
-# Physical SPARC measurement output — NOT committed; run locally with real data
+# Generated pipeline outputs in results/ root (re-created by running scripts)
+results/executive_summary.txt
+results/universal_term_comparison_full.csv
+results/per_galaxy_summary.csv
+results/top10_universal.tex
 results/f3_catalog_real.csv
+results/littlethings_dust/
 
 # Editor / OS
 .DS_Store
