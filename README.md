@@ -59,7 +59,8 @@ Motor-de-Velos-SCM/
 │   │   └── SCM_results_table.csv
 │   ├── blind_test_lt/
 │   ├── diagnostics/
-│   └── lt_dust_hinge/
+│   ├── lt_dust_hinge/
+│   └── f3_catalog_synthetic_flat.csv   ← CI test fixture (not a scientific result; see tests/FIXTURES.md)
 ├── scripts/                      Analysis and diagnostic scripts
 ├── src/                          Core model implementations
 ├── tests/                        Unit and integration tests
