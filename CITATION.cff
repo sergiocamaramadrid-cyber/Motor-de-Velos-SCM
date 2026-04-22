@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
+title: "SCM Framework — Environmental Regime Transition"
 message: "If you use this dataset or code, please cite it as below."
 type: dataset
 
@@ -26,4 +26,6 @@ keywords:
 
 license: "MIT"
 
-date-released: 2026-04-10
+date-released: 2026-04-22
+version: "v2.4.0"
+doi: 10.5281/zenodo.19455777
