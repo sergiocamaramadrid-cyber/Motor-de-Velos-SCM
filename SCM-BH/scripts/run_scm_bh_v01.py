@@ -3,6 +3,9 @@ from scm_bh_generic import SCMGeneric
 
 df = pd.read_csv("data/processed/bh_catalog_clean.csv")
 
+if df.empty:
+    raise ValueError("Dataset vacío o no cargado correctamente")
+
 scm = SCMGeneric()
 scm.load_data(df)
 

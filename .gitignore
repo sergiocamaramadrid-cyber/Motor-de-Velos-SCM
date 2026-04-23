@@ -25,6 +25,12 @@ env/
 data/SPARC/raw/
 data/SPARC/processed/
 
+# SCM-BH data (not tracked; only .gitkeep placeholders)
+SCM-BH/data/raw/*
+!SCM-BH/data/raw/.gitkeep
+SCM-BH/data/processed/*
+!SCM-BH/data/processed/.gitkeep
+
 # Generated analysis outputs (created by running analysis scripts)
 results/littlethings_dust/
 # Physical SPARC measurement output — NOT committed; run locally with real data

@@ -67,3 +67,15 @@ This is a testable empirical hypothesis, not a causal claim.
 ## Status
 
 v0.1 — initialized, pending real dataset ingestion
+
+---
+
+## Expected input file
+
+`data/processed/bh_catalog_clean.csv`
+
+Required columns:
+- `source_id`
+- `theta_jet`
+- `logM_BH`
+- `logL_bol`
