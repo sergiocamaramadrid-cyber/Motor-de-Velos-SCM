@@ -1,0 +1,7 @@
+cff-version: 1.2.0
+title: "SCM-BH — Statistical Correlation Metrics for Black Hole Systems"
+version: v0.1.0
+authors:
+  - family-names: "Cámara Madrid"
+    given-names: "Sergio"
+date-released: 2026-04-23
