@@ -1,7 +1,8 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
+title: "SCM Framework – Motor de Velos"
 message: "If you use this dataset or code, please cite it as below."
 type: dataset
+version: v2.4.0
 
 authors:
 
@@ -26,4 +27,4 @@ keywords:
 
 license: "MIT"
 
-date-released: 2026-04-10
+date-released: 2026-04-22

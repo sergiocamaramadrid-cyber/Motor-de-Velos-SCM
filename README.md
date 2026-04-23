@@ -164,6 +164,28 @@ Interpretation remains separate from computational reproducibility.
 
 ---
 
+## Final Empirical Report (v2.4.0)
+
+The definitive empirical report is available here:
+
+➡️ docs/SCM_FINAL_REPORT.md
+
+Main result:
+- Mass-dependent environmental correlation in galaxy dynamics
+- No detectable correlation in low-mass systems
+
+This report contains only statistically verified results.
+
+---
+
+## Key Results
+
+- High-mass galaxies: significant environmental correlation (ρ ≈ −0.46, p < 0.001)
+- Low-mass galaxies: no detectable correlation
+- Evidence supports a regime-dependent behavior in galaxy dynamics
+
+---
+
 ## Citation
 
 See:
