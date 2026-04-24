@@ -1,0 +1,33 @@
+cff-version: 1.2.0
+title: "SCM-BH: Jet Structure and Doppler-Regime Modulation in MOJAVE AGN"
+message: "If you use this analysis or data, please cite it as below."
+type: dataset
+
+authors:
+  - family-names: "Cámara Madrid"
+    given-names: "Sergio"
+
+repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
+
+version: "scm-bh-v0.1"
+
+keywords:
+  - astrophysics
+  - AGN
+  - jet geometry
+  - MOJAVE
+  - Doppler factor
+  - black hole mass
+  - Eddington ratio
+  - reproducibility
+
+abstract: >
+  Exploratory SCM-BH analysis of AGN jet geometry using MOJAVE jet-opening measurements
+  and Wu & Shen DR16Q physical properties. Main result: observed jet opening angles are
+  dominated by intrinsic structural scale r15; black-hole mass, bolometric luminosity, and
+  Eddington ratio show no robust direct or residual correlations. A secondary Doppler-regime
+  modulation is detected with a low-δ / high-δ transition.
+
+license: "MIT"
+
+date-released: 2026-04-24

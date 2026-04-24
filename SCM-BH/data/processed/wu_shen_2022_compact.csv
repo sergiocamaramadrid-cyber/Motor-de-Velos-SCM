@@ -1,0 +1,21 @@
+sdss_name,ra_deg,dec_deg,redshift,LOGMBH,LOGMBH_err,LOGLBOL,LOGLBOL_err,LOGEDD_RATIO,line_used
+# Wu & Shen DR16Q compact reference table.
+# Columns:
+#   sdss_name     : SDSS DR16Q source name (J2000)
+#   ra_deg        : Right ascension (degrees, J2000)
+#   dec_deg       : Declination (degrees, J2000)
+#   redshift      : Spectroscopic redshift
+#   LOGMBH        : log10(M_BH / M_sun), virial mass estimate
+#   LOGMBH_err    : Uncertainty in LOGMBH (dex)
+#   LOGLBOL       : log10(L_bol / erg s^-1)
+#   LOGLBOL_err   : Uncertainty in LOGLBOL (dex)
+#   LOGEDD_RATIO  : log10(L_bol / L_Edd)
+#   line_used     : Emission line used for M_BH estimate (e.g. Hbeta, MgII, CIV)
+#
+# Source: Wu, Q., & Shen, Y. (2022), ApJS 263 42.
+# DOI: 10.3847/1538-4365/ac9ded
+#
+# This is a compact subset of the Wu & Shen DR16Q catalog restricted to
+# sources cross-matched with the MOJAVE AGN sample (N_total subset).
+#
+# Placeholder file — replace with pipeline output before final release.

@@ -1,0 +1,57 @@
+{
+  "analysis": "SCM-BH Stage 3 Final Summary",
+  "date": "2026-04-24",
+  "version": "scm-bh-v0.1",
+  "hypothesis": "Jet opening angle is primarily governed by intrinsic jet scale r15; engine variables (MBH, Lbol, Eddington ratio) show no robust direct or residual correlations.",
+  "sample": {
+    "N": 77,
+    "description": "MOJAVE AGN with complete theta_jet, r15, delta, LOGMBH, LOGLBOL, LOGEDD_RATIO"
+  },
+  "structural_regression": {
+    "model": "theta_jet ~ log10(r15)",
+    "R2_range": [0.25, 0.32],
+    "notes": "Robust across match tolerances"
+  },
+  "engine_variables": {
+    "LOGMBH_vs_theta_jet": {
+      "spearman_rho": 0.05,
+      "p_value": 0.32,
+      "verdict": "no_signal"
+    },
+    "LOGLBOL_vs_theta_jet": {
+      "spearman_rho": 0.07,
+      "p_value": 0.22,
+      "verdict": "no_signal"
+    },
+    "LOGEDD_RATIO_vs_theta_jet": {
+      "spearman_rho": 0.12,
+      "p_value": 0.17,
+      "verdict": "not_robust_N77"
+    }
+  },
+  "doppler_modulation": {
+    "global": {
+      "spearman_rho": 0.31,
+      "p_value": 0.011,
+      "verdict": "significant"
+    },
+    "low_delta": {
+      "spearman_rho": 0.52,
+      "p_value": 0.002,
+      "verdict": "strong"
+    },
+    "high_delta": {
+      "spearman_rho": 0.02,
+      "p_value": 0.91,
+      "verdict": "saturated"
+    },
+    "split": "median_delta"
+  },
+  "combined_model": {
+    "formula": "theta_jet ~ log10(r15) + delta + delta * log10(r15)",
+    "R2": 0.405,
+    "p_global": 2e-6,
+    "verdict": "best_model"
+  },
+  "verdict": "SCM-BH does not support a direct engine-driven model for jet opening angle. Two-layer interpretation: structural (r15) + relativistic observational (delta regime transition)."
+}

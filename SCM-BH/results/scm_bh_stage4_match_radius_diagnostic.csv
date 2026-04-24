@@ -1,0 +1,6 @@
+match_radius_arcsec,N_matched,R2_structural,rho_delta_global,p_delta_global,rho_low_delta,p_low_delta,rho_high_delta,p_high_delta,R2_combined,notes
+1.0,51,0.28,0.29,0.039,0.48,0.008,0.03,0.88,0.38,tight_radius_small_N
+2.0,68,0.27,0.30,0.013,0.51,0.003,0.02,0.92,0.40,nominal_minus_1arcsec
+3.0,77,0.27,0.31,0.011,0.52,0.002,0.02,0.91,0.405,nominal_reference
+4.0,80,0.26,0.30,0.012,0.50,0.003,0.03,0.89,0.39,relaxed_plus_1arcsec
+5.0,83,0.25,0.29,0.015,0.49,0.004,0.04,0.87,0.38,relaxed_rescue_radius

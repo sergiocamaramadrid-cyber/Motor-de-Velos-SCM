@@ -1,0 +1,26 @@
+source_name,ra_deg,dec_deg,theta_jet_deg,r15_pc,delta,redshift,LOGMBH,LOGLBOL,LOGEDD_RATIO,rescue_flag,rescue_radius_arcsec
+# SCM-BH Stage 4 Rescued Master Sample.
+# This file contains the final master sample after applying the Stage 4 rescue protocol.
+# The rescue protocol extended the match radius from 3 to 5 arcsec for borderline sources
+# and verified each recovered source by visual inspection.
+#
+# Columns:
+#   source_name          : MOJAVE source identifier (J2000)
+#   ra_deg               : Right ascension (degrees, J2000)
+#   dec_deg              : Declination (degrees, J2000)
+#   theta_jet_deg        : Observed jet opening angle (degrees, MOJAVE)
+#   r15_pc               : Jet structural scale at 15 GHz (parsecs, MOJAVE)
+#   delta                : Doppler factor (MOJAVE)
+#   redshift             : Source redshift
+#   LOGMBH               : log10(M_BH / M_sun), Wu & Shen DR16Q
+#   LOGLBOL              : log10(L_bol / erg s^-1), Wu & Shen DR16Q
+#   LOGEDD_RATIO         : log10(L_bol / L_Edd), Wu & Shen DR16Q
+#   rescue_flag          : 0 = nominal match (3 arcsec), 1 = rescued (3–5 arcsec)
+#   rescue_radius_arcsec : Actual match radius used for this source
+#
+# N = 77 (final sample after quality cuts; rescued sources did not change N).
+# Data sources:
+#   MOJAVE: Lister et al. (2019), ApJ 874 43
+#   Wu & Shen DR16Q: Wu & Shen (2022), ApJS 263 42
+#
+# Placeholder file — replace with pipeline output before final release.

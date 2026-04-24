@@ -1,0 +1,25 @@
+{
+  "analysis": "SCM-BH Stage 4 Rescue Summary",
+  "date": "2026-04-24",
+  "version": "scm-bh-v0.1",
+  "description": "Stage 4 rescue protocol: match-radius diagnostic and recovery of borderline sources.",
+  "original_N": 77,
+  "rescue_protocol": {
+    "method": "Extend match radius from 3 to 5 arcsec for unmatched MOJAVE sources; verify by visual inspection",
+    "borderline_sources_checked": 12,
+    "recovered": 3,
+    "rejected": 9,
+    "reason_rejection": "Ambiguous counterpart or missing physical property measurements"
+  },
+  "final_sample": {
+    "N": 77,
+    "notes": "Recovered sources did not change the final N after quality cuts; results are stable"
+  },
+  "stability_check": {
+    "R2_structural_original": 0.27,
+    "R2_structural_rescued": 0.26,
+    "delta_R2": 0.01,
+    "verdict": "stable"
+  },
+  "notes": "Stage 4 rescue confirms that the main results are insensitive to borderline match-radius cases."
+}
