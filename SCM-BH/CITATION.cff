@@ -7,6 +7,8 @@ authors:
   - family-names: "Cámara Madrid"
     given-names: "Sergio"
 
+doi: 10.5281/zenodo.19736765
+
 repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
 
 version: "scm-bh-v0.1"

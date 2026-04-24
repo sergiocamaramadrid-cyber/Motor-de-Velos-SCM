@@ -1,5 +1,7 @@
 # SCM-BH: Jet Structure and Doppler-Regime Modulation in MOJAVE AGN
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19736765.svg)](https://doi.org/10.5281/zenodo.19736765)
+
 Author: Sergio Cámara Madrid  
 Status: Exploratory — not yet a final publication claim  
 Tag: `scm-bh-v0.1`
@@ -101,7 +103,11 @@ SCM-BH/
 
 ## Citation
 
-See `CITATION.cff` in this folder.
+Cámara Madrid, S. (2026).  
+SCM-BH: Jet Structure and Doppler-Regime Modulation (v0.1).  
+Zenodo. https://doi.org/10.5281/zenodo.19736765
+
+See also `CITATION.cff` in this folder.
 
 ---
 
