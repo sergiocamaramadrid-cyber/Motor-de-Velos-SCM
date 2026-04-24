@@ -1,0 +1,11 @@
+source_id,r15,theta_deg,regime,outlier_type,outlier_class,notes
+J0087+0199,9.1,42.5,LOW,structural,bent_jet,Highly bent jet morphology; likely environmental interaction
+J0192-0314,5.6,1.2,LOW,relativistic,doppler_beamed,Extreme Doppler boosting; apparent theta underestimated
+J0274+0456,3.3,47.8,LOW,structural,wide_angle_tail,WAT morphology; cluster environment
+J0381-0067,7.4,0.8,HIGH,relativistic,doppler_beamed,Blazar-like; jet oriented near line-of-sight
+J0463+0228,12.9,38.1,HIGH,structural,restarted_jet,Restarted AGN; double-double morphology
+J0548-0183,18.6,0.6,HIGH,relativistic,superluminal,Apparent superluminal motion detected; geometric projection effect
+J0629+0341,2.2,51.3,LOW,structural,x_shaped,X-shaped radio galaxy; merger or precession origin
+J0712-0095,14.7,0.4,HIGH,relativistic,doppler_beamed,Extreme beaming; core-dominated flat-spectrum source
+J0793+0267,8.8,44.2,LOW,structural,bent_jet,Bent by ram pressure in dense medium
+J0874-0152,22.4,0.5,HIGH,relativistic,superluminal,VLBI proper motion confirms superluminal component

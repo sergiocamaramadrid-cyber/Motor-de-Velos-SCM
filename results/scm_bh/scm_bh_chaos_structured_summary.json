@@ -1,0 +1,43 @@
+{
+  "analysis": "SCM-BH Regime Transition in Jets",
+  "version": "0.2",
+  "critical_scale": {
+    "r15_threshold": 10,
+    "description": "Critical transition scale separating LOW and HIGH jet regimes"
+  },
+  "regimes": {
+    "LOW": {
+      "r15_range": "r15 < 10",
+      "label": "chaotic",
+      "dispersion": "high",
+      "collimation": "unstable",
+      "n_sources": 31,
+      "theta_mean_deg": 18.4,
+      "theta_std_deg": 9.2,
+      "notes": "No universal theta-r15 law; strong population mixing"
+    },
+    "HIGH": {
+      "r15_range": "r15 >= 10",
+      "label": "structured",
+      "dispersion": "low",
+      "collimation": "stable",
+      "n_sources": 27,
+      "theta_mean_deg": 6.7,
+      "theta_std_deg": 3.1,
+      "notes": "More collimated and stable; reduced scatter"
+    }
+  },
+  "universal_law": {
+    "exists": false,
+    "reason": "Population mixing prevents single-power-law fit across full r15 range",
+    "spearman_rho_global": -0.31,
+    "spearman_p_global": 0.047
+  },
+  "transition_evidence": {
+    "delta_theta_mean_deg": 11.7,
+    "delta_theta_std_deg": 6.1,
+    "fisher_z_p": 0.003,
+    "interpretation": "Significant difference in dispersion between LOW and HIGH regimes"
+  },
+  "reproducibility": "Exploratory but reproducible result; see scm_bh_regime_labeled_final.csv"
+}

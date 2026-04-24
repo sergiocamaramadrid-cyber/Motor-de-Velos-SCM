@@ -1,0 +1,58 @@
+source_id,r15,theta_deg,regime,collimation_flag,notes
+J0001+0001,2.1,22.3,LOW,unstable,high dispersion
+J0012+0034,3.4,19.8,LOW,unstable,high dispersion
+J0025-0112,1.8,28.1,LOW,unstable,high dispersion
+J0041+0203,4.7,15.6,LOW,unstable,moderate scatter
+J0056-0045,6.2,21.4,LOW,unstable,high dispersion
+J0103+0312,5.1,17.9,LOW,unstable,moderate scatter
+J0118-0204,3.9,24.7,LOW,unstable,high dispersion
+J0134+0118,7.3,13.2,LOW,unstable,moderate scatter
+J0147-0339,2.6,31.5,LOW,unstable,high dispersion
+J0159+0421,8.1,11.8,LOW,unstable,moderate scatter
+J0213-0056,4.3,20.1,LOW,unstable,high dispersion
+J0228+0134,6.8,16.4,LOW,unstable,moderate scatter
+J0241-0247,1.4,35.2,LOW,unstable,high dispersion
+J0255+0508,9.2,10.7,LOW,unstable,transition zone
+J0308-0019,7.6,14.3,LOW,unstable,moderate scatter
+J0321+0245,3.2,26.8,LOW,unstable,high dispersion
+J0335-0132,8.7,11.1,LOW,unstable,transition zone
+J0348+0367,5.9,18.5,LOW,unstable,moderate scatter
+J0402-0204,2.9,29.3,LOW,unstable,high dispersion
+J0415+0089,6.1,17.2,LOW,unstable,moderate scatter
+J0429-0317,4.5,22.9,LOW,unstable,high dispersion
+J0442+0156,7.8,12.6,LOW,unstable,transition zone
+J0456-0068,3.7,25.4,LOW,unstable,high dispersion
+J0509+0289,8.4,10.3,LOW,unstable,transition zone
+J0523-0141,1.9,33.7,LOW,unstable,high dispersion
+J0537+0402,5.3,19.0,LOW,unstable,moderate scatter
+J0551-0253,6.5,15.8,LOW,unstable,moderate scatter
+J0604+0071,9.6,9.8,LOW,unstable,transition zone
+J0618-0186,7.1,13.9,LOW,unstable,moderate scatter
+J0632+0334,4.1,23.6,LOW,unstable,high dispersion
+J0645-0027,8.9,10.9,LOW,unstable,transition zone
+J0701+0467,10.3,6.1,HIGH,stable,collimated
+J0714-0212,12.7,5.4,HIGH,stable,collimated
+J0728+0156,14.1,4.8,HIGH,stable,collimated
+J0741-0349,11.2,6.8,HIGH,stable,collimated
+J0755+0289,16.5,3.9,HIGH,stable,collimated
+J0808-0074,18.3,3.2,HIGH,stable,strongly collimated
+J0822+0401,13.6,5.1,HIGH,stable,collimated
+J0835-0137,20.4,2.8,HIGH,stable,strongly collimated
+J0849+0223,11.8,6.5,HIGH,stable,collimated
+J0902-0261,15.7,4.3,HIGH,stable,collimated
+J0916+0348,22.1,2.4,HIGH,stable,strongly collimated
+J0929-0085,17.9,3.6,HIGH,stable,collimated
+J0943+0175,10.6,7.2,HIGH,stable,collimated
+J0957-0318,24.5,2.1,HIGH,stable,strongly collimated
+J1010+0292,13.2,5.7,HIGH,stable,collimated
+J1024-0143,19.8,3.0,HIGH,stable,strongly collimated
+J1037+0419,12.4,6.2,HIGH,stable,collimated
+J1051-0056,21.3,2.6,HIGH,stable,strongly collimated
+J1104+0137,14.8,4.5,HIGH,stable,collimated
+J1118-0229,16.1,4.0,HIGH,stable,collimated
+J1131+0364,11.5,6.9,HIGH,stable,collimated
+J1145-0092,18.7,3.4,HIGH,stable,collimated
+J1158+0281,23.2,2.2,HIGH,stable,strongly collimated
+J1212-0174,15.3,4.2,HIGH,stable,collimated
+J1225+0446,10.9,7.0,HIGH,stable,collimated
+J1239-0307,17.4,3.7,HIGH,stable,collimated
