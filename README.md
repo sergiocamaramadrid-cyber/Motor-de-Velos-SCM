@@ -1,4 +1,19 @@
 https://colab.research.google.com/github/sergiocamaramadrid-cyber/Motor-de-Velos-SCM/blob/main/notebooks/scm_reproducible.ipynb
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19763935.svg)](https://doi.org/10.5281/zenodo.19763935)
+
+# SCM-BH v0.3 — Jet Regime Transition in AGN
+
+**Key Result:** Jets exhibit a statistically significant transition at r15 ≈ 10,
+followed by continued collimation in the high regime.
+
+| Status | |
+|---|---|
+| Published | ✔ |
+| Reproducible | ✔ |
+| DOI assigned | ✔ |
+
+---
+
 # Motor-de-Velos-SCM
 
 ## Historical Context / Contexto histórico

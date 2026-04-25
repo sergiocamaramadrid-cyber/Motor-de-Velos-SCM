@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
+title: "SCM-BH — Jet Regime Transition in AGN"
 message: "If you use this dataset or code, please cite it as below."
 type: dataset
 
@@ -11,19 +11,18 @@ authors:
 identifiers:
 
 - type: doi
-  value: "10.5281/zenodo.19455777"
+  value: "10.5281/zenodo.19763935"
 
 repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
 
 keywords:
 
-- astrophysics
-- galaxy dynamics
-- SPARC
-- rotation curves
-- environmental effects
-- reproducibility
+- AGN jets
+- MOJAVE
+- jet collimation
+- regime transition
 
 license: "MIT"
 
-date-released: 2026-04-10
+version: "v0.3"
+date-released: 2026
