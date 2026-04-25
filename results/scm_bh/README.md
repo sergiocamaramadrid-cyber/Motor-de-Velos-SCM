@@ -1,110 +1,51 @@
-# SCM-BH — Regime Transition and Structured Chaos in AGN Jets
+# SCM-BH v0.3 — Jet Regime Transition in AGN
 
 ## Overview
 
-This module extends the SCM framework to black hole jets (SCM-BH), focusing on the structural behavior of AGN jets.
+We identify a statistically significant structural transition in AGN jets at:
 
-Using a sample of 65 sources, we identify a critical transition scale:
+**r15 ≈ 10**
 
-**r15 ≈ 10 (log r15 ≈ 1.0)**
+Beyond this scale, jets do not saturate but continue to collimate.
 
-At this scale, the system transitions between two distinct dynamical regimes.
-
----
-
-## Main Results
-
-### 1) Regime Transition
-
-- KS test: p ≈ 3.95e-06
-- Logistic regression: complete separation
-
-→ Two populations are clearly separated.
+> **Key Result:** Jets exhibit a statistically significant transition at r15 ≈ 10, followed by continued collimation in the high regime.
 
 ---
 
-### 2) Two Dynamical Regimes
+## Data
 
-**LOW regime (r15 < 10)**
-
-- High dispersion
-- No internal scaling law
-- Dynamically unstable
-- Allows extreme configurations
-
-**HIGH regime (r15 > 10)**
-
-- Lower dispersion
-- More collimated jets
-- More stable behavior
+- **Source:** MOJAVE (J/MNRAS/468/4992)
+- **N:** 360 AGN jets
 
 ---
 
-### 3) No Universal Law
+## Methods
 
-A global relation θ vs r15 exists (R² ≈ 0.32), but:
-
-→ It disappears when splitting the sample
-
-> «The apparent correlation is due to population mixing, not a universal physical law.»
-
----
-
-### 4) Nature of the Transition
-
-The transition is:
-
-- Structural (driven by r15)
-- Not purely relativistic
-- Not explained by a single parameter
-
-Instead:
-
-> «The system exhibits an emergent transition between dynamical states.»
+- KS test (regime separation)
+- Spearman correlation (HIGH regime)
+- Bootstrap confidence intervals
+- Outlier robustness
+- Cut stability (8–12)
+- Doppler control (δ)
 
 ---
 
-### 5) Structured Chaos
+## Results
 
-The system behaves as:
-
-- A low-scale regime with high variability and freedom
-- A high-scale regime with constrained configurations
-
-→ Order emerges from an underlying chaotic phase.
-
----
-
-### 6) Outliers
-
-Outliers are not random and split into two mechanisms:
-
-**Structural** (intrinsic instability)
-
-- Occur mainly in LOW regime
-- Do not require extreme Doppler factors
-
-**Relativistic** (amplification)
-
-- High δ sources
-- Opening angles boosted observationally
+| Test | Result |
+|------|--------|
+| KS test | p ≪ 0.01 → distinct regimes |
+| HIGH regime Spearman ρ | ≈ −0.36 (p < 0.001) |
+| Bootstrap CI | excludes 0 |
+| Cut stability (8–12) | stable across cuts |
 
 ---
 
-## Post-Transition Behavior
+## Physical Interpretation
 
-Within the HIGH regime:
+We find evidence for **continued collimation** beyond the critical scale, consistent with a transition in jet dynamics rather than saturation.
 
-- Weak negative trend between excess radius and opening angle
-- Not statistically significant (N = 22, p ≈ 0.23)
-
-> «Post-transition evolution remains unresolved due to limited sample size.»
-
----
-
-## Key Insight
-
-> «Extreme jet configurations are confined to the low-scale regime, while large-scale jets suppress dynamical freedom and converge toward stable configurations.»
+This result is consistent with the parabolic-to-conical transition reported by Kovalev et al. (2020), though conversion to gravitational radii is required to confirm a common physical scale.
 
 ---
 
@@ -112,17 +53,40 @@ Within the HIGH regime:
 
 | File | Description |
 |------|-------------|
-| `scm_bh_regime_labeled_final.csv` | Full source table with r15, θ, and LOW/HIGH regime labels |
-| `scm_bh_outliers_classified.csv` | Outliers classified as structural or relativistic |
-| `scm_bh_chaos_structured_summary.json` | Summary statistics: regime stats, Fisher-z test, Spearman ρ |
+| `scm_bh_mojave_clean.csv` | Cleaned MOJAVE dataset (N=360) with r15, θ, δ, regime label |
+| `scm_bh_mojave_summary.json` | Results summary: KS p-value, Spearman ρ, bootstrap CI |
+| `figure_transition.png` | Main figure: θ vs r15 with regime separation |
+| `scm_bh_regime_labeled_final.csv` | Exploratory sample (N=65) from v0.2 analysis |
+| `scm_bh_outliers_classified.csv` | Outliers classified as structural or relativistic (v0.2) |
+| `scm_bh_chaos_structured_summary.json` | Summary statistics from v0.2 analysis |
+
+---
+
+## Reproducibility
+
+All results can be reproduced using publicly available MOJAVE data (J/MNRAS/468/4992).
+
+---
+
+## DOI
+
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19455777.svg)](https://doi.org/10.5281/zenodo.19455777)
+
+*(To be updated after v0.3 Zenodo release)*
 
 ---
 
 ## Status
 
-- Transition is **robust** (KS p ≈ 3.95e-06)
+- Transition is **robust** (KS p ≪ 0.01, stable across cuts 8–12)
 - Result is **exploratory but reproducible**
-- Post-transition evolution requires larger samples
+- Continued collimation in HIGH regime confirmed (N=360)
+
+---
+
+## License
+
+MIT
 
 ---
 

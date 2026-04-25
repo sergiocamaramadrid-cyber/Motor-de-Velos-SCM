@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
+title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves and AGN Jet Regime Transition"
 message: "If you use this dataset or code, please cite it as below."
 type: dataset
 
@@ -7,6 +7,8 @@ authors:
 
 - family-names: "Cámara Madrid"
   given-names: "Sergio"
+
+version: "v0.3"
 
 identifiers:
 
@@ -22,8 +24,12 @@ keywords:
 - SPARC
 - rotation curves
 - environmental effects
+- AGN jets
+- jet collimation
+- MOJAVE
+- regime transition
 - reproducibility
 
 license: "MIT"
 
-date-released: 2026-04-10
+date-released: 2026-04-25
