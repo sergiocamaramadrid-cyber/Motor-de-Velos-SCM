@@ -10,7 +10,7 @@ Using the MOJAVE catalogue (VizieR J/MNRAS/468/4992), we identify a statisticall
 r15 ≈ 10
 ```
 
-Results from the full canonical sample:
+Results from the full canonical sample (real VizieR data):
 
 ```text
 N total = 360
@@ -32,6 +32,22 @@ The analysis shows:
 
 The threshold r15 = 10 was identified empirically and tested for stability under nearby cuts.
 
+## Data
+
+> **The paper results are obtained from the public MOJAVE VizieR table J/MNRAS/468/4992/table3.**
+> **Synthetic example data are provided only for testing script execution and do not reproduce the published statistics.**
+
+The real data are public and freely available at:
+
+- <https://vizier.cds.unistra.fr/viz-bin/VizieR-3?-source=J/MNRAS/468/4992/table3>
+
+The analysis uses the columns:
+
+- `r15` — brightness-temperature ratio
+- `alphaApp15` — apparent jet opening angle (deg)
+
+A synthetic example file (`data/mojave_vizier_table3_synthetic_example.csv`) is included **solely** to allow testing that the script runs without errors. It must not be used to reproduce or validate any scientific result.
+
 ## Reproducibility
 
 Install dependencies:
@@ -40,13 +56,23 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Run:
+### With real VizieR data (auto-download)
+
+The script attempts to download the real table automatically:
 
 ```bash
 python scripts/run_analysis.py
 ```
 
-Expected output:
+### With a locally saved real CSV
+
+If you have downloaded `table3` from VizieR yourself:
+
+```bash
+python scripts/run_analysis.py --data path/to/real_table3.csv
+```
+
+Expected output (real data only):
 
 ```text
 TOTAL: 360
@@ -57,17 +83,12 @@ rho: ~-0.331
 p: ~0.0019
 ```
 
-## Data
+### Synthetic example (testing only)
 
-The source data are public and available from:
-
-- MOJAVE catalogue, VizieR J/MNRAS/468/4992.
-
-The analysis uses the table containing:
-
-- `r15`
-- `alphaApp15`
+If no network and no real CSV are available, the script falls back to the synthetic example and prints a prominent warning. **These results do not reproduce the paper.**
 
 ## Citation
 
-If you use this repository, please cite the associated release DOI and the MOJAVE catalogue.
+If you use this repository, please cite the associated release DOI and the MOJAVE catalogue:
+
+- Lister et al. (2017), MNRAS 468, 4992 — <https://doi.org/10.1093/mnras/stx677>
