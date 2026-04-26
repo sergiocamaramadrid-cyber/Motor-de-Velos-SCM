@@ -1,0 +1,75 @@
+\documentclass[usenatbib]{mnras}
+
+\usepackage{amsmath}
+\usepackage{graphicx}
+
+\title[SCM-BH: Regime transition in AGN jet collimation]{SCM-BH: Empirical regime transition in AGN jet collimation from the MOJAVE catalogue}
+
+\author[S. C\'amara Madrid]{Sergio C\'amara Madrid}
+
+\begin{document}
+
+\maketitle
+
+\begin{abstract}
+We present an empirical analysis of AGN jet opening angles using the MOJAVE catalogue
+(VizieR J/MNRAS/468/4992). Applying a threshold at apparent brightness-temperature
+ratio $r_{15} \approx 10$, we identify a statistically robust regime separation
+between a LOW ($r_{15} < 10$, $N = 274$) and a HIGH ($r_{15} \geq 10$, $N = 86$)
+sub-sample. A Kolmogorov--Smirnov test yields $p \approx 5.6 \times 10^{-16}$,
+and the Spearman rank correlation within the HIGH regime is
+$\rho \approx -0.331$ ($p \approx 0.0019$), indicating progressive collimation.
+No underlying physical mechanism is assumed.
+\end{abstract}
+
+\begin{keywords}
+galaxies: jets -- quasars: jets -- BL Lacertae objects: general
+\end{keywords}
+
+\section{Introduction}
+\label{sec:intro}
+
+% Placeholder -- manuscript in preparation.
+
+\section{Data}
+\label{sec:data}
+
+The source catalogue is the MOJAVE survey, available via VizieR (J/MNRAS/468/4992).
+The analysis uses columns \texttt{r15} (ratio of brightness temperatures) and
+\texttt{alphaApp15} (apparent jet opening angle in degrees).
+
+\section{Analysis}
+\label{sec:analysis}
+
+\subsection{Regime separation}
+
+A threshold at $r_{15} = 10$ ($\log r_{15} = 1$) divides the sample into two regimes.
+
+\subsection{Statistical tests}
+
+\begin{itemize}
+  \item KS two-sample test: $p \approx 5.6 \times 10^{-16}$.
+  \item Spearman rank correlation (HIGH regime): $\rho \approx -0.331$, $p \approx 0.0019$.
+\end{itemize}
+
+\section{Results}
+\label{sec:results}
+
+% See figures fig1\_transition.png and fig2\_high.png in results/.
+
+\section{Discussion}
+\label{sec:discussion}
+
+% Manuscript in preparation.
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+We report a statistically significant regime separation in AGN jet opening angles
+at $r_{15} \approx 10$, with progressive collimation in the HIGH regime.
+The threshold was identified empirically and tested for stability.
+
+\bibliographystyle{mnras}
+\bibliography{references}
+
+\end{document}
