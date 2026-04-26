@@ -1,94 +1,70 @@
-# SCM-BH — Regime transition in AGN jet collimation
+# SCM-Galaxy-Dynamics
 
-This repository contains a reproducible empirical analysis of AGN jet opening angles using the MOJAVE catalogue.
+Empirical analysis of outer galaxy rotation-curve slopes within the SCM framework.
 
-## Main result
+## Current status
 
-Using the MOJAVE catalogue (VizieR J/MNRAS/468/4992), we identify a statistically robust regime separation around:
+This repository studies correlations between outer rotation-curve structure and internal baryonic properties of galaxies.
+
+The current clean result is:
+
+- `slope_tail` is measured from the outer rotation curve.
+- A physically defined internal proxy is used:
 
 ```text
-r15 ≈ 10
+env_std = z-score[ log10(MHI / Rdisk^2) ]
 ```
 
-Results from the full canonical sample (real VizieR data):
+This quantity should be interpreted as an **internal HI surface-density proxy**, not as an external environment measurement.
 
-```text
-N total = 360
-LOW  (r15 < 10)  = 274
-HIGH (r15 ≥ 10) = 86
+## Scope
 
-KS p-value ≈ 5.6 × 10^-16
-Spearman rho in HIGH ≈ -0.331
-Spearman p-value ≈ 0.0019
-```
+This repository does not claim a confirmed external environmental mechanism.
 
-## Interpretation
+Current interpretation:
 
-The analysis shows:
-
-- a statistically significant LOW/HIGH regime separation;
-- progressive collimation within the HIGH regime;
-- no assumed physical mechanism.
-
-The threshold r15 = 10 was identified empirically and tested for stability under nearby cuts.
+> Internal HI surface density correlates with outer rotation-curve slope.
 
 ## Data
 
-> **The paper results are obtained from the public MOJAVE VizieR table J/MNRAS/468/4992/table3.**
-> **Synthetic example data are provided only for testing script execution and do not reproduce the published statistics.**
+The analysis uses curated SPARC-derived catalogues.
 
-The real data are public and freely available at:
-
-- <https://vizier.cds.unistra.fr/viz-bin/VizieR-3?-source=J/MNRAS/468/4992/table3>
-
-The analysis uses the columns:
-
-- `r15` — brightness-temperature ratio
-- `alphaApp15` — apparent jet opening angle (deg)
-
-A synthetic example file (`data/mojave_vizier_table3_synthetic_example.csv`) is included **solely** to allow testing that the script runs without errors. It must not be used to reproduce or validate any scientific result.
+Raw SPARC data are not redistributed here. Users should obtain them from the [official SPARC source](http://astroweb.cwru.edu/SPARC/).
 
 ## Reproducibility
 
-Install dependencies:
+Install:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-### With real VizieR data (auto-download)
-
-The script attempts to download the real table automatically:
+Run:
 
 ```bash
-python scripts/run_analysis.py
+python scripts/run_galaxy_dynamics.py --data data/your_dataset.csv
 ```
 
-### With a locally saved real CSV
-
-If you have downloaded `table3` from VizieR yourself:
-
-```bash
-python scripts/run_analysis.py --data path/to/real_table3.csv
-```
-
-Expected output (real data only):
+Expected input columns:
 
 ```text
-TOTAL: 360
-LOW: 274
-HIGH: 86
-KS p: ~5.6e-16
-rho: ~-0.331
-p: ~0.0019
+galaxy
+logM
+MHI
+Rdisk
+slope_tail
 ```
 
-### Synthetic example (testing only)
+## Output
 
-If no network and no real CSV are available, the script falls back to the synthetic example and prints a prominent warning. **These results do not reproduce the paper.**
+The script reports:
 
-## Citation
+- sample size
+- high-mass sample size
+- OLS-HC3 regression: `slope_tail ~ env_std + logM`
 
-If you use this repository, please cite the associated release DOI and the MOJAVE catalogue:
+## Scientific caution
 
-- Lister et al. (2017), MNRAS 468, 4992 — <https://doi.org/10.1093/mnras/stx677>
+Previous exploratory variables such as `delta_mass_std` are not treated as final physical definitions unless reconstructed from documented base quantities.
+
+This repository prioritizes reproducibility and conservative interpretation.

@@ -1,5 +1,5 @@
 numpy
 pandas
+statsmodels
 scipy
 matplotlib
-astroquery
