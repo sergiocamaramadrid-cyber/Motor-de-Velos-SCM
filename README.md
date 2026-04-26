@@ -1,3 +1,5 @@
+<img src="https://img.shields.io/badge/status-active-brightgreen">
+
 # SCM-Galaxy-Dynamics
 
 Empirical analysis of outer galaxy rotation-curve slopes within the SCM framework.
@@ -30,6 +32,12 @@ Current interpretation:
 The analysis uses curated SPARC-derived catalogues.
 
 Raw SPARC data are not redistributed here. Users should obtain them from the [official SPARC source](http://astroweb.cwru.edu/SPARC/).
+
+## Quick test (example data)
+
+```bash
+python scripts/run_galaxy_dynamics.py --data data/example/example_dataset.csv
+```
 
 ## Reproducibility
 

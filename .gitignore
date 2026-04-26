@@ -32,6 +32,8 @@ results/f3_catalog_real.csv
 
 # Editor / OS
 .DS_Store
+.env
+*.log
 *.swp
 *.swo
 .idea/
