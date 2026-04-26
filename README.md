@@ -71,6 +71,28 @@ The script reports:
 - high-mass sample size
 - OLS-HC3 regression: `slope_tail ~ env_std + logM`
 
+## Generate figure and table
+
+```bash
+python scripts/make_galaxy_figure_table.py --data data/your_dataset.csv --outdir results
+```
+
+Outputs:
+
+- `results/fig_envstd_slope_tail.png`
+- `results/table_ols_hc3.csv`
+
+### Caption paper
+
+```latex
+\begin{figure}
+\centering
+\includegraphics[width=\columnwidth]{fig_envstd_slope_tail.png}
+\caption{Outer rotation-curve slope as a function of the standardized internal HI surface-density proxy, defined as $z[\log_{10}(M_{\rm HI}/R_{\rm disk}^2)]$, for the high-mass subsample.}
+\label{fig:envstd_slope_tail}
+\end{figure}
+```
+
 ## Scientific caution
 
 Previous exploratory variables such as `delta_mass_std` are not treated as final physical definitions unless reconstructed from documented base quantities.
