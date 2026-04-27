@@ -1,7 +1,8 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
+title: "SCM Framework v2.5 — Regime-dependent astrophysical dynamics (SPARC + LITTLE THINGS + MOJAVE)"
 message: "If you use this dataset or code, please cite it as below."
-type: dataset
+type: software
+version: "2.5.0"
 
 authors:
 
@@ -15,15 +16,27 @@ identifiers:
 
 repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
 
+abstract: >-
+  The SCM framework validates regime-dependent dynamics across independent
+  astrophysical datasets (SPARC galaxies N=100, LITTLE THINGS dwarfs N=26,
+  MOJAVE jets N=65). Key results: mass-dependent regime transition in SPARC
+  at logMbar < 9.7 (ΔAIC ≈ 8.8, p_perm ≈ 0.043); weak replication in LITTLE
+  THINGS; clear transition in MOJAVE jets (r15 ≈ 13.8 pc, bootstrap ≈ 92%).
+  This release validates the SCM framework as a regime-detection tool rather
+  than a universal law model.
+
 keywords:
 
 - astrophysics
 - galaxy dynamics
 - SPARC
+- LITTLE THINGS
+- MOJAVE
 - rotation curves
-- environmental effects
+- regime transitions
 - reproducibility
+- jets
 
 license: "MIT"
 
-date-released: 2026-04-10
+date-released: 2026-04-27
