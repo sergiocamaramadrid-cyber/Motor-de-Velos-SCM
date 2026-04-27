@@ -1,0 +1,36 @@
+{
+  "key_result": "slope_tail ~ logMbar + Sigma_resid",
+  "n": 86,
+  "r2": 0.2456,
+  "r2_adj": 0.2275,
+  "formula": "slope_tail ~ logMbar + Sigma_resid",
+  "coefficients": {
+    "Intercept": 2.110714,
+    "logMbar": -0.156441,
+    "Sigma_resid": -0.201119
+  },
+  "pvalues": {
+    "Intercept": 0.0,
+    "logMbar": 1e-06,
+    "Sigma_resid": 0.045157
+  },
+  "significant": {
+    "Intercept": true,
+    "logMbar": true,
+    "Sigma_resid": true
+  },
+  "spearman": {
+    "logMbar": {
+      "rho": -0.4425,
+      "pvalue": 2e-05
+    },
+    "Sigma_resid": {
+      "rho": -0.2248,
+      "pvalue": 0.03748
+    }
+  },
+  "interpretation": {
+    "logMbar": "total baryonic mass sets the scale",
+    "Sigma_resid": "mass distribution modulates the structure"
+  }
+}

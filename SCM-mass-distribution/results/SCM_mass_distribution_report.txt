@@ -1,0 +1,26 @@
+================================================================
+SCM Framework — Mass & Distribution Result
+================================================================
+
+Key result:  slope_tail ~ logMbar + Sigma_resid
+Sample size: 86
+R²:          0.2456
+R² (adj):    0.2275
+
+OLS Coefficients (HC3 robust SEs)
+----------------------------------------------------------------
+  Intercept             coef=+2.1107  p=0.0000  **
+  logMbar               coef=-0.1564  p=0.0000  **
+  Sigma_resid           coef=-0.2011  p=0.0452  **
+
+Spearman Correlations
+----------------------------------------------------------------
+  logMbar              rho=-0.4425  p=0.0000
+  Sigma_resid          rho=-0.2248  p=0.0375
+
+Interpretation
+----------------------------------------------------------------
+  logMbar:      total baryonic mass sets the scale
+  Sigma_resid:  mass distribution modulates the structure
+
+================================================================
