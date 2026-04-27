@@ -61,7 +61,7 @@ from scipy import stats as scipy_stats
 SCAN_MIN: float = 8.5
 SCAN_MAX: float = 11.5
 SCAN_STEP: float = 0.1
-MIN_N_SPLIT: int = 5      # minimum galaxies per regime for a valid split
+MIN_N_SPLIT: int = 5      # minimum galaxies per regime for a valid split (override with --min-n-split)
 N_PERM: int = 1000
 PERM_SEED: int = 42
 
@@ -106,6 +106,7 @@ def compute_split_aicc(
     x: np.ndarray,
     y: np.ndarray,
     threshold: float,
+    min_n_split: int = MIN_N_SPLIT,
 ) -> float:
     """Compute AICc for the split model at a given mass threshold.
 
@@ -120,6 +121,8 @@ def compute_split_aicc(
         Slope response (slope_tail).
     threshold : float
         Mass threshold (same units as x).
+    min_n_split : int
+        Minimum points per regime required for a valid fit.
 
     Returns
     -------
@@ -128,7 +131,7 @@ def compute_split_aicc(
     """
     lo = x < threshold
     hi = ~lo
-    if lo.sum() < MIN_N_SPLIT or hi.sum() < MIN_N_SPLIT:
+    if lo.sum() < min_n_split or hi.sum() < min_n_split:
         return np.inf
     _, _, aicc_lo = _ols_aicc(x[lo], y[lo])
     _, _, aicc_hi = _ols_aicc(x[hi], y[hi])
@@ -146,6 +149,7 @@ def run_threshold_scan(
     scan_min: float = SCAN_MIN,
     scan_max: float = SCAN_MAX,
     scan_step: float = SCAN_STEP,
+    min_n_split: int = MIN_N_SPLIT,
 ) -> pd.DataFrame:
     """Scan mass thresholds and compute ΔAIC at each step.
 
@@ -155,6 +159,8 @@ def run_threshold_scan(
         Must contain *mass_col* and *slope_col*.
     mass_col, slope_col : str
     scan_min, scan_max, scan_step : float
+    min_n_split : int
+        Minimum points per regime for a valid split fit.
 
     Returns
     -------
@@ -174,7 +180,7 @@ def run_threshold_scan(
         lo = x < thr
         n_lo = int(lo.sum())
         n_hi = int((~lo).sum())
-        aicc_split = compute_split_aicc(x, y, thr)
+        aicc_split = compute_split_aicc(x, y, thr, min_n_split=min_n_split)
         delta_aic = aicc_global - aicc_split  # positive → split model wins
         rows.append({
             "threshold": round(float(thr), 2),
@@ -199,6 +205,7 @@ def permutation_test_transition(
     slope_col: str = "slope_tail",
     n_perm: int = N_PERM,
     seed: int = PERM_SEED,
+    min_n_split: int = MIN_N_SPLIT,
 ) -> float:
     """Estimate p-value for the best ΔAIC via label permutation.
 
@@ -209,6 +216,7 @@ def permutation_test_transition(
     mass_col, slope_col : str
     n_perm : int
     seed : int
+    min_n_split : int
 
     Returns
     -------
@@ -220,14 +228,16 @@ def permutation_test_transition(
     y = clean[slope_col].values
 
     _, _, aicc_global = _ols_aicc(x, y)
-    obs_delta = aicc_global - compute_split_aicc(x, y, best_threshold)
+    obs_delta = aicc_global - compute_split_aicc(x, y, best_threshold,
+                                                 min_n_split=min_n_split)
 
     rng = np.random.default_rng(seed)
     count = 0
     for _ in range(n_perm):
         y_perm = rng.permutation(y)
         _, _, aicc_g = _ols_aicc(x, y_perm)
-        aicc_s = compute_split_aicc(x, y_perm, best_threshold)
+        aicc_s = compute_split_aicc(x, y_perm, best_threshold,
+                                    min_n_split=min_n_split)
         if np.isfinite(aicc_s) and (aicc_g - aicc_s) >= obs_delta:
             count += 1
 
@@ -249,6 +259,7 @@ def run_crtt(
     n_perm: int = N_PERM,
     seed: int = PERM_SEED,
     verbose: bool = True,
+    min_n_split: int = MIN_N_SPLIT,
 ) -> dict:
     """Run the full CRTT pipeline and write results.
 
@@ -267,6 +278,8 @@ def run_crtt(
     seed : int
         Random seed.
     verbose : bool
+    min_n_split : int
+        Minimum galaxies per regime for a valid split (default: 5).
 
     Returns
     -------
@@ -286,6 +299,7 @@ def run_crtt(
     scan = run_threshold_scan(
         df, mass_col=mass_col, slope_col=slope_col,
         scan_min=scan_min, scan_max=scan_max, scan_step=scan_step,
+        min_n_split=min_n_split,
     )
     scan.to_csv(out_dir / "crtt_scan.csv", index=False)
 
@@ -307,7 +321,7 @@ def run_crtt(
 
         p_perm = permutation_test_transition(
             df, best_thr, mass_col=mass_col, slope_col=slope_col,
-            n_perm=n_perm, seed=seed,
+            n_perm=n_perm, seed=seed, min_n_split=min_n_split,
         )
         if verbose:
             print(f"Permutation p-value: {p_perm:.4f}")
@@ -386,6 +400,8 @@ def main(argv: list[str] | None = None) -> dict:
     parser.add_argument("--scan-step", type=float, default=SCAN_STEP)
     parser.add_argument("--n-perm", type=int, default=N_PERM)
     parser.add_argument("--seed", type=int, default=PERM_SEED)
+    parser.add_argument("--min-n-split", type=int, default=MIN_N_SPLIT,
+                        help=f"Min points per regime (default: {MIN_N_SPLIT})")
     parser.add_argument("--verbose", action="store_true", default=True)
     args = parser.parse_args(argv)
 
@@ -400,6 +416,7 @@ def main(argv: list[str] | None = None) -> dict:
         n_perm=args.n_perm,
         seed=args.seed,
         verbose=args.verbose,
+        min_n_split=args.min_n_split,
     )
 
 

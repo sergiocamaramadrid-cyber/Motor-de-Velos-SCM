@@ -1,0 +1,8 @@
+{
+  "n": 26,
+  "best_threshold": 7.7,
+  "best_delta_aic": 4.4677,
+  "p_perm": 0.008,
+  "aicc_global": -29.4874,
+  "conclusion": "significant_transition"
+}

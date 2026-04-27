@@ -1,0 +1,16 @@
+================================================================
+SCM — Conditional Regime Transition Test (CRTT)
+================================================================
+Input:          data/processed/sparc_catalog.csv
+Sample size:    96
+Mass column:    logMbar
+Slope column:   slope_tail
+
+Best threshold: logMbar = 10.00
+ΔAIC:           -1.7480
+p_perm:         0.2630
+AICc (global):  -109.0399
+
+Conclusion:     no_strong_transition
+
+================================================================

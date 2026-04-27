@@ -1,0 +1,21 @@
+================================================================
+SCM — Force Model Comparison
+================================================================
+Input:   data/processed/sparc_catalog.csv
+N:       96
+
+AICc per model (lower = better)
+----------------------------------------
+  MOND:       121.6060
+  Velos:      121.6060
+  Newtonian:  -84.7172
+
+Best model (global AICc): newtonian
+
+Fraction of galaxies where each model is best
+----------------------------------------
+  mond        : 0.083
+  velos       : 0.000
+  newtonian   : 0.917
+
+================================================================

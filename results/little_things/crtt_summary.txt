@@ -1,0 +1,16 @@
+================================================================
+SCM — Conditional Regime Transition Test (CRTT)
+================================================================
+Input:          data/little_things_global.csv
+Sample size:    26
+Mass column:    logM
+Slope column:   logVobs
+
+Best threshold: logMbar = 7.70
+ΔAIC:           4.4677
+p_perm:         0.0080
+AICc (global):  -29.4874
+
+Conclusion:     significant_transition
+
+================================================================

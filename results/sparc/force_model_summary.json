@@ -1,0 +1,12 @@
+{
+  "n": 96,
+  "aicc_mond": 121.606,
+  "aicc_velos": 121.606,
+  "aicc_newtonian": -84.7172,
+  "best_model_global": "newtonian",
+  "fraction_best_per_galaxy": {
+    "mond": 0.0833,
+    "velos": 0.0,
+    "newtonian": 0.9167
+  }
+}
