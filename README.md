@@ -15,6 +15,16 @@ The remainder of this README focuses on the reproducible computational framework
 
 ---
 
+## Environmental dependence by mass regime
+
+The environmental signal is not universal.
+
+It emerges only above a critical mass scale (logM ≈ 10), while low-mass galaxies show no correlation.
+
+![Environmental dependence by mass regime](results/figures/figure_env_mass_regime_FINAL.png)
+
+---
+
 ## Overview
 
 Motor-de-Velos-SCM provides a reproducible, auditable pipeline to evaluate galaxy rotation curves under the SCM (Motor de Velos; Fluid Condensation) model. The repository implements end-to-end workflows from raw data preprocessing to model comparison and diagnostic reporting.
