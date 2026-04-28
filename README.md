@@ -19,7 +19,7 @@ The remainder of this README focuses on the reproducible computational framework
 
 The environmental signal is not universal.
 
-It emerges only above a critical mass scale (logM ≈ 10), while low-mass galaxies show no correlation.
+It emerges only above a critical mass scale (logM ≈ 10) as a **negative** correlation (ρ ≈ −0.46, β ≈ −0.16): denser environments are associated with steeper outer-slope decline in high-mass galaxies. Low-mass galaxies show no correlation.
 
 ![Environmental dependence by mass regime](results/figures/figure_env_mass_regime_FINAL.png)
 
