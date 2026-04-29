@@ -1,8 +1,8 @@
-# SCM-RAA v3 (Experimental)
+# SCM-RAA v2.6-experimental
 
 ## Overview
 
-SCM-RAA is a structural classification framework designed to detect and validate relationships between variables across different domains.
+SCM-RAA is a structural classification framework designed to evaluate relationships between variables.
 
 It separates:
 
@@ -10,115 +10,72 @@ It separates:
 - **Midground** → weak or diffuse structure
 - **Background** → noise / no structure
 
+---
+
 ## Pipeline
 
 1. CRTT (threshold detection via AIC)
-2. Regime Signature (quantitative vector)
-3. RAA (classification)
-4. Sampling (bootstrap stability)
-5. Decision Layer (final verdict)
+2. Regime Signature:
+   - N
+   - delta_aic
+   - delta_aic_per_n
+   - iqr_frac
+   - strong_rate
+   - weak_rate
+   - failure_rate
+3. RAA classification
+4. Bootstrap stability
+5. Decision Layer
 
-## Architecture
+---
 
-### 1. CRTT
+## Decision Layer Criteria
 
-Detects if a structural transition exists (piecewise vs linear):
+foreground_confirmed:
+- strong_rate ≥ 0.70
+- failure_rate ≤ 0.10
 
-- ΔAIC
-- Optimal threshold
+background_confirmed:
+- failure_rate ≥ 0.70
 
-### 2. Regime Signature
+midground_candidate:
+- all other cases
 
-Quantitative vector of regime behaviour:
+---
 
-- N
-- ΔAIC
-- ΔAIC/N
-- `iqr_frac` (threshold stability)
+## Clean validation table
 
-### 3. RAA
+`scm_raa_v2_6_experimental_report_table_CLEAN.csv`
 
-Converts metrics into:
+---
 
-- `status`: strong / weak / failure
-- `layer`: foreground / midground / background
+## Results
 
-### 4. Sampling (bootstrap)
+| Dataset | Decision |
+|---------|---------|
+| SP500 | foreground_confirmed |
+| ENERGY_SPAIN | midground_candidate |
+| SPARC | midground_candidate |
+| MOJAVE | midground_candidate |
+| ECONOMY | midground_candidate |
+| YANG | midground_candidate |
+| SYNTH_H0 | background_confirmed |
+| SYNTH_LINEAR | background_confirmed |
+| LITTLE_THINGS | background_confirmed |
 
-Evaluates real stability:
+---
 
-- `strong_rate`
-- `weak_rate`
-- `failure_rate`
+## What this framework does NOT do
 
-### 5. Decision Layer
+- does not infer causality
+- does not replace domain-specific analysis
+- does not guarantee detection of all real signals
+- does not treat weak signals as confirmed evidence
 
-Avoids self-deception:
-
-- `foreground_confirmed`
-- `midground_candidate`
-- `background_confirmed`
-
-## Key Principle
-
-> Weak signals are not considered evidence.  
-> Only stable strong signals are confirmed.
-
-## Validation
-
-### Control H0 (noise)
-
-| Dataset              | Result                 |
-|----------------------|------------------------|
-| SYNTH_LINEAR_NOISE   | background_confirmed   |
-| SYNTH_H0_WHITE_NOISE | background_confirmed   |
-
-✔ No false positives.
-
-### Real data
-
-| Dataset       | Result                |
-|---------------|-----------------------|
-| SP500         | foreground_confirmed  |
-| MOJAVE        | midground_candidate   |
-| SPARC         | midground_candidate   |
-| YANG          | midground_candidate   |
-| ENERGY_SPAIN  | midground_candidate   |
-| ECONOMY       | midground_candidate   |
-| LITTLE_THINGS | background_confirmed  |
-
-The system correctly distinguishes:
-
-- ✔ Strong signal → SP500
-- ✔ Diffuse signal → SPARC / YANG / MOJAVE / ENERGY
-- ✔ Noise → SYNTH / LITTLE THINGS
-
-## Decision layer
-
-RAA outputs are converted into information layers:
-
-- `foreground` → main analysis
-- `midground` → directed exploration
-- `background` → control/reference
-
-The framework does not discard data.  
-It organizes datasets by information content.
-
-## Limitations
-
-- Designed for structural transitions (CRTT-based)
-- Does not model continuous relations explicitly
-- High `weak_rate` can appear in noise — mitigated by the decision layer
-- No adaptive learning yet (passive memory only)
-
-## Strengths
-
-- Explicit control of false positives
-- Domain-independent (astrophysics, economics, energy, …)
-- Reproducible
-- Interpretable (not a black box)
-- Scalable
+---
 
 ## Status
 
-Experimental — reproducible and validated.
+Experimental but reproducible.
+
+Includes explicit false-positive control validated against synthetic noise.
