@@ -20,6 +20,8 @@ env/
 # Jupyter
 .ipynb_checkpoints/
 *.ipynb
+# Allow versioned experimental notebooks
+!notebooks/experimental/*.ipynb
 
 # Data (large files not tracked)
 data/SPARC/raw/
