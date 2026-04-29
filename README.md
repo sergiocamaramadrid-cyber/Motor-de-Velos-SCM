@@ -50,6 +50,26 @@ Validated using:
 
 ---
 
+## SCM v2.7 — Structural Signal Classification
+
+The framework now classifies not only the presence of signal, but its structure:
+
+| Class | Description |
+|---|---|
+| `global_critical` | Criticality is uniform across the full state space |
+| `regime_dependent` | Criticality is fragmented across mass/energy regimes |
+| `transition` | System is near a structural boundary |
+| `non_linear` | Signal exists but lacks a linear critical structure |
+| `none` | No detectable structure |
+
+**Key insight:** Signal is not uniformly distributed in state space. Some systems concentrate criticality, while others fragment it across regimes.
+
+Validated across: SPARC (regime_dependent), YANG (regime_dependent), MOJAVE (global_critical), SP500 (transition), ECONOMY (non_linear).
+
+> v2.7 is an evolution of v2.6, not a replacement. The v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) remains fully valid.
+
+---
+
 ## Important note
 
 This module is **experimental** and intended for:
