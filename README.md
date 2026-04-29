@@ -10,6 +10,8 @@ This repository contains the SCM (Motor de Velos) framework and its experimental
 
 An experimental structural classification layer designed to evaluate relationships between variables.
 
+This module extends the SCM framework but is developed and validated independently.
+
 Located in:
 
 - `notebooks/experimental/`
