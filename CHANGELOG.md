@@ -4,54 +4,75 @@ All notable changes to this project are documented here.
 
 ---
 
-## [v2.7.0] — 2026-04-29
+## [v2.7.0] — 2026-04-30
 
 ### Added
 
-- **Structural Signal Classification layer** — the framework now classifies the *structure* of signal, not only its presence:
-  - `global_critical` — criticality is uniform across the full state space
-  - `regime_dependent` — criticality is fragmented across mass/energy regimes
-  - `transition` — system is near a structural boundary
-  - `non_linear` — signal exists but lacks a linear critical structure
-  - `none` — no detectable structure
+- **Expanded Structural Signal Classification system** — six distinct classes:
+  - `global_structured` — strong, uniform signal across full state space
+  - `regime_dependent` — signal exists only above a critical mass/energy threshold
+  - `regime_fragmented` — mixed or irregular structure, non-global behavior
+  - `confirm_noise` — apparent signal disappears after proper controls
+  - `derived_bias` — signal is an artefact of dataset construction
+  - `mediated_signal` — signal exists only through a confounding causal chain
+- Multi-dataset validation pipeline (5 independent datasets)
+- LITTLE THINGS analysis (N=25 irregular galaxies)
+- Galaxy Cluster analysis (N=1959, M500–L500 correlation)
+- Nebulae mediated-signal control test
 - Regime-dependent signal classification pipeline
 - Critical mass threshold detection (SPARC)
 - Bulk vs outlier separation
 - Residual-based validation pipeline
 - NASA false positive control test
 
-### Key Results (SPARC, N=79)
+### Key Results
 
-- No global environmental law
-- Critical mass threshold at logM ≈ 9.8–10.0
-- Strong environmental modulation above threshold
-- Peak signal at logM ≈ 10.75:
-  - ρ ≈ -0.65, p ≈ 1.1 × 10⁻⁴, β_env ≈ -0.061, R² ≈ 0.33
-- No detectable correlation below threshold
+**SPARC (N=79)**
+- Regime-dependent signal confirmed
+- ρ ≈ -0.65 (high-mass regime), p ≈ 1.1 × 10⁻⁴, R² ≈ 0.33
+- Mass threshold: logM ≈ 9.8–10.0
+- Classification: `regime_dependent`
 
-### Cross-dataset validation
+**LITTLE THINGS (N=25)**
+- Mixed / fragmented structure; irregular galaxies show non-global behavior
+- Classification: `regime_fragmented`
 
-- SPARC → `regime_dependent` (fragmented criticality)
-- YANG → `regime_dependent`
-- MOJAVE → `global_critical`
-- SP500 → `transition`
-- ECONOMY → `non_linear`
+**NASA Exoplanet False Positives (KOI, N≈4500)**
+- Initial signal disappears after control (SNR, duration)
+- Classification: `confirm_noise`
 
-### Validation (negative controls)
+**Galaxy Clusters (N=1959)**
+- Strong global M500–L500 correlation; residual fully explained by redshift
+- Classification: `derived_quantity_bias`
 
-- NASA Exoplanet False Positives → CONFIRM_NOISE ✔
-- SPARC outliers → no structure ✔
-- SPARC bulk → structured regime-dependent signal ✔
+**Nebulae (control)**
+- Signal recovered only through mediated channel (OH → Te → flux)
+- Classification: `mediated_signal`
+
+### Validation summary
+
+| Dataset | N | Classification |
+|---|---|---|
+| SPARC | 79 | `regime_dependent` |
+| LITTLE THINGS | 25 | `regime_fragmented` |
+| NASA KOI FP | ~4500 | `confirm_noise` |
+| Galaxy Clusters | 1959 | `derived_bias` |
+| Nebulae | control | `mediated_signal` |
+
 - No false positives detected
+- Correct signal detection and noise rejection confirmed
 
 ### Changed
 
-- `README.md` fully updated with v2.7 key results, classification table, validation summary, and DOI
+- `README.md` updated: subtitle, full classification table, per-dataset results, validation table
+- Classification taxonomy expanded from 5 classes to 6 (replacing earlier `global_critical`/`transition`/`non_linear` with new operational classes)
 
 ### Notes
 
 - v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) is preserved and remains fully valid
 - v2.7 extends v2.6 — it does not replace it
+- Nebulae test is used as method validation, not as a physical claim
+- Cluster analysis reveals dataset construction bias, not a new astrophysical relation
 
 ---
 

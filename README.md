@@ -1,6 +1,6 @@
 # SCM — Motor de Velos
 
-## v2.7 — Structural Signal Classification (Regime & Criticality)
+## v2.7 — Structural Signal Classification (Regime, Noise, Bias & Mediation)
 
 The SCM Framework is a reproducible empirical system designed to detect, classify, and validate structural signals in complex datasets.
 
@@ -8,57 +8,56 @@ It does not assume signals — it tests whether they exist.
 
 ---
 
-## Key Result (SPARC)
+## Core Results
 
-Analysis of 79 SPARC galaxies shows:
+### SPARC (N=79)
 
-- No global environmental law
-- Clear regime-dependent behavior
-- Critical mass threshold at:
-
-> logM ≈ 9.8–10.0
-
-Above this threshold:
-
-- Strong negative correlation between environment and outer slope
-
-Best regime:
-
-- logM ≈ 10.75
-- ρ ≈ -0.65
+- Regime-dependent signal confirmed
+- ρ ≈ -0.65 (high-mass regime)
 - p ≈ 1.1 × 10⁻⁴
-- β_env ≈ -0.061
 - R² ≈ 0.33
+- Mass threshold: logM ≈ 9.8–10.0
+- Classification: `regime_dependent`
 
-Below threshold:
+### LITTLE THINGS (N=25)
 
-- No detectable correlation
+- Mixed / fragmented structure
+- Irregular galaxies show non-global behavior
+- Classification: `regime_fragmented`
+
+### NASA Exoplanet False Positives (KOI, N≈4500)
+
+- Initial signal disappears after control (SNR, duration)
+- Classification: `confirm_noise`
+
+### Galaxy Clusters (N=1959)
+
+- Strong global correlation detected (M500–L500)
+- Residual fully explained by redshift
+- Classification: `derived_quantity_bias`
+
+### Nebulae (control test)
+
+- Signal exists only through mediated channel (OH → Te → flux)
+- Fully recovered when isolating causal chain
+- Classification: `mediated_signal`
 
 ---
 
-## Interpretation
+## SCM Classification System (v2.7)
 
-Environmental modulation is not universal.
-
-It emerges only in a high-mass regime, indicating a transition in galaxy dynamics.
-
----
-
-## Structural Signal Classification (v2.7)
-
-The framework now classifies not only the presence of signal, but its structure:
+The framework now distinguishes six structural regimes:
 
 | Class | Description |
 |---|---|
-| `global_critical` | Criticality is uniform across the full state space |
-| `regime_dependent` | Criticality is fragmented across mass/energy regimes |
-| `transition` | System is near a structural boundary |
-| `non_linear` | Signal exists but lacks a linear critical structure |
-| `none` | No detectable structure |
+| `global_structured` | Strong, uniform signal across full state space |
+| `regime_dependent` | Signal exists only above a critical mass/energy threshold |
+| `regime_fragmented` | Mixed or irregular structure, non-global behavior |
+| `confirm_noise` | Apparent signal disappears after proper controls |
+| `derived_bias` | Signal is an artefact of dataset construction |
+| `mediated_signal` | Signal exists only through a confounding causal chain |
 
-**Key insight:** Signal is not uniformly distributed in state space. Some systems concentrate criticality, while others fragment it across regimes.
-
-Validated across: SPARC (`regime_dependent`), YANG (`regime_dependent`), MOJAVE (`global_critical`), SP500 (`transition`), ECONOMY (`non_linear`).
+**Key insight:** SCM does not search for strong signals in clean data. It classifies structure in noisy, rejected, or ambiguous datasets — separating real structure from false positives, construction biases, and mediated dependencies.
 
 ---
 
@@ -87,17 +86,24 @@ Key features:
 
 ## Validation
 
-The framework was stress-tested against:
+The framework was stress-tested across five independent datasets:
 
-- NASA Exoplanet False Positives → CONFIRM_NOISE
-- SPARC Outliers → no structure
-- SPARC Bulk → structured signal
+| Dataset | N | Result |
+|---|---|---|
+| SPARC | 79 | `regime_dependent` — ρ ≈ -0.65, p ≈ 1.1×10⁻⁴ |
+| LITTLE THINGS | 25 | `regime_fragmented` — irregular, non-global |
+| NASA KOI false positives | ~4500 | `confirm_noise` — signal vanishes under control |
+| Galaxy Clusters | 1959 | `derived_bias` — residual explained by redshift |
+| Nebulae | control | `mediated_signal` — causal chain recovered |
 
 This demonstrates:
 
 - no false positives
 - correct signal detection
-- correct rejection of noise
+- correct rejection of noise and construction biases
+- recovery of mediated causal structure
+
+> Nebulae test is used as method validation, not as a physical claim. Cluster analysis reveals dataset construction bias, not a new astrophysical relation.
 
 ---
 
