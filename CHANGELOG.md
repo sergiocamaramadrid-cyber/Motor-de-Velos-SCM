@@ -14,18 +14,39 @@ All notable changes to this project are documented here.
   - `transition` — system is near a structural boundary
   - `non_linear` — signal exists but lacks a linear critical structure
   - `none` — no detectable structure
-- Cross-dataset validation results:
-  - SPARC → `regime_dependent` (fragmented criticality)
-  - YANG → `regime_dependent`
-  - MOJAVE → `global_critical`
-  - SP500 → `transition`
-  - ECONOMY → `non_linear`
-- SCM v2.7 section in `README.md`
-- This `CHANGELOG.md`
+- Regime-dependent signal classification pipeline
+- Critical mass threshold detection (SPARC)
+- Bulk vs outlier separation
+- Residual-based validation pipeline
+- NASA false positive control test
+
+### Key Results (SPARC, N=79)
+
+- No global environmental law
+- Critical mass threshold at logM ≈ 9.8–10.0
+- Strong environmental modulation above threshold
+- Peak signal at logM ≈ 10.75:
+  - ρ ≈ -0.65, p ≈ 1.1 × 10⁻⁴, β_env ≈ -0.061, R² ≈ 0.33
+- No detectable correlation below threshold
+
+### Cross-dataset validation
+
+- SPARC → `regime_dependent` (fragmented criticality)
+- YANG → `regime_dependent`
+- MOJAVE → `global_critical`
+- SP500 → `transition`
+- ECONOMY → `non_linear`
+
+### Validation (negative controls)
+
+- NASA Exoplanet False Positives → CONFIRM_NOISE ✔
+- SPARC outliers → no structure ✔
+- SPARC bulk → structured regime-dependent signal ✔
+- No false positives detected
 
 ### Changed
 
-- `README.md` updated with v2.7 structural classification table and validation summary
+- `README.md` fully updated with v2.7 key results, classification table, validation summary, and DOI
 
 ### Notes
 
@@ -55,3 +76,4 @@ All notable changes to this project are documented here.
 ## Earlier versions
 
 See commit history for prior development milestones.
+

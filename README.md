@@ -1,56 +1,50 @@
-# Motor de Velos SCM
+# SCM — Motor de Velos
 
-## Overview
+## v2.7 — Structural Signal Classification (Regime & Criticality)
 
-This repository contains the SCM (Motor de Velos) framework and its experimental extensions for structural analysis of relationships in data.
+The SCM Framework is a reproducible empirical system designed to detect, classify, and validate structural signals in complex datasets.
 
----
-
-## SCM-RAA v2.6-experimental
-
-An experimental structural classification layer designed to evaluate relationships between variables.
-
-This module extends the SCM framework but is developed and validated independently.
-
-Located in:
-
-- `notebooks/experimental/`
-- `data/processed/`
-- `docs/scm_raa/`
+It does not assume signals — it tests whether they exist.
 
 ---
 
-## What SCM-RAA does
+## Key Result (SPARC)
 
-SCM-RAA classifies relationships into three levels:
+Analysis of 79 SPARC galaxies shows:
 
-- **Foreground** → robust structural signal
-- **Midground** → weak or diffuse structure
-- **Background** → noise / no detectable structure
+- No global environmental law
+- Clear regime-dependent behavior
+- Critical mass threshold at:
 
----
+> logM ≈ 9.8–10.0
 
-## Key features
+Above this threshold:
 
-- CRTT (piecewise vs linear model comparison using AIC)
-- Regime Signature (quantitative vector)
-- Bootstrap stability analysis
-- Decision layer with explicit false-positive control
+- Strong negative correlation between environment and outer slope
 
----
+Best regime:
 
-## Validation
+- logM ≈ 10.75
+- ρ ≈ -0.65
+- p ≈ 1.1 × 10⁻⁴
+- β_env ≈ -0.061
+- R² ≈ 0.33
 
-Validated using:
+Below threshold:
 
-- Synthetic noise (no false positives)
-- Financial data (strong structural signal)
-- Astrophysical datasets (weak/modulated signals)
-- Control datasets (correct classification as noise)
+- No detectable correlation
 
 ---
 
-## SCM v2.7 — Structural Signal Classification
+## Interpretation
+
+Environmental modulation is not universal.
+
+It emerges only in a high-mass regime, indicating a transition in galaxy dynamics.
+
+---
+
+## Structural Signal Classification (v2.7)
 
 The framework now classifies not only the presence of signal, but its structure:
 
@@ -64,21 +58,66 @@ The framework now classifies not only the presence of signal, but its structure:
 
 **Key insight:** Signal is not uniformly distributed in state space. Some systems concentrate criticality, while others fragment it across regimes.
 
-Validated across: SPARC (regime_dependent), YANG (regime_dependent), MOJAVE (global_critical), SP500 (transition), ECONOMY (non_linear).
+Validated across: SPARC (`regime_dependent`), YANG (`regime_dependent`), MOJAVE (`global_critical`), SP500 (`transition`), ECONOMY (`non_linear`).
+
+---
+
+## v2.6 — SCM-RAA (preserved)
+
+An experimental structural classification layer designed to evaluate relationships between variables.
+
+This module extends the SCM framework but is developed and validated independently.
+
+SCM-RAA classifies relationships into three levels:
+
+- **Foreground** → robust structural signal
+- **Midground** → weak or diffuse structure
+- **Background** → noise / no detectable structure
+
+Key features:
+
+- CRTT (piecewise vs linear model comparison using AIC)
+- Regime Signature (quantitative vector)
+- Bootstrap stability analysis
+- Decision layer with explicit false-positive control
 
 > v2.7 is an evolution of v2.6, not a replacement. The v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) remains fully valid.
 
 ---
 
-## Important note
+## Validation
 
-This module is **experimental** and intended for:
+The framework was stress-tested against:
 
-- validation
-- audit
-- controlled expansion
+- NASA Exoplanet False Positives → CONFIRM_NOISE
+- SPARC Outliers → no structure
+- SPARC Bulk → structured signal
 
-It is not a final predictive model.
+This demonstrates:
+
+- no false positives
+- correct signal detection
+- correct rejection of noise
+
+---
+
+## Core Principle
+
+> The SCM does not search for signals.  
+> It determines whether structure exists — and where.
+
+---
+
+## Outputs
+
+All results are reproducible and stored in `/SCM_WORK/`, including:
+
+- `scm_sparc_final_figure.png`
+- `sparc_bulk_mass_threshold_scan.csv`
+- `sparc_bulk_2d_grid.csv`
+- `sparc_outliers.csv`
+- `scm_nasa_fp_session.json`
+- `SCM_v2_7_paper_results_summary.csv`
 
 ---
 
@@ -113,7 +152,15 @@ pip install -r requirements.txt
 
 ## Citation
 
-See `CITATION.cff` and the Zenodo archive (DOI: see release page).
+> DOI: 10.5281/zenodo.19897353
+
+See also `CITATION.cff` and the Zenodo archive.
+
+---
+
+## Status
+
+Framework validated. Results reproducible. Ready for publication.
 
 ---
 
@@ -123,7 +170,7 @@ Refer to the LICENSE file.
 
 ---
 
-## Contact
+## Author
 
-Author: Sergio Cámara Madrid  
+Sergio Cámara Madrid — Independent Researcher  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
