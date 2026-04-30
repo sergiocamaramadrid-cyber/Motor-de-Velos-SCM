@@ -4,7 +4,7 @@ All notable changes to this project are documented here.
 
 ---
 
-## [v2.7.0] — 2026-04-30
+## [v2.8.0] — 2026-04-30
 
 ### Added
 
@@ -70,7 +70,7 @@ All notable changes to this project are documented here.
 ### Notes
 
 - v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) is preserved and remains fully valid
-- v2.7 extends v2.6 — it does not replace it
+- v2.8 extends v2.6 — it does not replace it
 - Nebulae test is used as method validation, not as a physical claim
 - Cluster analysis reveals dataset construction bias, not a new astrophysical relation
 

@@ -1,6 +1,6 @@
 # SCM — Motor de Velos
 
-## v2.7 — Structural Signal Classification (Regime, Noise, Bias & Mediation)
+## v2.8 — Structural Signal Classification (Regime, Noise, Bias & Mediation)
 
 The SCM Framework is a reproducible empirical system designed to detect, classify, and validate structural signals in complex datasets.
 
@@ -44,7 +44,7 @@ It does not assume signals — it tests whether they exist.
 
 ---
 
-## SCM Classification System (v2.7)
+## SCM Classification System (v2.8)
 
 The framework now distinguishes six structural regimes:
 
@@ -80,7 +80,7 @@ Key features:
 - Bootstrap stability analysis
 - Decision layer with explicit false-positive control
 
-> v2.7 is an evolution of v2.6, not a replacement. The v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) remains fully valid.
+> v2.8 is an evolution of v2.6, not a replacement. The v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) remains fully valid.
 
 ---
 
