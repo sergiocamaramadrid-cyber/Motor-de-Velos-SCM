@@ -2,13 +2,13 @@
 
 ## Overview
 
-This repository contains the implementation of the Structural Coupling Model (SCM), an empirical framework designed to test whether residuals from standard kinematic models in astrophysical systems are consistent with stochastic noise or exhibit structured behaviour.
+This repository implements the Structural Coupling Model (SCM), an empirical framework designed to test whether residuals from standard kinematic models are consistent with stochastic noise or exhibit statistically significant structure.
 
 The central question addressed is:
 
-> Are deviations from global kinematic relations purely random, or do they contain statistically significant structure?
+> Are deviations from global kinematic relations purely random, or do they contain structured information?
 
-This project does not propose a new physical law. Instead, it provides a reproducible statistical test of residual structure across independent datasets.
+This work does not propose a new physical law. Instead, it provides a reproducible statistical test of residual structure across independent datasets.
 
 ---
 
@@ -39,7 +39,7 @@ Across multiple datasets, we find:
 | LITTLE THINGS | Dwarf irregular galaxies | 26 | Null result (noise-dominated regime) |
 | MOJAVE | Relativistic jet sample | ~65 | Weak / inconclusive signal |
 
-All datasets used are publicly available and referenced below.
+All datasets are publicly available and referenced in the manuscript.
 
 ---
 
@@ -47,28 +47,28 @@ All datasets used are publicly available and referenced below.
 
 ### Baseline Model
 
-A global linear model is fitted:
+A global linear relation is fitted:
 
 ```
 y = β₀ + β₁ x + ε
 ```
 
-where ε represents the residual component.
+where ε denotes the residual component.
 
 ### Residual Structure Test (P1)
 
-We test whether the residuals are structured using:
+Residual structure is assessed via:
 
 - Bootstrap resampling (≥ 1000 iterations)
 - Confidence interval of ΔRSS = RSS_global − RSS_model
 
 **Criterion:**
-- ✔ Structured if IC95% does not include 0
-- ✘ Not structured otherwise
+- ✔ Structured if IC95% excludes 0
+- ✘ Otherwise not supported
 
 ### Threshold Test (P2)
 
-A piecewise model is evaluated:
+A piecewise model is evaluated using CRTT:
 
 - Grid search over threshold parameter τ
 - Permutation test (≥ 500 iterations)
@@ -79,7 +79,7 @@ A piecewise model is evaluated:
 
 ### Environmental Test (P3)
 
-Regression of residuals vs environmental proxy, stratified by mass quartiles and evaluated in the high-mass regime (Q4).
+Regression of residuals against environmental proxies, stratified by mass quartiles and evaluated in the high-mass regime (Q4).
 
 **Criterion:**
 - ✔ Significant if β_env < 0 and p < 0.05
@@ -91,12 +91,10 @@ Regression of residuals vs environmental proxy, stratified by mass quartiles and
 
 The SCM framework is considered falsified if any of the following occur:
 
-1. **No residual structure** — IC95%(ΔRSS) includes 0 across datasets
-2. **Instability under resampling** — results fail under bootstrap / permutation / out-of-sample tests
+1. **No residual structure** — IC95%(ΔRSS) includes 0 across independent datasets
+2. **Instability under resampling** — results fail under bootstrap, permutation, or OOS validation
 3. **False positives in control datasets** — null systems (e.g. LITTLE THINGS) show significant structure
-4. **Disappearance with larger samples** — signal weakens systematically as N increases
-
-These criteria are explicitly tested in this repository.
+4. **Signal disappearance with larger samples** — effects weaken systematically as N increases
 
 ---
 
@@ -142,32 +140,35 @@ Outputs include: bootstrap distributions, permutation statistics, final results 
 
 ## Scientific Interpretation
 
-The key finding is:
+The primary result is:
 
-> Standard kinematic models fail systematically in a structured way, but this structure cannot yet be attributed to a single physical driver.
+> Standard kinematic models fail in a structured manner, but the origin of this structure cannot yet be attributed to a single physical mechanism.
 
-This reframes the problem:
+This reframes the problem from:
 
-- Not "find the law"
-- But "characterise the failure of existing laws"
+- "deriving a universal law"
+
+to:
+
+- "characterising systematic deviations from existing models"
 
 ---
 
 ## Limitations
 
-- Sample sizes are small, especially in the high-mass regime
-- Environmental proxies may be incomplete representations of true environment
-- The linear baseline model may underfit complex dynamics
+- Limited sample size (especially in the high-mass regime)
+- Environmental proxies may be incomplete or noisy
+- The linear baseline model may not capture higher-order structure
 
 ---
 
 ## Future Work
 
-To test the physical origin of residual structure:
+To identify the physical origin of residual structure:
 
-- Increase N in high-mass regime
-- Improve environmental metrics
-- Explore multi-variable coupling models
+- Increase sample size (N), particularly at high mass
+- Improve environmental indicators
+- Explore multi-variable and non-linear models
 
 ---
 
@@ -175,8 +176,8 @@ To test the physical origin of residual structure:
 
 This work is intentionally conservative:
 
-- No new physics is claimed
-- No overinterpretation of marginal signals
+- No new physical law is proposed
+- No marginal signals are overinterpreted
 - All conclusions follow directly from statistical tests
 
 ---
