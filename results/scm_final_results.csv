@@ -1,0 +1,6 @@
+dataset,N,test,delta_rss_ic95_low,delta_rss_ic95_high,p_perm,conclusion
+SPARC,92,P1_residual_structure,0.13,1.10,0.224,structured_residuals
+YANG,79,P3_environment,NA,NA,0.218,no_significant_environment
+LITTLE_THINGS,26,P1_residual_structure,NA,NA,NA,null_result
+MOJAVE,65,P1_residual_structure,NA,NA,NA,weak_signal
+SPARC,92,P2_threshold,NA,NA,0.182,threshold_not_robust

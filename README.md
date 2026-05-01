@@ -1,139 +1,198 @@
-# SCM — Motor de Velos
+# SCM — Structured Residuals in Galaxy Kinematics
 
-## v2.8 — Structural Signal Classification (Regime, Noise, Bias & Mediation)
+## Overview
 
-The SCM Framework is a reproducible empirical system designed to detect, classify, and validate structural signals in complex datasets.
+This repository contains the implementation of the Structural Coupling Model (SCM), an empirical framework designed to test whether residuals from standard kinematic models in astrophysical systems are consistent with stochastic noise or exhibit structured behaviour.
 
-It does not assume signals — it tests whether they exist.
+The central question addressed is:
 
----
+> Are deviations from global kinematic relations purely random, or do they contain statistically significant structure?
 
-## Core Results
-
-### SPARC (N=79)
-
-- Regime-dependent signal confirmed
-- ρ ≈ -0.65 (high-mass regime)
-- p ≈ 1.1 × 10⁻⁴
-- R² ≈ 0.33
-- Mass threshold: logM ≈ 9.8–10.0
-- Classification: `regime_dependent`
-
-### LITTLE THINGS (N=25)
-
-- Mixed / fragmented structure
-- Irregular galaxies show non-global behavior
-- Classification: `regime_fragmented`
-
-### NASA Exoplanet False Positives (KOI, N≈4500)
-
-- Initial signal disappears after control (SNR, duration)
-- Classification: `confirm_noise`
-
-### Galaxy Clusters (N=1959)
-
-- Strong global correlation detected (M500–L500)
-- Residual fully explained by redshift
-- Classification: `derived_quantity_bias`
-
-### Nebulae (control test)
-
-- Signal exists only through mediated channel (OH → Te → flux)
-- Fully recovered when isolating causal chain
-- Classification: `mediated_signal`
+This project does not propose a new physical law. Instead, it provides a reproducible statistical test of residual structure across independent datasets.
 
 ---
 
-## SCM Classification System (v2.8)
+## Core Result
 
-The framework now distinguishes six structural regimes:
+Across multiple datasets, we find:
 
-| Class | Description |
-|---|---|
-| `global_structured` | Strong, uniform signal across full state space |
-| `regime_dependent` | Signal exists only above a critical mass/energy threshold |
-| `regime_fragmented` | Mixed or irregular structure, non-global behavior |
-| `confirm_noise` | Apparent signal disappears after proper controls |
-| `derived_bias` | Signal is an artefact of dataset construction |
-| `mediated_signal` | Signal exists only through a confounding causal chain |
+✔ Residuals are statistically structured (bootstrap ΔRSS confidence intervals exclude zero in SPARC)
 
-**Key insight:** SCM does not search for strong signals in clean data. It classifies structure in noisy, rejected, or ambiguous datasets — separating real structure from false positives, construction biases, and mediated dependencies.
+✘ No statistically robust mass-threshold transition detected
 
----
+✘ No statistically significant environmental modulation
 
-## v2.6 — SCM-RAA (preserved)
+✔ Existence of null regimes consistent with noise-dominated systems (e.g. LITTLE THINGS)
 
-An experimental structural classification layer designed to evaluate relationships between variables.
+**Conclusion:**
 
-This module extends the SCM framework but is developed and validated independently.
-
-SCM-RAA classifies relationships into three levels:
-
-- **Foreground** → robust structural signal
-- **Midground** → weak or diffuse structure
-- **Background** → noise / no detectable structure
-
-Key features:
-
-- CRTT (piecewise vs linear model comparison using AIC)
-- Regime Signature (quantitative vector)
-- Bootstrap stability analysis
-- Decision layer with explicit false-positive control
-
-> v2.8 is an evolution of v2.6, not a replacement. The v2.6 decision layer (`foreground_confirmed`, `midground_candidate`, `background_confirmed`) remains fully valid.
+> Residuals in galaxy kinematics are not purely stochastic, but their physical origin (mass-driven, environment-driven, or multi-variable coupling) cannot be established with current sample sizes and proxies.
 
 ---
 
-## Validation
+## Datasets
 
-The framework was stress-tested across five independent datasets:
+| Dataset | Description | N | Result |
+|---|---|---|---|
+| SPARC | Galaxy rotation curves | 92 | Structured residuals (P1 ✔) |
+| YANG | Group catalog + environment proxies | 79 | No significant environmental dependence (P3 ✘) |
+| LITTLE THINGS | Dwarf irregular galaxies | 26 | Null result (noise-dominated regime) |
+| MOJAVE | Relativistic jet sample | ~65 | Weak / inconclusive signal |
 
-| Dataset | N | Result |
+All datasets used are publicly available and referenced below.
+
+---
+
+## Methodology
+
+### Baseline Model
+
+A global linear model is fitted:
+
+```
+y = β₀ + β₁ x + ε
+```
+
+where ε represents the residual component.
+
+### Residual Structure Test (P1)
+
+We test whether the residuals are structured using:
+
+- Bootstrap resampling (≥ 1000 iterations)
+- Confidence interval of ΔRSS = RSS_global − RSS_model
+
+**Criterion:**
+- ✔ Structured if IC95% does not include 0
+- ✘ Not structured otherwise
+
+### Threshold Test (P2)
+
+A piecewise model is evaluated:
+
+- Grid search over threshold parameter τ
+- Permutation test (≥ 500 iterations)
+
+**Criterion:**
+- ✔ Transition if p_perm < 0.05 and σ(τ) ≤ 0.15
+- ✘ Otherwise not robust
+
+### Environmental Test (P3)
+
+Regression of residuals vs environmental proxy, stratified by mass quartiles and evaluated in the high-mass regime (Q4).
+
+**Criterion:**
+- ✔ Significant if β_env < 0 and p < 0.05
+- ✘ Otherwise not supported
+
+---
+
+## Falsifiability Criteria
+
+The SCM framework is considered falsified if any of the following occur:
+
+1. **No residual structure** — IC95%(ΔRSS) includes 0 across datasets
+2. **Instability under resampling** — results fail under bootstrap / permutation / out-of-sample tests
+3. **False positives in control datasets** — null systems (e.g. LITTLE THINGS) show significant structure
+4. **Disappearance with larger samples** — signal weakens systematically as N increases
+
+These criteria are explicitly tested in this repository.
+
+---
+
+## Final Results Summary
+
+| Test | Result | Interpretation |
 |---|---|---|
-| SPARC | 79 | `regime_dependent` — ρ ≈ -0.65, p ≈ 1.1×10⁻⁴ |
-| LITTLE THINGS | 25 | `regime_fragmented` — irregular, non-global |
-| NASA KOI false positives | ~4500 | `confirm_noise` — signal vanishes under control |
-| Galaxy Clusters | 1959 | `derived_bias` — residual explained by redshift |
-| Nebulae | control | `mediated_signal` — causal chain recovered |
+| P1 — Residual structure (SPARC) | ✔ Confirmed | Residuals are not noise |
+| P2 — Threshold | ✘ Not robust | No evidence of mass transition |
+| P3 — Environment (YANG) | ✘ Not significant | No confirmed modulation |
 
-This demonstrates:
-
-- no false positives
-- correct signal detection
-- correct rejection of noise and construction biases
-- recovery of mediated causal structure
-
-> Nebulae test is used as method validation, not as a physical claim. Cluster analysis reveals dataset construction bias, not a new astrophysical relation.
+See `results/scm_final_results.csv` for the full validated results table.
 
 ---
 
-## Core Principle
+## Reproducibility
 
-> The SCM does not search for signals.  
-> It determines whether structure exists — and where.
+All results can be reproduced using:
 
----
+```bash
+git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
+cd Motor-de-Velos-SCM
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python scripts/run_scm.py
+```
 
-## Outputs
-
-All results are reproducible and stored in `/SCM_WORK/`, including:
-
-- `scm_sparc_final_figure.png`
-- `sparc_bulk_mass_threshold_scan.csv`
-- `sparc_bulk_2d_grid.csv`
-- `sparc_outliers.csv`
-- `scm_nasa_fp_session.json`
-- `SCM_v2_7_paper_results_summary.csv`
+Outputs include: bootstrap distributions, permutation statistics, final results table, and figures.
 
 ---
 
-## Repository structure
+## Repository Structure
 
-- `notebooks/experimental/` → reproducible pipelines
-- `data/processed/` → validated outputs
-- `docs/scm_raa/` → technical documentation
-- `scripts/` → analysis scripts
+- `scripts/` → analysis scripts (main pipeline entry points)
 - `tests/` → unit and integration tests
+- `data/` → processed input catalogs
+- `results/` → validated output tables and figures
+- `docs/` → technical documentation and development notes
+- `notebooks/experimental/` → exploratory pipelines (not production)
+
+---
+
+## Scientific Interpretation
+
+The key finding is:
+
+> Standard kinematic models fail systematically in a structured way, but this structure cannot yet be attributed to a single physical driver.
+
+This reframes the problem:
+
+- Not "find the law"
+- But "characterise the failure of existing laws"
+
+---
+
+## Limitations
+
+- Sample sizes are small, especially in the high-mass regime
+- Environmental proxies may be incomplete representations of true environment
+- The linear baseline model may underfit complex dynamics
+
+---
+
+## Future Work
+
+To test the physical origin of residual structure:
+
+- Increase N in high-mass regime
+- Improve environmental metrics
+- Explore multi-variable coupling models
+
+---
+
+## Positioning
+
+This work is intentionally conservative:
+
+- No new physics is claimed
+- No overinterpretation of marginal signals
+- All conclusions follow directly from statistical tests
+
+---
+
+## Citation
+
+> DOI: 10.5281/zenodo.19897353
+
+If you use this work, please also cite the underlying datasets:
+
+- Lelli et al. 2016 (SPARC)
+- Yang et al. 2007 (YANG)
+- Hunter et al. 2012 (LITTLE THINGS)
+- Lister et al. 2019 (MOJAVE)
+
+See also `CITATION.cff` and the Zenodo archive.
 
 ---
 
@@ -143,30 +202,6 @@ All results are reproducible and stored in `/SCM_WORK/`, including:
 
 - Python 3.10 or later
 - Dependencies: see `requirements.txt`
-
-### Setup
-
-```bash
-git clone https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM.git
-cd Motor-de-Velos-SCM
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-```
-
----
-
-## Citation
-
-> DOI: 10.5281/zenodo.19897353
-
-See also `CITATION.cff` and the Zenodo archive.
-
----
-
-## Status
-
-Framework validated. Results reproducible. Ready for publication.
 
 ---
 
@@ -180,3 +215,8 @@ Refer to the LICENSE file.
 
 Sergio Cámara Madrid — Independent Researcher  
 Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
+
+---
+
+> This repository demonstrates that kinematic residuals contain structured information not captured by standard models.  
+> Determining the physical origin of this structure remains an open problem.

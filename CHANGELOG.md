@@ -4,6 +4,30 @@ All notable changes to this project are documented here.
 
 ---
 
+## [v3.0.0] — 2026-05-01
+
+### Summary
+
+Narrative realignment to reflect validated statistical results without unsupported claims.
+Code, scripts, tests, and pipelines are unchanged.
+
+### Changed
+
+- **README.md** — complete rewrite aligned with validated results:
+  - Removed claims not supported by statistical tests (mass-threshold transition, environmental modulation confirmation)
+  - Replaced with honest summary: residuals are structured (P1 ✔), threshold not robust (P2 ✘), environment not significant (P3 ✘)
+  - Removed "Ready for publication" status
+  - Added explicit falsifiability criteria
+  - Added limitations section
+- **CHANGELOG.md** — softened v2.8.0 "confirmed" language to match statistical evidence
+- **results/scm_final_results.csv** — new validated results table (one row per dataset/test)
+
+### Positioning
+
+> This project does not propose a new physical law. It demonstrates that kinematic residuals contain structured information not captured by standard models.
+
+---
+
 ## [v2.8.0] — 2026-04-30
 
 ### Added
@@ -28,10 +52,10 @@ All notable changes to this project are documented here.
 ### Key Results
 
 **SPARC (N=79)**
-- Regime-dependent signal confirmed
+- Residual structure detected (bootstrap IC95% excludes zero)
 - ρ ≈ -0.65 (high-mass regime), p ≈ 1.1 × 10⁻⁴, R² ≈ 0.33
-- Mass threshold: logM ≈ 9.8–10.0
-- Classification: `regime_dependent`
+- Mass threshold (logM ≈ 9.8–10.0) observed but not statistically robust under permutation
+- Classification: `regime_dependent` (tentative)
 
 **LITTLE THINGS (N=25)**
 - Mixed / fragmented structure; irregular galaxies show non-global behavior
@@ -42,7 +66,7 @@ All notable changes to this project are documented here.
 - Classification: `confirm_noise`
 
 **Galaxy Clusters (N=1959)**
-- Strong global M500–L500 correlation; residual fully explained by redshift
+- Strong global M500–L500 correlation; residual explained by redshift
 - Classification: `derived_quantity_bias`
 
 **Nebulae (control)**
@@ -53,19 +77,16 @@ All notable changes to this project are documented here.
 
 | Dataset | N | Classification |
 |---|---|---|
-| SPARC | 79 | `regime_dependent` |
+| SPARC | 79 | `regime_dependent` (tentative) |
 | LITTLE THINGS | 25 | `regime_fragmented` |
 | NASA KOI FP | ~4500 | `confirm_noise` |
 | Galaxy Clusters | 1959 | `derived_bias` |
 | Nebulae | control | `mediated_signal` |
 
-- No false positives detected
-- Correct signal detection and noise rejection confirmed
-
 ### Changed
 
 - `README.md` updated: subtitle, full classification table, per-dataset results, validation table
-- Classification taxonomy expanded from 5 classes to 6 (replacing earlier `global_critical`/`transition`/`non_linear` with new operational classes)
+- Classification taxonomy expanded from 5 classes to 6
 
 ### Notes
 
