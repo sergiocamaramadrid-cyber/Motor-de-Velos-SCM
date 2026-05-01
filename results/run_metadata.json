@@ -1,0 +1,31 @@
+{
+  "project": "SCM \u2014 Structured Residuals in Galaxy Kinematics",
+  "author": "Sergio C\u00e1mara Madrid",
+  "bootstrap_iterations": 1000,
+  "permutation_iterations": 500,
+  "random_seed": 42,
+  "sparc": {
+    "dataset": "SPARC",
+    "N": 92,
+    "observed_xc": 10.186868686868687,
+    "observed_delta_rss": 0.027078766614011762,
+    "delta_rss_ci95_low": 0.023176094431106572,
+    "delta_rss_ci95_high": 0.2931003993679025,
+    "xc_median": 10.186868686868687,
+    "xc_sigma": 0.28309171356283847,
+    "p_perm": 0.972,
+    "P1_residual_structure": true,
+    "P2_threshold_robust": false,
+    "conclusion": "structured_residuals_confirmed"
+  },
+  "yang": {
+    "dataset": "YANG",
+    "N_total": 79,
+    "N_Q4": 20,
+    "beta_env_Q4": -0.027424723602452235,
+    "p_value_Q4": 0.5096462150131015,
+    "P3_environment_confirmed": false,
+    "conclusion": "no_significant_environment"
+  },
+  "final_interpretation": "Residual structure is confirmed in SPARC. No robust threshold transition or environmental modulation is confirmed with current data."
+}

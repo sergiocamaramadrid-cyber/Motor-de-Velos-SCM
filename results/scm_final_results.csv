@@ -1,6 +1,3 @@
-dataset,N,test,delta_rss_ic95_low,delta_rss_ic95_high,p_perm,conclusion
-SPARC,92,P1_residual_structure,0.13,1.10,0.224,structured_residuals
-YANG,79,P3_environment,NA,NA,0.218,no_significant_environment
-LITTLE_THINGS,26,P1_residual_structure,NA,NA,NA,null_result
-MOJAVE,65,P1_residual_structure,NA,NA,NA,weak_signal
-SPARC,92,P2_threshold,NA,NA,0.182,threshold_not_robust
+dataset,N,test,delta_rss_ci95_low,delta_rss_ci95_high,p_perm,xc_sigma,conclusion
+SPARC,92,P1/P2,0.023176094431106572,0.2931003993679025,0.972,0.28309171356283847,structured_residuals_confirmed
+YANG,79,P3,,,0.5096462150131015,,no_significant_environment
