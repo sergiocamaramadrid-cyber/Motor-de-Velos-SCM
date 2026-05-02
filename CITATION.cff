@@ -1,29 +1,14 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
-message: "If you use this dataset or code, please cite it as below."
-type: dataset
+title: "SCM — Motor de Velos"
+message: "If you use this software, please cite it using the metadata below."
+type: software
 
 authors:
+  - family-names: "Cámara Madrid"
+    given-names: "Sergio"
 
-- family-names: "Cámara Madrid"
-  given-names: "Sergio"
+doi: 10.5281/zenodo.19897353
+version: v2.8.0
+date-released: 2026-05-02
 
-identifiers:
-
-- type: doi
-  value: "10.5281/zenodo.19455777"
-
-repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
-
-keywords:
-
-- astrophysics
-- galaxy dynamics
-- SPARC
-- rotation curves
-- environmental effects
-- reproducibility
-
-license: "MIT"
-
-date-released: 2026-04-10
+url: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
