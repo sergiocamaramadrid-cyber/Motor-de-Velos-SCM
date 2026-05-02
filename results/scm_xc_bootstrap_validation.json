@@ -1,8 +1,8 @@
 {
   "bifurcation_point_x_res": 0.0,
-  "sigma_bootstrap": 0.0,
+  "sigma_bootstrap_coef_Hx2": 0.2534773080956296,
   "n_boot": 500,
-  "criterion_pass": true,
-  "p_perm": 0.3592814371257485,
+  "criterion_pass": false,
+  "p_perm": 0.9580838323353293,
   "criterion_p_perm": false
 }

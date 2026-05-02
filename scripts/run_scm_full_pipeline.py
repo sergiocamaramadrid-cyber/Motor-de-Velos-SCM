@@ -96,7 +96,8 @@ df["Hx2"] = (df["x_res"] ** 2) * (df["x_res"] >= 0)
 # ---------------------------------------------------------------------------
 # 5. Final piecewise OLS
 # ---------------------------------------------------------------------------
-d = df.dropna()
+# Use subset dropna so MOJAVE rows (m=NaN) are retained in the combined fit
+d = df.dropna(subset=["x_res", "Hx2", "y"])
 X_final = sm.add_constant(d[["x_res", "Hx2"]])
 final_model = sm.OLS(d["y"], X_final).fit()
 
@@ -126,22 +127,21 @@ p_perm = (np.sum(np.abs(perm_t) >= abs(obs_t)) + 1) / (N_PERM + 1)
 print(f"\nPermutation p-value (Hx2 quadratic term): {p_perm:.4f}")
 
 # ---------------------------------------------------------------------------
-# 7. Bootstrap stability of bifurcation point
+# 7. Bootstrap stability of Hx2 coefficient
 # ---------------------------------------------------------------------------
 N_BOOT = 500
-boot_bif = []
+boot_coef_Hx2 = []
 
 for _ in range(N_BOOT):
     idx = rng.integers(0, len(d), size=len(d))
     d_b = d.iloc[idx].copy()
     X_b = sm.add_constant(d_b[["x_res", "Hx2"]])
     m_b = sm.OLS(d_b["y"], X_b).fit()
-    # bifurcation at x_res = 0 by construction
-    boot_bif.append(0.0)
+    boot_coef_Hx2.append(float(m_b.params["Hx2"]))
 
-sigma_bif = float(np.std(boot_bif))
+sigma_bif = float(np.std(boot_coef_Hx2))
 
-print(f"Bootstrap sigma bifurcation point: {sigma_bif:.4f}")
+print(f"\nBootstrap sigma (Hx2 coefficient): {sigma_bif:.4f}")
 
 # ---------------------------------------------------------------------------
 # 8. Save results
@@ -162,7 +162,7 @@ unique_law = {
 
 xc_validation = {
     "bifurcation_point_x_res": 0.0,
-    "sigma_bootstrap": sigma_bif,
+    "sigma_bootstrap_coef_Hx2": sigma_bif,
     "n_boot": N_BOOT,
     "criterion_pass": sigma_bif <= 0.15,
     "p_perm": float(p_perm),
