@@ -1,0 +1,15 @@
+{
+  "model": "piecewise_OLS_hinge",
+  "description": "SCM unique-law: single piecewise quadratic model fitted to combined SPARC + MOJAVE sample after mass residualisation",
+  "n_sparc": 50,
+  "n_mojave": 40,
+  "n_combined": 90,
+  "coef_x_res": null,
+  "coef_Hx2": null,
+  "pvalue_x_res": null,
+  "pvalue_Hx2": null,
+  "r_squared": null,
+  "p_perm_Hx2": null,
+  "mass_residualised": true,
+  "note": "Run scripts/run_scm_full_pipeline.py with real data to populate numerical values"
+}

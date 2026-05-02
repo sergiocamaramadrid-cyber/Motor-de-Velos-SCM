@@ -1,5 +1,5 @@
 cff-version: 1.2.0
-title: "SCM — Motor de Velos: Environmental Modulation in Galaxy Rotation Curves"
+title: "SCM — Motor de Velos"
 message: "If you use this dataset or code, please cite it as below."
 type: dataset
 
@@ -11,7 +11,7 @@ authors:
 identifiers:
 
 - type: doi
-  value: "10.5281/zenodo.19455777"
+  value: "10.5281/zenodo.19897353"
 
 repository-code: "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM"
 
@@ -21,9 +21,12 @@ keywords:
 - galaxy dynamics
 - SPARC
 - rotation curves
-- environmental effects
+- regime transition
+- bifurcation
 - reproducibility
 
 license: "MIT"
 
-date-released: 2026-04-10
+version: "2.8.0"
+
+date-released: 2026-05-02
