@@ -1,13 +1,8 @@
 {
   "bifurcation_point_x_res": 0.0,
-  "sigma_bootstrap": null,
+  "sigma_bootstrap": 0.0,
   "n_boot": 500,
-  "criterion_pass": null,
-  "p_perm": null,
-  "criterion_p_perm": null,
-  "note": "Run scripts/run_scm_full_pipeline.py with real data to populate numerical values",
-  "criteria": {
-    "p_perm": "< 0.05",
-    "sigma_bootstrap": "<= 0.15"
-  }
+  "criterion_pass": true,
+  "p_perm": 0.3592814371257485,
+  "criterion_p_perm": false
 }
