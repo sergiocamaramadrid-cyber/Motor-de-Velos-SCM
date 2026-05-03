@@ -179,6 +179,13 @@ Refer to the LICENSE file.
 
 ---
 
+## Physical interpretation
+
+A proposed interpretation of the observed regime-dependent behaviour is described in:
+- docs/TFF_HYPOTHESIS.md
+
+---
+
 ## Contact
 
 Author: Sergio Cámara Madrid  
