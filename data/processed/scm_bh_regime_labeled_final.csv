@@ -1,0 +1,4 @@
+source,theta_jet,logr15,energy_proxy,residual_theta
+# PLACEHOLDER — replace with real MOJAVE N=65 dataset
+# Required columns: theta_jet (deg), logr15 (log pc), energy_proxy, residual_theta
+# Validated results: rho(theta_jet,energy)=+0.488 p=3.79e-05 | rho(logr15,energy)=-0.567 p=8.54e-07
