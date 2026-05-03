@@ -68,3 +68,11 @@ TFF provides a possible physical explanation for the observed transition between
 ## Note
 
 This hypothesis is not required to reproduce SCM results and should be tested independently.
+
+---
+
+## Scope and limitations
+
+The TFF hypothesis is proposed as a physical interpretation of the observed correlations. It is not required to reproduce the SCM results and has not yet been directly validated through independent measurements of magnetic flux or field confinement.
+
+Future work should test this hypothesis against direct observational or simulation-based constraints.
