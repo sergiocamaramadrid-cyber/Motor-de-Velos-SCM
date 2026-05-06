@@ -1,0 +1,2 @@
+N,model,beta_logr15,p_logr15,beta_Pmed_rms,p_Pmed_rms,R2,boot_beta_Pmed_median,boot_beta_Pmed_ci95_low,boot_beta_Pmed_ci95_high,boot_frac_beta_positive,p_perm_t,p_perm_beta
+65,res_abs ~ logr15 + Pmed_rms,-4.037631157225745,0.04135713378050376,5.415498783969564,0.002692358957086521,0.08840508599669161,5.553082939050867,-0.721567978768909,18.35347202909529,0.9685,0.0235,0.1245
