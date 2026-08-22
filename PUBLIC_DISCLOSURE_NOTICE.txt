@@ -1,0 +1,45 @@
+PUBLIC DISCLOSURE NOTICE
+========================
+
+Project:    SCM — Motor de Velos (Fluid Condensation Model)
+Author:     Sergio Cámara Madrid
+Version:    v2.8.0
+Date:       2026-05-02
+DOI:        10.5281/zenodo.19897353
+Repository: https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM
+
+This notice serves as a formal public disclosure of the SCM (Motor de Velos /
+Fluid Condensation Model) framework, its associated source code, data pipelines,
+and analysis methodology.
+
+SCOPE OF DISCLOSURE
+-------------------
+This disclosure covers:
+- The conceptual model known as Motor de Velos (SCM), as described in the
+  repository documentation and the Zenodo archive referenced above.
+- All source code, scripts, and notebooks contained in this repository as of
+  the version indicated above.
+- All data contracts, statistical protocols, and reproducible evaluation
+  pipelines published in this repository.
+
+PRIORITY AND ORIGINALITY
+-------------------------
+The SCM framework was first consolidated by the author on 2026-02-12. This
+public disclosure, together with the Zenodo DOI record, constitutes an
+independent, timestamped record of the work for priority purposes.
+
+OPEN ACCESS
+-----------
+This work is published openly for scientific, academic, and general use.
+See COMMERCIAL_USE.md for guidance on commercial applications.
+
+REPRODUCIBILITY
+---------------
+All analyses are intended to be reproducible from the archived code and data
+contracts. The SHA256_MANIFEST.json file in this repository records checksums
+of key versioned files at the time of this release.
+
+CONTACT
+-------
+For questions regarding this disclosure, contact the author via the repository
+issue tracker or through the contact information provided on the Zenodo archive.

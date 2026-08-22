@@ -1,0 +1,138 @@
+{
+  "schema_version": "1.0",
+  "dita_type": "audit_evidence",
+  "title": "SCM — Motor de Velos: DITA Audit Evidence Record V1",
+  "project": "SCM — Motor de Velos (Fluid Condensation Model)",
+  "author": "Sergio Cámara Madrid",
+  "version": "v2.8.0",
+  "consolidation_date": "2026-02-12",
+  "release_date": "2026-05-02",
+  "doi": "10.5281/zenodo.19897353",
+  "repository": "https://github.com/sergiocamaramadrid-cyber/Motor-de-Velos-SCM",
+  "audit_date": "2026-08-22",
+
+  "model_identity": {
+    "name": "Motor de Velos",
+    "acronym": "SCM",
+    "full_name": "Fluid Condensation Model",
+    "description": "A galactic rotation-curve evaluation framework based on the SCM (Motor de Velos) model. Provides deterministic data processing, fixed out-of-sample validation, AICc-based model comparison, and versioned reproducible outputs.",
+    "domain": "Astrophysics / Galactic dynamics"
+  },
+
+  "reproducibility_evidence": {
+    "deterministic_preprocessing": true,
+    "fixed_oos_validation": true,
+    "oos_method": "Radial split (no post-hoc tuning)",
+    "model_comparison_criterion": "Corrected Akaike Information Criterion (AICc)",
+    "versioned_outputs": true,
+    "output_naming_convention": "results/<module>/<artifact>-v<semver>.csv",
+    "checksums_recorded": true,
+    "git_commit_hash_recorded": true
+  },
+
+  "datasets": [
+    {
+      "name": "SPARC",
+      "description": "Spitzer Photometry and Accurate Rotation Curves",
+      "status": "external — not versioned in repository",
+      "data_contract": "docs/SPARC_EXPECTED_BEHAVIOUR.md"
+    },
+    {
+      "name": "LITTLE THINGS",
+      "description": "Local Irregulars That Trace Luminosity Extremes, The H I Nearby Galaxy Survey",
+      "status": "partial fixtures in data/raw/lt_oh2015/",
+      "data_contract": "data/README.md"
+    },
+    {
+      "name": "SCM_BH_Enriched",
+      "description": "Black-hole enriched SCM candidate dataset",
+      "status": "versioned in data/SCM_BH_Enriched.csv"
+    }
+  ],
+
+  "analysis_modules": [
+    {
+      "id": "mod-001",
+      "name": "SPARC Validation Pipeline",
+      "script": "scripts/process_sparc.py",
+      "description": "Preprocesses SPARC raw data and produces versioned rotation curve outputs."
+    },
+    {
+      "id": "mod-002",
+      "name": "Deep-Regime Slope Diagnostic",
+      "script": "scripts/deep_slope_test.py",
+      "description": "Tests deep-regime slope behaviour against pre-specified thresholds."
+    },
+    {
+      "id": "mod-003",
+      "name": "Nu-Model Comparison",
+      "script": "scripts/compare_nu_models.py",
+      "description": "Compares SCM nu-model variants using AICc."
+    },
+    {
+      "id": "mod-004",
+      "name": "Blind Test — LITTLE THINGS",
+      "script": "scripts/blind_test_little_things.py",
+      "description": "Blind out-of-sample evaluation on the LITTLE THINGS dataset."
+    },
+    {
+      "id": "mod-005",
+      "name": "SCM BH Magnetic Candidate Analysis",
+      "script": "docs/SCM_BH_MAGNETIC_BLOCK_v1.md",
+      "description": "Analysis of black-hole magnetic candidate regime within the SCM framework."
+    }
+  ],
+
+  "audit_checks": [
+    {
+      "check_id": "AC-001",
+      "description": "Source code is publicly archived with DOI",
+      "status": "PASS",
+      "evidence": "Zenodo DOI: 10.5281/zenodo.19897353"
+    },
+    {
+      "check_id": "AC-002",
+      "description": "CITATION.cff present and CFF-standard compliant",
+      "status": "PASS",
+      "evidence": "CITATION.cff at repository root, cff-version 1.2.0"
+    },
+    {
+      "check_id": "AC-003",
+      "description": "SHA-256 manifest of versioned files present",
+      "status": "PASS",
+      "evidence": "SHA256_MANIFEST.json at repository root"
+    },
+    {
+      "check_id": "AC-004",
+      "description": "Public disclosure notice present",
+      "status": "PASS",
+      "evidence": "PUBLIC_DISCLOSURE_NOTICE.txt at repository root"
+    },
+    {
+      "check_id": "AC-005",
+      "description": "Statistical protocol documented",
+      "status": "PASS",
+      "evidence": "docs/SPARC_EXPECTED_BEHAVIOUR.md; README.md §Statistical Protocol"
+    },
+    {
+      "check_id": "AC-006",
+      "description": "Automated CI pipeline present",
+      "status": "PASS",
+      "evidence": ".github/workflows/ci.yml, .github/workflows/sparc_validation.yml"
+    },
+    {
+      "check_id": "AC-007",
+      "description": "Unit and integration test suite present",
+      "status": "PASS",
+      "evidence": "tests/ directory with multiple test modules"
+    },
+    {
+      "check_id": "AC-008",
+      "description": "Data contracts documented",
+      "status": "PASS",
+      "evidence": "data/README.md; docs/HISTORICAL_NOTE_MOTOR_DE_VELOS.md"
+    }
+  ],
+
+  "notes": "This DITA audit evidence record was generated at version v2.8.0 (2026-08-22). It reflects the state of the repository at that version. Future versions should regenerate this record and update the SHA256_MANIFEST.json accordingly."
+}
